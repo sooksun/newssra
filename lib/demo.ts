@@ -14,7 +14,7 @@ interface DemoProfileDef {
 
 function withEvidence(state: AssessmentState, note12 = ""): AssessmentState {
   (Object.keys(state.evidence) as IndicatorId[]).forEach((id) => {
-    state.evidence[id] = { ready: true, note: id === "1.2" ? note12 : "" };
+    state.evidence[id] = { ready: true, note: id === "1.2" ? note12 : "", files: [] };
   });
   return state;
 }
