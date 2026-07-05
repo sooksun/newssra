@@ -215,7 +215,7 @@ export default function AssessmentForm({ id, initial }: Props) {
           <div className="brand-mark">พศ</div>
           <div>
             <p className="eyebrow">ระบบคัดกรองสถานศึกษาพื้นที่ลักษณะพิเศษ</p>
-            <h1>แบบประเมินเพื่อรับเงินเพิ่ม พ.ส.ศ.</h1>
+            <h1>ร่าง แบบประเมินโรงเรียนที่ตั้งในพื้นที่ลักษณะพิเศษ พ.ศ.....</h1>
           </div>
         </div>
         <div className="top-actions" aria-label="เครื่องมือแบบประเมิน">
