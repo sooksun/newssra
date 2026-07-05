@@ -51,7 +51,7 @@ cd /DATA/AppData/www/newssra
 docker compose up -d --build
 ```
 
-- เปิดใช้งานที่ `http://<SERVER-IP>:3000`
+- เปิดใช้งานที่ `http://<SERVER-IP>:9950`
 - ข้อมูล MySQL ถูกเก็บถาวรที่ `/DATA/AppData/www/newssra/data/mysql` (bind mount)
 - ไฟล์หลักฐานที่อัปโหลด (ภาพ/PDF) ถูกเก็บถาวรที่ `/DATA/AppData/www/newssra/data/uploads` (bind mount)
 - ตารางถูกสร้างอัตโนมัติเมื่อแอปเชื่อมต่อครั้งแรก
@@ -89,4 +89,4 @@ docker exec newssra-db mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" newssra > back
 ## ข้อควรทราบ
 
 - ระบบยังไม่มีการยืนยันตัวตน (ตามขอบเขต prototype) — ถ้าเปิดออกอินเทอร์เน็ตควรวางไว้หลัง reverse proxy ที่มี auth หรือจำกัดวงด้วย firewall/VPN ก่อน
-- พอร์ต 3000 เปลี่ยนได้ที่ `ports` ใน `docker-compose.yml` เช่น `"8080:3000"`
+- พอร์ต 9950 เปลี่ยนได้ที่ `ports` ใน `docker-compose.yml` เช่น `"8080:3000"` (หรือกำหนด `APP_PORT` ตอนรัน)

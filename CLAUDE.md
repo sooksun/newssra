@@ -55,6 +55,6 @@ The authoritative spec is `docs/ข้อเสนอเกณฑ์และต
 
 ## Deployment
 
-`Dockerfile` (multi-stage, standalone output) + `docker-compose.yml` (app on :3000 + MySQL 8.4 with data bind-mounted at `./data/mysql`, uploaded evidence files at `./data/uploads` → container `/app/uploads`). Both services read `.env.production`. Full runbook in `docs/DEPLOY.md`, including the variant that points at an existing host MySQL via `host.docker.internal`.
+`Dockerfile` (multi-stage, standalone output) + `docker-compose.yml` (app on host port 9950 → container :3000 + MySQL 8.4 with data bind-mounted at `./data/mysql`, uploaded evidence files at `./data/uploads` → container `/app/uploads`). Both services read `.env.production`. Full runbook in `docs/DEPLOY.md`, including the variant that points at an existing host MySQL via `host.docker.internal`.
 
 UI text and domain terminology are Thai — keep wording consistent with the spec when adding features.
