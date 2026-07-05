@@ -20,23 +20,24 @@ services:
       - ./data/uploads:/app/uploads
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    depends_on:
-      db:
-        condition: service_healthy
+    # ใช้ MySQL ที่ติดตั้งอยู่บนเครื่อง host แล้ว (ตั้ง DB_HOST=host.docker.internal ใน .env.production)
+    # depends_on:
+    #   db:
+    #     condition: service_healthy
 
-  db:
-    image: mysql:8.4
-    container_name: newssra-db
-    restart: unless-stopped
-    env_file:
-      - .env.production
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
-    volumes:
-      - ./data/mysql:/var/lib/mysql
-    healthcheck:
-      # ping ไม่ต้องใช้รหัสผ่าน — server ตอบ (แม้ access denied) ก็ถือว่า alive
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
-      interval: 5s
-      timeout: 5s
-      retries: 40
-      start_period: 40s
+  # db:
+  #   image: mysql:8.4
+  #   container_name: newssra-db
+  #   restart: unless-stopped
+  #   env_file:
+  #     - .env.production
+  #   command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+  #   volumes:
+  #     - ./data/mysql:/var/lib/mysql
+  #   healthcheck:
+  #     # ping ไม่ต้องใช้รหัสผ่าน — server ตอบ (แม้ access denied) ก็ถือว่า alive
+  #     test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 40
+  #     start_period: 40s
