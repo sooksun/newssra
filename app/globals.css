@@ -532,6 +532,79 @@ textarea:focus {
   color: var(--blue);
 }
 
+.info-icon-wrap {
+  position: relative;
+  display: inline-flex;
+  margin-left: auto;
+}
+
+.info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid var(--blue);
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: help;
+  user-select: none;
+}
+
+.info-popup {
+  display: none;
+  position: absolute;
+  z-index: 20;
+  top: 100%;
+  right: 0;
+  margin-top: 6px;
+  width: 300px;
+  max-width: min(300px, 80vw);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+  padding: 12px 14px;
+  text-align: left;
+}
+
+.info-icon-wrap:hover .info-popup,
+.info-icon-wrap:focus .info-popup,
+.info-icon-wrap:focus-within .info-popup {
+  display: block;
+}
+
+.info-popup-title {
+  margin: 0 0 6px;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.info-popup-desc {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.info-popup-list {
+  margin: 0 0 8px;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.info-popup-evidence {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+  border-top: 1px dashed var(--line);
+  padding-top: 8px;
+}
+
 .indicator-desc {
   margin: 0;
   color: var(--muted);
@@ -1553,7 +1626,8 @@ textarea:focus {
   .brand-mark,
   .evidence-box,
   .pilot-banner,
-  .feedback-box {
+  .feedback-box,
+  .info-icon-wrap {
     display: none !important;
   }
 

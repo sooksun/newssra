@@ -68,6 +68,7 @@ function IndicatorCard({ id, assessmentId, state, computed, handlers }: CardProp
           <div className="indicator-title">
             <span className="mini-tag">{id}</span>
             <strong>{indicator.title}</strong>
+            <CriteriaInfo id={id} indicator={indicator} />
           </div>
           {indicator.desc ? <p className="indicator-desc">{indicator.desc}</p> : null}
         </div>
@@ -99,6 +100,37 @@ function IndicatorCard({ id, assessmentId, state, computed, handlers }: CardProp
         onChange={(patch) => handlers.onFeedback(id, patch)}
       />
     </article>
+  );
+}
+
+function CriteriaInfo({ id, indicator }: { id: IndicatorId; indicator: IndicatorDef }) {
+  const bands =
+    indicator.kind === "level"
+      ? indicator.options.map((option) => `${option.label} = ${option.points} คะแนน`)
+      : indicator.criteria ?? [];
+
+  return (
+    <span className="info-icon-wrap" tabIndex={0} aria-label={`เกณฑ์การให้คะแนนตัวชี้วัด ${id} ${indicator.title}`}>
+      <span className="info-icon" aria-hidden="true">
+        ?
+      </span>
+      <div className="info-popup" role="tooltip">
+        <p className="info-popup-title">
+          {id} {indicator.title}
+        </p>
+        {indicator.desc ? <p className="info-popup-desc">{indicator.desc}</p> : null}
+        {bands.length ? (
+          <ul className="info-popup-list">
+            {bands.map((line, index) => (
+              <li key={index}>{line}</li>
+            ))}
+          </ul>
+        ) : null}
+        <p className="info-popup-evidence">
+          <strong>หลักฐาน:</strong> {indicator.evidence}
+        </p>
+      </div>
+    </span>
   );
 }
 
