@@ -39,7 +39,7 @@ export default async function HomePage() {
           <div className="brand-mark">พศ</div>
           <div>
             <p className="eyebrow">ระบบคัดกรองสถานศึกษาพื้นที่ลักษณะพิเศษ</p>
-            <h1>ทะเบียนแบบประเมินเพื่อรับเงินเพิ่ม พ.ส.ศ.</h1>
+            <h1>ร่าง แบบประเมินโรงเรียนที่ตั้งในพื้นที่ลักษณะพิเศษ พ.ศ.....</h1>
           </div>
         </div>
         <div className="top-actions">
