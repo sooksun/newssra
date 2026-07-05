@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#dfe4ee;font-family:'Sarabun',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased;color:#1a2540}
+input,button,select,textarea{font-family:inherit}
+input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield}
+button{cursor:pointer}
+.nos::-webkit-scrollbar{width:0;height:0}
+.nos{scrollbar-width:none}
+@keyframes slideUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes pop{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
+.stripe{background-image:repeating-linear-gradient(135deg,#e6ebf4 0 7px,#eef2f8 7px 14px)}
+</style>
+</helmet>
+<div style="max-width:440px;margin:0 auto;height:100dvh;min-height:600px;display:flex;flex-direction:column;background:#F4F6FA;box-shadow:0 0 44px rgba(20,30,60,.14);overflow:hidden;position:relative">
+
+<sc-if value="{{ isStart }}" hint-placeholder-val="{{ true }}">
+<div style="flex:none;background:linear-gradient(160deg,#2456DE,#173CAB);color:#fff;padding:22px 18px 20px">
+  <div style="display:flex;align-items:center;gap:11px">
+    <div style="width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,.16);display:flex;align-items:center;justify-content:center;flex-none:0">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-5h6v5"/></svg>
+    </div>
+    <div style="flex:1">
+      <div style="font-size:12px;opacity:.85;font-weight:500">กระทรวงศึกษาธิการ · ก.ค.ศ.</div>
+      <div style="font-size:16px;font-weight:800;line-height:1.25">ระบบคัดกรองสถานศึกษาพื้นที่พิเศษ</div>
+    </div>
+  </div>
+  <div style="margin-top:14px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:11px 13px;font-size:12.5px;line-height:1.5">
+    แบบประเมินเหตุพิเศษจากสภาพการทำงาน เพื่อรับ<b>เงินเพิ่ม พ.ส.ศ.</b> 2,000 บาท/เดือน — กรอกข้อมูลจริง ระบบคิดคะแนนให้อัตโนมัติ
+  </div>
+</div>
+
+<div style="flex:1;overflow-y:auto" class="nos">
+  <div style="padding:16px 16px 8px">
+    <div style="font-size:12px;font-weight:700;color:#7A8296;letter-spacing:.4px;margin-bottom:10px">ข้อมูลจุดจัดการศึกษา</div>
+
+    <label style="display:block;margin-bottom:12px">
+      <span style="font-size:12px;color:#6B7488;font-weight:600;display:block;margin-bottom:5px">ชื่อจุดจัดการศึกษา</span>
+      <input value="{{ start.name }}" onInput="{{ start.onName }}" placeholder="โรงเรียน / โรงเรียนสาขา / ห้องเรียนสาขา" style="width:100%;height:46px;border:1.5px solid #E1E6F0;border-radius:12px;background:#fff;padding:0 13px;font-size:14.5px;font-weight:600;color:#1a2540;outline:none"/>
+    </label>
+
+    <div style="display:flex;gap:10px;margin-bottom:12px">
+      <label style="flex:1 1 50%">
+        <span style="font-size:12px;color:#6B7488;font-weight:600;display:block;margin-bottom:5px">รหัสสถานศึกษา</span>
+        <input value="{{ start.code }}" onInput="{{ start.onCode }}" placeholder="10 หลัก" inputmode="numeric" style="width:100%;height:46px;border:1.5px solid #E1E6F0;border-radius:12px;background:#fff;padding:0 13px;font-size:14.5px;font-weight:600;color:#1a2540;outline:none"/>
+      </label>
+      <label style="flex:1 1 50%">
+        <span style="font-size:12px;color:#6B7488;font-weight:600;display:block;margin-bottom:5px">ผู้เรียนทั้งหมด (10 มิ.ย.)</span>
+        <input value="{{ start.total }}" onInput="{{ start.onTotal }}" placeholder="คน" inputmode="numeric" style="width:100%;height:46px;border:1.5px solid #E1E6F0;border-radius:12px;background:#fff;padding:0 13px;font-size:14.5px;font-weight:700;color:#1a2540;outline:none"/>
+      </label>
+    </div>
+
+    <span style="font-size:12px;color:#6B7488;font-weight:600;display:block;margin-bottom:6px">ประเภทจุดจัดการศึกษา</span>
+    <div style="display:flex;gap:7px;margin-bottom:14px">
+      <sc-for list="{{ start.typeOpts }}" as="t" hint-placeholder-count="3">
+        <button onClick="{{ t.onSel }}" style="{{ t.style }}">{{ t.label }}</button>
+      </sc-for>
+    </div>
+
+    <div style="font-size:12px;font-weight:700;color:#7A8296;letter-spacing:.4px;margin-bottom:8px">พิกัดที่ตั้ง (GPS)</div>
+    <div style="background:#fff;border:1.5px solid #E1E6F0;border-radius:14px;overflow:hidden;margin-bottom:18px">
+      <div class="stripe" style="height:118px;position:relative;display:flex;align-items:center;justify-content:center">
+        <sc-if value="{{ start.pinned }}" hint-placeholder-val="{{ true }}">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="#E24A4A" stroke="#fff" stroke-width="1.4" style="filter:drop-shadow(0 3px 4px rgba(0,0,0,.25))"><path d="M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7z"/><circle cx="12" cy="9" r="2.4" fill="#fff" stroke="none"/></svg>
+        </sc-if>
+        <sc-if value="{{ start.notPinned }}">
+          <span style="font-size:12px;color:#98A0B0;font-family:ui-monospace,monospace">ยังไม่ปักพิกัด</span>
+        </sc-if>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:11px 13px;border-top:1px solid #EDF0F6">
+        <div style="flex:1;font-size:12.5px;font-family:ui-monospace,monospace;color:#4a5468">{{ start.coordText }}</div>
+        <button onClick="{{ start.onPin }}" style="display:flex;align-items:center;gap:6px;background:#EAF0FF;color:#1F4FD6;border:0;border-radius:10px;padding:9px 12px;font-size:12.5px;font-weight:700">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+          ปักพิกัด
+        </button>
+      </div>
+    </div>
+
+    <div style="font-size:12px;font-weight:700;color:#7A8296;letter-spacing:.4px;margin-bottom:8px">โครงสร้างการประเมิน · 5 ด้าน 100 คะแนน</div>
+    <div style="background:#fff;border:1px solid #E7EBF2;border-radius:14px;padding:5px 14px;margin-bottom:14px">
+      <sc-for list="{{ start.dims }}" as="d" hint-placeholder-count="5">
+        <div style="display:flex;align-items:center;gap:11px;padding:10px 0;border-bottom:1px solid #F1F3F8">
+          <div style="flex:none;width:26px;height:26px;border-radius:8px;background:#EAF0FF;color:#1F4FD6;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center">{{ d.no }}</div>
+          <div style="flex:1;font-size:13px;font-weight:600;color:#28324c;line-height:1.35">{{ d.title }}</div>
+          <div style="flex:none;font-size:12.5px;font-weight:800;color:#1F4FD6">{{ d.max }}</div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="display:flex;gap:8px;align-items:flex-start;background:#FCF6E9;border:1px solid #EFE1BE;color:#7A5A18;border-radius:11px;padding:10px 12px;font-size:12px;line-height:1.5;margin-bottom:6px">
+      <span style="font-weight:800">i</span>
+      <span>ข้อมูลผู้เรียนบันทึกเป็น<b>ยอดรวมเท่านั้น</b> ห้ามแนบรายชื่อรายบุคคล (PDPA) · ข้อมูลด้านบุคลากรและพื้นที่เสี่ยงยืนยันร่วมกับสำนักงานเขต</span>
+    </div>
+  </div>
+</div>
+
+<div style="flex:none;background:#fff;border-top:1px solid #EAEDF3;padding:12px 16px calc(12px + env(safe-area-inset-bottom))">
+  <button onClick="{{ start.onBegin }}" style="width:100%;height:50px;background:#1F4FD6;color:#fff;border:0;border-radius:14px;font-size:15.5px;font-weight:700;box-shadow:0 6px 16px rgba(31,79,214,.28)">เริ่มทำแบบประเมิน →</button>
+</div>
+</sc-if>
+
+<sc-if value="{{ isDim }}" hint-placeholder-val="{{ true }}">
+<div style="flex:none;background:linear-gradient(165deg,#2456DE,#1B44BD);color:#fff;padding:14px 15px 13px">
+  <div style="display:flex;align-items:center;gap:11px">
+    <button onClick="{{ onPrev }}" style="width:34px;height:34px;border-radius:10px;border:0;background:rgba(255,255,255,.16);color:#fff;font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center">‹</button>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:11px;opacity:.82;font-weight:500">{{ dimKicker }}</div>
+      <div style="font-size:14.5px;font-weight:700;line-height:1.25">{{ dimTitle }}</div>
+    </div>
+    <div style="text-align:right;flex:none">
+      <div style="font-size:19px;font-weight:800;line-height:1">{{ total }}<span style="font-size:11px;font-weight:600;opacity:.7">/100</span></div>
+      <div style="{{ level.miniStyle }}">{{ level.short }}</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:5px;margin-top:12px">
+    <sc-for list="{{ segs }}" as="sg" hint-placeholder-count="5">
+      <button onClick="{{ sg.onClick }}" style="{{ sg.style }}"></button>
+    </sc-for>
+  </div>
+</div>
+
+<div style="flex:1;overflow-y:auto" class="nos">
+  <div style="padding:14px 14px 24px">
+    <sc-if value="{{ screen.note }}">
+      <div style="display:flex;gap:8px;align-items:flex-start;background:#EEF2FB;border:1px solid #DAE3F5;color:#324263;border-radius:11px;padding:10px 12px;font-size:12.5px;margin-bottom:12px;line-height:1.5"><span style="font-weight:800">i</span><span>{{ screen.note }}</span></div>
+    </sc-if>
+
+    <sc-for list="{{ screen.indicators }}" as="ind" hint-placeholder-count="3">
+      <div style="background:#fff;border:1px solid #E7EBF2;border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:0 1px 2px rgba(20,30,60,.04);animation:slideUp .25s ease both">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px">
+              <span style="font-size:11px;font-weight:800;color:#1F4FD6;background:#EAF0FF;padding:2px 7px;border-radius:6px;letter-spacing:.3px">{{ ind.code }}</span>
+              <span style="font-size:11px;color:#98A0B0;font-weight:600">เต็ม {{ ind.max }}</span>
+            </div>
+            <div style="font-size:14.5px;font-weight:700;color:#1a2540;line-height:1.4">{{ ind.name }}</div>
+            <sc-if value="{{ ind.desc }}"><div style="font-size:12px;color:#828BA0;margin-top:3px;line-height:1.45">{{ ind.desc }}</div></sc-if>
+          </div>
+          <div style="{{ ind.badgeStyle }}">{{ ind.badgeText }}</div>
+        </div>
+
+        <sc-if value="{{ ind.isFields }}">
+          <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:13px">
+            <sc-for list="{{ ind.fields }}" as="f" hint-placeholder-count="1">
+              <label style="{{ f.wrapStyle }}">
+                <span style="font-size:11.5px;color:#6B7488;font-weight:600;display:block;margin-bottom:5px">{{ f.label }}</span>
+                <div style="display:flex;align-items:center;border:1.5px solid #E1E6F0;border-radius:11px;background:#F8FAFD;padding:0 11px;height:46px">
+                  <input type="{{ f.inputType }}" inputmode="{{ f.mode }}" value="{{ f.value }}" onInput="{{ f.onInput }}" placeholder="{{ f.ph }}" style="border:0;background:transparent;outline:none;width:100%;font-size:15px;color:#1a2540;font-weight:700;min-width:0"/>
+                  <sc-if value="{{ f.unit }}"><span style="font-size:12.5px;color:#9AA2B4;margin-left:6px;white-space:nowrap;font-weight:600">{{ f.unit }}</span></sc-if>
+                </div>
+              </label>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ ind.isLevel }}">
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:13px">
+            <sc-for list="{{ ind.options }}" as="opt" hint-placeholder-count="3">
+              <button onClick="{{ opt.onSelect }}" style="{{ opt.rowStyle }}">
+                <span style="{{ opt.badgeStyle }}">{{ opt.badgeText }}</span>
+                <span style="flex:1;font-size:12.5px;line-height:1.45;color:#2a3350;text-align:left">{{ opt.label }}</span>
+                <sc-if value="{{ opt.selected }}"><span style="flex:none;color:#1F4FD6;font-weight:800;font-size:16px">✓</span></sc-if>
+              </button>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ ind.hasResult }}">
+          <div style="{{ ind.resultStyle }}">{{ ind.resultText }}</div>
+        </sc-if>
+
+        <sc-if value="{{ ind.evidence }}">
+          <div style="margin-top:13px;border-top:1px dashed #E4E8F0;padding-top:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px">
+              <span style="font-size:12px;font-weight:700;color:#4a5468">หลักฐาน · {{ ind.evLabel }}</span>
+              <span style="{{ ind.evTagStyle }}">{{ ind.evTagText }}</span>
+            </div>
+            <sc-for list="{{ ind.evChips }}" as="ev" hint-placeholder-count="0">
+              <div style="display:flex;align-items:center;gap:9px;background:#F5F8FD;border:1px solid #E4EBF5;border-radius:11px;padding:7px 8px;margin-bottom:7px">
+                <div class="stripe" style="flex:none;width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="#E24A4A" stroke="#fff" stroke-width="1.4"><path d="M12 2C8 2 5 5 5 9c0 5 7 13 7 13s7-8 7-13c0-4-3-7-7-7z"/></svg>
+                </div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:12.5px;font-weight:700;color:#28324c;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ev.name }}</div>
+                  <div style="font-size:10.5px;color:#8892a6;font-family:ui-monospace,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ ev.meta }}</div>
+                </div>
+                <button onClick="{{ ev.onRemove }}" style="flex:none;width:26px;height:26px;border-radius:7px;border:0;background:#EEF0F5;color:#98A0B0;font-size:13px">✕</button>
+              </div>
+            </sc-for>
+            <div style="display:flex;gap:8px">
+              <button onClick="{{ ind.onPhoto }}" style="flex:1;display:flex;align-items:center;justify-content:center;gap:7px;height:40px;background:#EAF0FF;color:#1F4FD6;border:0;border-radius:10px;font-size:12.5px;font-weight:700">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 011 1v9a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13" r="3.2"/></svg>
+                ถ่ายรูป (ระบุพิกัด)
+              </button>
+              <button onClick="{{ ind.onFile }}" style="flex:none;display:flex;align-items:center;justify-content:center;gap:6px;height:40px;padding:0 14px;background:#F1F3F8;color:#5a6478;border:0;border-radius:10px;font-size:12.5px;font-weight:700">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.5l-8.5 8.5a5 5 0 01-7-7l9-9a3.3 3.3 0 015 4.5l-9 9a1.7 1.7 0 01-2.4-2.4l8-8"/></svg>
+                ไฟล์
+              </button>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-for list="{{ ind.flags }}" as="fl" hint-placeholder-count="0">
+          <div style="{{ fl.style }}"><span style="font-weight:800;flex:none">{{ fl.code }}</span><span style="flex:1">{{ fl.text }}</span></div>
+        </sc-for>
+      </div>
+    </sc-for>
+  </div>
+</div>
+
+<div style="flex:none;background:#fff;border-top:1px solid #EAEDF3;padding:11px 14px calc(11px + env(safe-area-inset-bottom));display:flex;gap:10px">
+  <sc-if value="{{ showPrev }}"><button onClick="{{ onPrev }}" style="flex:none;padding:0 20px;height:48px;background:#F1F3F8;color:#5a6478;border:0;border-radius:13px;font-size:14.5px;font-weight:700">ก่อนหน้า</button></sc-if>
+  <button onClick="{{ onNext }}" style="flex:1;height:48px;background:#1F4FD6;color:#fff;border:0;border-radius:13px;font-size:15px;font-weight:700;box-shadow:0 5px 14px rgba(31,79,214,.26)">{{ nextLabel }}</button>
+</div>
+</sc-if>
+
+<sc-if value="{{ isSummary }}" hint-placeholder-val="{{ true }}">
+<div style="flex:none;background:linear-gradient(165deg,#2456DE,#1B44BD);color:#fff;padding:14px 15px 13px;display:flex;align-items:center;gap:11px">
+  <button onClick="{{ onPrev }}" style="width:34px;height:34px;border-radius:10px;border:0;background:rgba(255,255,255,.16);color:#fff;font-size:20px;line-height:1">‹</button>
+  <div style="flex:1;font-size:15.5px;font-weight:800">สรุปผลการประเมิน</div>
+  <button onClick="{{ sum.onEdit }}" style="background:rgba(255,255,255,.16);color:#fff;border:0;border-radius:9px;padding:8px 12px;font-size:12.5px;font-weight:700">แก้ไข</button>
+</div>
+
+<div style="flex:1;overflow-y:auto" class="nos">
+  <div style="padding:20px 16px 20px;display:flex;flex-direction:column;align-items:center">
+    <div style="position:relative;width:172px;height:172px;display:flex;align-items:center;justify-content:center">
+      <svg width="172" height="172" viewBox="0 0 120 120" style="position:absolute;inset:0">
+        <circle cx="60" cy="60" r="52" fill="none" stroke="#E9ECF3" stroke-width="12"/>
+        <circle cx="60" cy="60" r="52" fill="none" stroke="{{ sum.gaugeColor }}" stroke-width="12" stroke-linecap="round" stroke-dasharray="{{ sum.gaugeC }}" stroke-dashoffset="{{ sum.gaugeOffset }}" transform="rotate(-90 60 60)" style="transition:stroke-dashoffset .5s ease"/>
+      </svg>
+      <div style="text-align:center;position:relative">
+        <div style="font-size:44px;font-weight:800;line-height:1;color:#1a2540">{{ total }}</div>
+        <div style="font-size:12px;color:#98A0B0;font-weight:600;margin-top:2px">จาก 100 คะแนน</div>
+      </div>
+    </div>
+    <div style="{{ sum.levelPillStyle }}">{{ sum.levelName }}</div>
+    <div style="{{ sum.rightStyle }}">{{ sum.rightText }}</div>
+    <div style="font-size:12px;color:#8791A6;margin-top:9px;text-align:center">{{ sum.passText }}</div>
+  </div>
+
+  <div style="padding:0 16px 16px">
+    <div style="font-size:12px;font-weight:800;color:#7A8296;letter-spacing:.4px;margin-bottom:9px">คะแนนรายด้าน</div>
+    <div style="background:#fff;border:1px solid #E7EBF2;border-radius:14px;padding:6px 14px;margin-bottom:16px">
+      <sc-for list="{{ sum.dims }}" as="d" hint-placeholder-count="5">
+        <div style="padding:10px 0;border-bottom:1px solid #F1F3F8">
+          <div style="display:flex;align-items:center;gap:9px;margin-bottom:6px">
+            <div style="flex:none;width:22px;height:22px;border-radius:7px;background:#EAF0FF;color:#1F4FD6;font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center">{{ d.no }}</div>
+            <div style="flex:1;font-size:13px;font-weight:600;color:#28324c">{{ d.short }}</div>
+            <div style="flex:none;font-size:13px;font-weight:800;color:#1a2540">{{ d.earned }}<span style="color:#B4BAC8;font-weight:600">/{{ d.max }}</span></div>
+          </div>
+          <div style="height:7px;border-radius:4px;background:#EEF1F6;overflow:hidden"><div style="{{ d.barStyle }}"></div></div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="font-size:12px;font-weight:800;color:#7A8296;letter-spacing:.4px;margin-bottom:9px">ข้อสังเกตจากระบบ (validation)</div>
+    <sc-if value="{{ sum.hasFlags }}">
+      <div style="margin-bottom:16px">
+        <sc-for list="{{ sum.flags }}" as="fl" hint-placeholder-count="1">
+          <div style="{{ fl.style }}"><span style="font-weight:800;flex:none">{{ fl.code }}</span><span style="flex:1">{{ fl.text }}</span></div>
+        </sc-for>
+      </div>
+    </sc-if>
+    <sc-if value="{{ sum.noFlags }}">
+      <div style="display:flex;gap:8px;align-items:center;background:#E9F7F0;border:1px solid #C7EAD9;color:#0B8A5F;border-radius:11px;padding:11px 13px;font-size:12.5px;font-weight:600;margin-bottom:16px"><span style="font-weight:800">✓</span> ไม่มีข้อสังเกตที่ต้องแก้ไข</div>
+    </sc-if>
+
+    <sc-if value="{{ sum.twoTier }}">
+      <div style="background:#F6F8FC;border:1px solid #E4E9F2;border-radius:13px;padding:12px 14px;margin-bottom:16px">
+        <div style="font-size:12.5px;font-weight:700;color:#4a5468;margin-bottom:8px">อัตราจ่ายแบบสองขั้น (ทางเลือกเชิงนโยบาย R4)</div>
+        <sc-for list="{{ sum.tierRows }}" as="tr" hint-placeholder-count="2">
+          <div style="display:flex;justify-content:space-between;font-size:12.5px;padding:4px 0;color:#28324c"><span>{{ tr.range }}</span><span style="font-weight:700">{{ tr.rate }}</span></div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ sum.incomplete }}">
+      <div style="display:flex;gap:8px;align-items:center;background:#FCF3E2;border:1px solid #F0DCB4;color:#7A5A18;border-radius:11px;padding:11px 13px;font-size:12.5px;font-weight:600;margin-bottom:14px"><span style="font-weight:800">!</span> {{ sum.incompleteText }}</div>
+    </sc-if>
+
+    <div style="background:#fff;border:1px solid #E7EBF2;border-radius:14px;padding:14px;margin-bottom:8px">
+      <div style="display:flex;gap:8px;align-items:flex-start;background:#FBEDED;border:1px solid #F3CFCF;color:#9A2E2C;border-radius:10px;padding:10px 12px;font-size:11.5px;line-height:1.5;margin-bottom:12px">
+        <span style="font-weight:800">!</span><span>การรับรองข้อมูลเท็จ ถือเป็นความผิดทางวินัย และต้องคืนเงินที่รับไปทั้งหมด ตามร่างระเบียบ ก.ค.ศ.</span>
+      </div>
+      <label onClick="{{ sum.onSign }}" style="display:flex;gap:11px;align-items:flex-start;cursor:pointer">
+        <span style="{{ sum.checkStyle }}"><sc-if value="{{ sum.signed }}"><span style="color:#fff;font-size:14px;font-weight:800">✓</span></sc-if></span>
+        <span style="flex:1;font-size:12.5px;color:#3a445c;line-height:1.5">ข้าพเจ้า (ผู้อำนวยการสถานศึกษา) ขอรับรองว่าข้อมูลและหลักฐานทั้งหมดเป็นความจริง</span>
+      </label>
+    </div>
+  </div>
+</div>
+
+<div style="flex:none;background:#fff;border-top:1px solid #EAEDF3;padding:12px 16px calc(12px + env(safe-area-inset-bottom))">
+  <button onClick="{{ sum.onSubmit }}" style="{{ sum.submitStyle }}">{{ sum.submitText }}</button>
+</div>
+</sc-if>
+
+<sc-if value="{{ isDone }}" hint-placeholder-val="{{ true }}">
+<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px 22px;text-align:center">
+  <div style="width:82px;height:82px;border-radius:50%;background:#E9F7F0;display:flex;align-items:center;justify-content:center;animation:pop .4s ease both">
+    <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#0E9F6E" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+  </div>
+  <div style="font-size:20px;font-weight:800;color:#1a2540;margin-top:18px">ส่งแบบประเมินเรียบร้อย</div>
+  <div style="font-size:13px;color:#8791A6;margin-top:6px;line-height:1.5">แบบประเมินถูกส่งเข้าสู่กระบวนการกลั่นกรองของสำนักงานเขตแล้ว</div>
+  <div style="margin-top:14px;background:#F1F5FF;border:1px solid #DCE6FB;border-radius:12px;padding:10px 16px;font-family:ui-monospace,monospace;font-size:13px;font-weight:700;color:#1F4FD6">เลขที่อ้างอิง {{ done.refNo }}</div>
+
+  <div style="width:100%;max-width:320px;margin-top:22px;text-align:left">
+    <sc-for list="{{ done.steps }}" as="st" hint-placeholder-count="4">
+      <div style="display:flex;gap:12px;align-items:flex-start">
+        <div style="display:flex;flex-direction:column;align-items:center;flex:none">
+          <div style="{{ st.dotStyle }}"><sc-if value="{{ st.done }}"><span style="color:#fff;font-size:11px;font-weight:800">✓</span></sc-if></div>
+          <sc-if value="{{ st.line }}"><div style="{{ st.lineStyle }}"></div></sc-if>
+        </div>
+        <div style="padding-bottom:16px">
+          <div style="{{ st.titleStyle }}">{{ st.title }}</div>
+          <div style="font-size:11.5px;color:#9AA2B4">{{ st.sub }}</div>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+</div>
+<div style="flex:none;background:#fff;border-top:1px solid #EAEDF3;padding:12px 16px calc(12px + env(safe-area-inset-bottom))">
+  <button onClick="{{ done.onHome }}" style="width:100%;height:48px;background:#F1F3F8;color:#3a445c;border:0;border-radius:13px;font-size:15px;font-weight:700">กลับหน้าหลัก</button>
+</div>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:440,&quot;height&quot;:880},&quot;passThreshold&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:70,&quot;min&quot;:50,&quot;max&quot;:90,&quot;unit&quot;:&quot;คะแนน&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;เกณฑ์&quot;,&quot;label&quot;:&quot;จุดตัดผ่านเกณฑ์ (ระดับ 3)&quot;},&quot;showTwoTierPay&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;เกณฑ์&quot;,&quot;label&quot;:&quot;แสดงอัตราจ่ายสองขั้น (R4)&quot;},&quot;prefillDemo&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;ข้อมูล&quot;,&quot;label&quot;:&quot;เติมข้อมูลตัวอย่าง&quot;}}">
+class Component extends DCLogic {
+  constructor(props){
+    super(props);
+    this.MAXOF={'1.1':10,'1.2':10,'1.3':5,'1.4':5,'2.1':3,'2.2':4,'2.3':3,'3.1':10,'3.2':10,'3.3':10,'4.1':8,'4.2':8,'4.3':4,'5.1':5,'5.2':5};
+    this.DIMS=[
+      {no:1,title:'การจัดการศึกษาแก่ผู้เรียนที่หลากหลายและจำเป็นพิเศษ',short:'ผู้เรียนหลากหลาย',max:30,ids:['1.1','1.2','1.3','1.4']},
+      {no:2,title:'ขาดแคลนบุคลากรอย่างต่อเนื่อง',short:'ขาดแคลนบุคลากร',max:10,ids:['2.1','2.2','2.3'],note:'ด้านนี้ยืนยันข้อมูลร่วมกับสำนักงานเขตพื้นที่ (อัตรากำลัง/ตำแหน่งว่าง) — กรอกเพื่อประเมินตนเองเบื้องต้น'},
+      {no:3,title:'ความยากลำบากของการคมนาคม',short:'การคมนาคม',max:30,ids:['3.1','3.2','3.3']},
+      {no:4,title:'ขาดแคลนปัจจัยพื้นฐาน',short:'ปัจจัยพื้นฐาน',max:20,ids:['4.1','4.2','4.3']},
+      {no:5,title:'ความเสี่ยงอันตรายในการปฏิบัติงาน',short:'ความเสี่ยงอันตราย',max:10,ids:['5.1','5.2'],note:'สถานะพื้นที่เสี่ยงดึงอัตโนมัติจากทะเบียนกลาง โรงเรียนโต้แย้งได้พร้อมหลักฐาน'}
+    ];
+    this.META={
+      '1.1':{name:'ร้อยละของผู้เรียนกลุ่มชาติพันธุ์',kind:'percent',fields:[{key:'count',label:'จำนวนผู้เรียนกลุ่มชาติพันธุ์',ph:'คน',unit:'คน'}],note:'ยืนยันยอดจากระบบ DMC — ไม่แนบรายชื่อ (PDPA)'},
+      '1.2':{name:'จำนวนผู้เรียนพักนอน',desc:'พักนอนในที่พักที่โรงเรียนจัด/กำกับเอง ≥ 1 ภาคเรียน และมีคำสั่งเวรพักนอน',kind:'count',fields:[{key:'count',label:'จำนวนผู้เรียนพักนอน',ph:'คน',unit:'คน'}],evidence:'req',evLabel:'คำสั่งเวร + ภาพเรือนนอน'},
+      '1.3':{name:'ร้อยละของผู้เรียนกลุ่มเปราะบาง',kind:'percent',fields:[{key:'count',label:'จำนวนผู้เรียนเปราะบาง (ไม่ซ้ำคน)',ph:'คน',unit:'คน'}],note:'ยากจนพิเศษ กสศ. / พิการ IEP / รหัส G / กำพร้า-ถูกทอดทิ้ง'},
+      '1.4':{name:'จำนวนภาษาที่ไม่ใช้ภาษาไทยเป็นภาษาหลัก',desc:'นับเฉพาะภาษาที่มีผู้เรียนใช้ตั้งแต่ 5 คน หรือ 5% ขึ้นไป',kind:'count',fields:[{key:'langs',label:'จำนวนภาษา',ph:'ภาษา',unit:'ภาษา'}]},
+      '2.1':{name:'อัตรากำลังสายการสอนต่ำกว่าเกณฑ์ ก.ค.ศ.',kind:'pair',fields:[{key:'frame',label:'กรอบอัตรากำลังตามเกณฑ์',ph:'อัตรา'},{key:'actual',label:'ครูปฏิบัติงานจริง',ph:'อัตรา'}]},
+      '2.2':{name:'ตำแหน่งว่างต่อเนื่องไม่น้อยกว่า 1 ปี',kind:'level',options:[
+        {label:'ไม่มีตำแหน่งว่างต่อเนื่องเกิน 12 เดือน',pts:0},
+        {label:'ว่าง 1 ตำแหน่ง (ต่อเนื่อง 12–24 เดือน)',pts:2},
+        {label:'ว่าง 1 ตำแหน่งเกิน 24 เดือน หรือว่างพร้อมกัน ≥ 2 ตำแหน่ง (แต่ละเกิน 12 เดือน)',pts:3},
+        {label:'ว่าง ≥ 2 ตำแหน่งเกิน 24 เดือน หรือประกาศรับแล้วไม่มีผู้ยื่น 2 รอบติดกัน',pts:4}]},
+      '2.3':{name:'อัตราการหมุนเวียนออกของครู (เฉลี่ย 3 ปี)',desc:'ย้าย+ลาออก+โอน ไม่รวมเกษียณ/เสียชีวิต',kind:'count',fields:[{key:'rate',label:'อัตราหมุนเวียนออกเฉลี่ย 3 ปี',ph:'%',unit:'%'}]},
+      '3.1':{name:'ระยะเวลาเดินทางจากเขต/สกร.อำเภอ ถึงสถานศึกษา',desc:'เที่ยวเดียว เส้นทาง/พาหนะที่ใช้จริงในฤดูแล้ง',kind:'minutes',fields:[{key:'minutes',label:'เวลาเดินทาง',ph:'นาที',unit:'นาที'},{key:'km',label:'ระยะทาง',ph:'กม.',unit:'กม.'}],evidence:'opt',evLabel:'ภาพเส้นทาง ≥ 3 จุด + พิกัด'},
+      '3.2':{name:'ความยากลำบากในการเดินทางเข้าถึง',kind:'level',evidence:'opt',evLabel:'ภาพ 2 ฤดู + รับรอง อปท.',options:[
+        {label:'ถนนลาดยาง/คอนกรีตถึงโรงเรียน รถทั่วไปเข้าถึงสะดวกตลอดปี',pts:0},
+        {label:'เข้าถึงได้ตลอดปีด้วยรถทั่วไป แต่บางช่วงลูกรัง/ชำรุด/ลาดชัน ต้องระวังสูง',pts:4},
+        {label:'บางฤดูรถทั่วไปเข้าไม่ถึง ต้องใช้ 4WD/วิบาก/เรือ หรือถูกตัดขาดรวม > 15 วัน/ปี',pts:6},
+        {label:'ตลอดทั้งปีต้องใช้พาหนะพิเศษ (4WD/วิบาก/เรือ) จึงเข้าถึงได้',pts:8},
+        {label:'ใช้พาหนะ > 1 ประเภทต่อเที่ยว หรือเดินเท้า ≥ 2 กม. หรือขึ้นกับสภาพอากาศ/ระดับน้ำ',pts:10}]},
+      '3.3':{name:'การเข้าถึงบริการฉุกเฉิน',desc:'เวลาที่หน่วยฉุกเฉินของรัฐใกล้สุดเดินทางถึงในสภาวะปกติ',kind:'minutes',fields:[{key:'minutes',label:'เวลาที่หน่วยฉุกเฉินถึงโรงเรียน',ph:'นาที',unit:'นาที'},{key:'unitName',label:'ชื่อหน่วยบริการใกล้สุด',ph:'เช่น รพ.สต. / หน่วยกู้ชีพ',text:true}],evidence:'opt',evLabel:'หนังสือรับรองระยะเวลาจากหน่วยบริการ'},
+      '4.1':{name:'การเข้าถึงระบบไฟฟ้า',kind:'level',evidence:'opt',evLabel:'บิลค่าไฟ / รับรอง กฟภ. + ภาพ',options:[
+        {label:'ไฟฟ้าสาธารณะ (กฟภ./กฟน.) ครบทุกอาคาร ใช้งานปกติ',pts:0},
+        {label:'มีไฟฟ้าสาธารณะ แต่ไม่ครบทุกอาคาร หรือแรงดันตก/ดับบ่อย (≥ 4 ครั้ง/เดือน)',pts:4},
+        {label:'ไม่มีไฟฟ้าสาธารณะ ใช้ระบบผลิตเอง (โซลาร์/เครื่องปั่น) ได้บางช่วง/บางอาคาร',pts:6},
+        {label:'ไม่มีไฟฟ้าสาธารณะ ระบบผลิตเองจำกัดมาก (< 6 ชม./วัน) หรือไม่มีไฟใช้เลย',pts:8}]},
+      '4.2':{name:'การเข้าถึงน้ำเพื่ออุปโภคบริโภค',kind:'level',evidence:'opt',evLabel:'ภาพแหล่งน้ำ + รับรอง อปท.',options:[
+        {label:'มีระบบประปาเพียงพอตลอดปี',pts:0},
+        {label:'มีประปาแต่ไม่สม่ำเสมอ (ขาด ≥ 30 วัน/ปี หรือคุณภาพไม่เหมาะอุปโภค)',pts:4},
+        {label:'ไม่มีประปา แต่จัดหาน้ำใช้เองได้พอ (น้ำฝน/ภูเขา/บ่อ)',pts:6},
+        {label:'ไม่มีประปา และขาดแคลนเป็นประจำ (ต้องขน/ซื้อน้ำจากภายนอก)',pts:8}]},
+      '4.3':{name:'การเข้าถึงระบบสื่อสารและอินเทอร์เน็ต',kind:'level',evidence:'opt',evLabel:'ผลทดสอบความเร็ว ≥ 3 ครั้ง',options:[
+        {label:'อินเทอร์เน็ตความเร็วสูง ใช้จัดการเรียนการสอนต่อเนื่องปกติ',pts:0},
+        {label:'ใช้ได้แต่ไม่เสถียร (หลุด/ช้าจนกระทบการสอนเป็นประจำ)',pts:2},
+        {label:'ใช้ได้บางจุด/บางเวลา (ต้องเดินหาจุดสัญญาณ)',pts:3},
+        {label:'ไม่มีอินเทอร์เน็ตและไม่มีสัญญาณโทรศัพท์ในบริเวณโรงเรียน',pts:4}]},
+      '5.1':{name:'พื้นที่เสี่ยงด้านความมั่นคงตามประกาศราชการ',kind:'level',options:[
+        {label:'ปกติ — ไม่อยู่ในพื้นที่ประกาศใด',pts:0},
+        {label:'เฝ้าระวัง — พื้นที่เฝ้าระวังความมั่นคง/ชายแดนที่มีมาตรการพิเศษ',pts:3},
+        {label:'เสี่ยงสูง — ประกาศสถานการณ์ฉุกเฉิน/กฎอัยการศึก หรือมีเหตุความไม่สงบใน 3 ปี',pts:5}]},
+      '5.2':{name:'พื้นที่เสี่ยงภัยยาเสพติด/เส้นทางลำเลียง',kind:'level',options:[
+        {label:'ไม่เป็นทั้งพื้นที่แพร่ระบาดและเส้นทางลำเลียง',pts:0},
+        {label:'เป็นพื้นที่แพร่ระบาด หรือ เส้นทางลำเลียง อย่างใดอย่างหนึ่ง',pts:3},
+        {label:'เป็นทั้งพื้นที่แพร่ระบาดและเส้นทางลำเลียง',pts:5}]}
+    };
+    const demo = (props.prefillDemo!==false);
+    this.state = demo ? this.demoState() : this.blankState();
+  }
+  blankState(){
+    const data={}; Object.keys(this.MAXOF).forEach(id=>{data[id]={};});
+    return {step:0,submitted:false,signed:false,refNo:'',unit:{name:'',code:'',type:'โรงเรียน',total:'',lat:'',lng:'',pinned:false},data:data};
+  }
+  demoState(){
+    const s=this.blankState();
+    s.unit={name:'โรงเรียนบ้านห้วยเย็นวิทยา (ห้องเรียนสาขาดอยผาแดง)',code:'50100199',type:'ห้องเรียนสาขา',total:'128',lat:'18.7891',lng:'98.9832',pinned:true};
+    s.data={
+      '1.1':{count:'92'},
+      '1.2':{count:'20',evidence:[{name:'คำสั่งเวรพักนอน-2569.pdf',meta:'ลงนาม 16 พ.ค. 69 · 1.2 MB'}]},
+      '1.3':{count:'40'},
+      '1.4':{langs:'3'},
+      '2.1':{frame:'12',actual:'9'},
+      '2.2':{level:1},
+      '2.3':{rate:'22'},
+      '3.1':{minutes:'145',km:'38'},
+      '3.2':{level:3,evidence:[{name:'เส้นทางฤดูฝน-ช่วงดอย.jpg',meta:'18.7903, 98.9821 · 4 ก.ค. 69'}]},
+      '3.3':{minutes:'50',unitName:'รพ.สต.บ้านห้วยเย็น'},
+      '4.1':{level:2},'4.2':{level:1},'4.3':{level:2},
+      '5.1':{level:1},'5.2':{level:1}
+    };
+    return s;
+  }
+  num(v){const n=parseFloat(v);return isNaN(n)?0:n;}
+  blank(v){return v===undefined||v===null||v==='';}
+  raw(id){return this.state.data[id]||{};}
+  pctOf(id){const t=this.num(this.state.unit.total);if(!t)return null;return this.num(this.raw(id).count)/t*100;}
+  lvlIdx(id){const v=this.raw(id).level;return(v===undefined||v===null||v==='')?-1:this.num(v);}
+  lvlPts(id,lvl){if(lvl===undefined||lvl===null||lvl==='')return null;const o=this.META[id].options[lvl];return o?o.pts:null;}
+  scoreId(id){
+    const d=this.raw(id);
+    switch(id){
+      case '1.1':{if(this.blank(d.count))return null;const p=this.pctOf('1.1');if(p==null)return null;return p<5?0:p<=20?2:p<=40?4:p<=60?6:p<=80?8:10;}
+      case '1.2':{if(this.blank(d.count))return null;const n=this.num(d.count);return n<=0?0:n<=10?4:n<=20?6:n<=30?7:n<=40?8:n<=60?9:10;}
+      case '1.3':{if(this.blank(d.count))return null;const p=this.pctOf('1.3');if(p==null)return null;return p<1?0:p<=6?1:p<=11?2:p<=16?3:p<=21?4:5;}
+      case '1.4':{if(this.blank(d.langs))return null;return Math.min(this.num(d.langs),5);}
+      case '2.1':{if(this.blank(d.frame)||this.blank(d.actual))return null;const f=this.num(d.frame);if(f<=0)return 0;const def=(f-this.num(d.actual))/f*100;return def<=0?0:def<=10?1:def<=20?2:3;}
+      case '2.2':return this.lvlPts('2.2',d.level);
+      case '2.3':{if(this.blank(d.rate))return null;const r=this.num(d.rate);return r<10?0:r<=20?1:r<=30?2:3;}
+      case '3.1':{if(this.blank(d.minutes))return null;const m=this.num(d.minutes);return m<=30?0:m<=60?3:m<=120?6:m<=180?8:10;}
+      case '3.2':return this.lvlPts('3.2',d.level);
+      case '3.3':{if(this.blank(d.minutes))return null;const m=this.num(d.minutes);return m<=15?0:m<=30?3:m<=60?6:m<=120?8:10;}
+      case '4.1':return this.lvlPts('4.1',d.level);
+      case '4.2':return this.lvlPts('4.2',d.level);
+      case '4.3':return this.lvlPts('4.3',d.level);
+      case '5.1':return this.lvlPts('5.1',d.level);
+      case '5.2':return this.lvlPts('5.2',d.level);
+    }
+    return null;
+  }
+  totalScore(){let t=0;Object.keys(this.MAXOF).forEach(id=>{const s=this.scoreId(id);if(s!=null)t+=s;});return t;}
+  dimEarned(dim){let t=0;dim.ids.forEach(id=>{const s=this.scoreId(id);if(s!=null)t+=s;});return t;}
+  answeredCount(){return Object.keys(this.MAXOF).filter(id=>this.scoreId(id)!=null).length;}
+  levelOf(total){
+    const th=this.num(this.props.passThreshold)||70;
+    if(total>=th)return{n:3,short:'ระดับ 3',name:'ยุ่งยากมากที่สุด',right:'ได้รับ พ.ส.ศ. 2,000 บาท/เดือน',color:'#0E9F6E',soft:'#E9F7F0'};
+    if(total>=60)return{n:2,short:'ระดับ 2',name:'ยุ่งยากมาก',right:'ขึ้นทะเบียนรอพิจารณา',color:'#2456DE',soft:'#EAF0FF'};
+    if(total>=50)return{n:1,short:'ระดับ 1',name:'ยุ่งยาก',right:'ขึ้นทะเบียนรอพิจารณา',color:'#D98A15',soft:'#FCF3E2'};
+    return{n:0,short:'—',name:'ยังไม่จัดระดับ',right:'ยังไม่เข้าเกณฑ์ (ต่ำกว่า 50)',color:'#98A0B0',soft:'#F0F2F7'};
+  }
+  flags(){
+    const F=[];const d=id=>this.raw(id);
+    if(this.num(d('1.2').count)>=1 && (d('1.2').evidence||[]).length===0)
+      F.push({code:'V02',id:'1.2',tone:'block',text:'มีผู้เรียนพักนอน แต่ยังไม่แนบคำสั่งเวรพักนอน — ต้องแนบก่อนส่ง'});
+    if(this.lvlIdx('3.2')>=3 && !this.blank(d('3.1').minutes) && this.num(d('3.1').minutes)<=30)
+      F.push({code:'V04',id:'3.2',tone:'warn',text:'เลือกการเข้าถึงระดับสูง แต่เวลาเดินทางจากเขต ≤ 30 นาที — ข้อมูลอาจขัดแย้งกัน'});
+    if((this.lvlIdx('4.1')===2||this.lvlIdx('4.1')===3) && this.lvlIdx('4.3')===0)
+      F.push({code:'V06',id:'4.1',tone:'warn',text:'ระบุว่าไม่มีไฟฟ้าสาธารณะ แต่อินเทอร์เน็ตใช้งานปกติ — กรรมการจะตรวจประกอบ'});
+    if(this.lvlIdx('4.3')===3)
+      F.push({code:'V07',id:'4.3',tone:'info',text:'ระบุว่าไม่มีสัญญาณสื่อสาร ระบบจะตรวจสอบช่องทางที่ใช้ยื่นแบบประเมิน'});
+    const t=this.totalScore();
+    if(t>=65&&t<=74)
+      F.push({code:'V09',id:null,tone:'info',text:'คะแนนอยู่ในแถบ 65–74 ต้องผ่านการตรวจภาคสนามบังคับก่อนประกาศผล'});
+    return F;
+  }
+  hasBlock(){return this.flags().some(f=>f.tone==='block');}
+  // handlers
+  setField(id,key,val){this.setState(s=>({data:{...s.data,[id]:{...s.data[id],[key]:val}}}));}
+  setLevel(id,idx){this.setState(s=>({data:{...s.data,[id]:{...s.data[id],level:idx}}}));}
+  setUnit(key,val){this.setState(s=>({unit:{...s.unit,[key]:val}}));}
+  now(){const d=new Date();const m=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];const y=(d.getFullYear()+543)%100;return d.getDate()+' '+m[d.getMonth()]+' '+y+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');}
+  coord(){const u=this.state.unit;const la=this.num(u.lat)||18.7891,ln=this.num(u.lng)||98.9832;const j=()=>(Math.random()*0.006-0.003);return (la+j()).toFixed(4)+', '+(ln+j()).toFixed(4);}
+  addEv(id,name,meta){this.setState(s=>{const cur=s.data[id].evidence||[];return{data:{...s.data,[id]:{...s.data[id],evidence:[...cur,{name,meta}]}}};});}
+  addPhoto(id){this.addEv(id,'ภาพถ่ายภาคสนาม',this.coord()+' · '+this.now());}
+  addFile(id){this.addEv(id,'เอกสารแนบ.pdf','อัปโหลด '+this.now());}
+  removeEv(id,idx){this.setState(s=>{const cur=(s.data[id].evidence||[]).filter((_,i)=>i!==idx);return{data:{...s.data,[id]:{...s.data[id],evidence:cur}}};});}
+  go(n){this.setState({step:n});}
+  pinNow(){this.setState(s=>({unit:{...s.unit,lat:'18.7891',lng:'98.9832',pinned:true}}));}
+  submit(){const r='พสศ-69-'+String(Math.floor(Math.random()*9000)+1000);this.setState({submitted:true,step:7,refNo:r});}
+
+  // style helpers
+  toneChip(tone,mt){
+    const base='display:flex;gap:8px;align-items:flex-start;border-radius:10px;padding:9px 11px;font-size:11.5px;line-height:1.45;margin-top:'+(mt||9)+'px';
+    if(tone==='block')return base+';background:#FBEDED;border:1px solid #F3CFCF;color:#9A2E2C';
+    if(tone==='warn')return base+';background:#FCF3E2;border:1px solid #F0DCB4;color:#7A5A18';
+    return base+';background:#EEF3FF;border:1px solid #D3E0FA;color:#2A4A99';
+  }
+  buildIndicator(id){
+    const m=this.META[id],d=this.raw(id),max=this.MAXOF[id],sc=this.scoreId(id);
+    const o={id,code:id,name:m.name,desc:m.desc||'',max};
+    const has=sc!=null;
+    o.badgeText=(has?sc:0)+'/'+max;
+    o.badgeStyle='flex:none;min-width:48px;text-align:center;font-weight:800;font-size:13px;padding:7px 8px;border-radius:9px;'+(sc>0?'background:#E9F7F0;color:#0B8A5F':'background:#F0F2F7;color:#98A0B0');
+    if(m.kind!=='level'){
+      o.isFields=true;o.isLevel=false;
+      o.fields=m.fields.map(f=>({
+        label:f.label,ph:f.ph,unit:f.unit||'',
+        value:d[f.key]==null?'':d[f.key],
+        inputType:f.text?'text':'number',mode:f.text?'text':'numeric',
+        wrapStyle:f.text?'flex:1 1 100%':(m.fields.length>1?'flex:1 1 44%;min-width:130px':'flex:1 1 100%'),
+        onInput:e=>this.setField(id,f.key,e.target.value)
+      }));
+    }else{
+      o.isFields=false;o.isLevel=true;const cur=this.lvlIdx(id);
+      const SEL='display:flex;gap:11px;align-items:center;padding:11px 12px;border:1.5px solid #1F4FD6;border-radius:13px;background:#F1F5FF;width:100%;box-shadow:0 0 0 3px rgba(31,79,214,.08)';
+      const UN='display:flex;gap:11px;align-items:center;padding:11px 12px;border:1.5px solid #E4E8F0;border-radius:13px;background:#fff;width:100%';
+      const BS='flex:none;width:27px;height:27px;border-radius:50%;font-size:12.5px;font-weight:800;display:flex;align-items:center;justify-content:center;';
+      o.options=m.options.map((opt,i)=>({
+        label:opt.label,badgeText:String(opt.pts),selected:i===cur,
+        onSelect:()=>this.setLevel(id,i),
+        rowStyle:i===cur?SEL:UN,
+        badgeStyle:BS+(i===cur?'background:#1F4FD6;color:#fff':'background:#F0F2F7;color:#6B7488')
+      }));
+    }
+    // result
+    let rt='',tone='pos';
+    if(m.kind==='percent'){
+      if(!this.blank(d.count)){const t=this.num(this.state.unit.total);if(!t){rt='ต้องกรอกจำนวนผู้เรียนทั้งหมดในหน้าเริ่มต้น';tone='warn';}else{rt=this.pctOf(id).toFixed(2)+'% ของผู้เรียน · ได้ '+sc+' คะแนน';tone=sc>0?'pos':'neutral';}}
+    }else if(m.kind==='pair'){
+      if(!this.blank(d.frame)&&!this.blank(d.actual)){const f=this.num(d.frame);const def=f<=0?0:Math.max(0,(f-this.num(d.actual))/f*100);rt='ขาดแคลน '+def.toFixed(1)+'% · ได้ '+sc+' คะแนน';tone=sc>0?'pos':'neutral';}
+    }else if(has){rt='ได้ '+sc+' คะแนน';tone=sc>0?'pos':'neutral';}
+    o.hasResult=!!rt;o.resultText=rt;
+    o.resultStyle='margin-top:11px;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;padding:7px 12px;border-radius:9px;'+(tone==='pos'?'background:#E9F7F0;color:#0B8A5F':tone==='warn'?'background:#FCF3E2;color:#8A5A18':'background:#F2F4F8;color:#737B8E');
+    // evidence
+    if(m.evidence){
+      o.evidence=true;o.evLabel=m.evLabel;
+      const req=m.evidence==='req';
+      o.evTagText=req?'บังคับ':'ถ้ามี';
+      o.evTagStyle='font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px;'+(req?'background:#FBEDED;color:#B23A38':'background:#EEF1F6;color:#8891A6');
+      o.evChips=(d.evidence||[]).map((e,i)=>({name:e.name,meta:e.meta,onRemove:()=>this.removeEv(id,i)}));
+      o.onPhoto=()=>this.addPhoto(id);o.onFile=()=>this.addFile(id);
+    }else o.evidence=false;
+    o.flags=this.flags().filter(f=>f.id===id).map(f=>({code:f.code,text:f.text,style:this.toneChip(f.tone)}));
+    return o;
+  }
+  renderVals(){
+    const s=this.state,step=s.step,total=this.totalScore(),lvl=this.levelOf(total),th=this.num(this.props.passThreshold)||70;
+    const v={
+      isStart:step===0,isDim:step>=1&&step<=5,isSummary:step===6,isDone:step===7,
+      total
+    };
+    // START
+    const typeOpts=['โรงเรียน','โรงเรียนสาขา','ห้องเรียนสาขา'].map(t=>({
+      label:t,onSel:()=>this.setUnit('type',t),
+      style:'flex:1;height:40px;border-radius:11px;border:1.5px solid '+(s.unit.type===t?'#1F4FD6':'#E1E6F0')+';background:'+(s.unit.type===t?'#F1F5FF':'#fff')+';color:'+(s.unit.type===t?'#1F4FD6':'#6B7488')+';font-size:12px;font-weight:700;padding:0 4px'
+    }));
+    v.start={
+      name:s.unit.name,code:s.unit.code,total:s.unit.total,
+      onName:e=>this.setUnit('name',e.target.value),
+      onCode:e=>this.setUnit('code',e.target.value),
+      onTotal:e=>this.setUnit('total',e.target.value),
+      typeOpts,pinned:s.unit.pinned,notPinned:!s.unit.pinned,
+      coordText:s.unit.pinned?(s.unit.lat+', '+s.unit.lng):'— · —',
+      onPin:()=>this.pinNow(),onBegin:()=>this.go(1),
+      dims:this.DIMS.map(d=>({no:d.no,title:d.title,max:d.max}))
+    };
+    // level mini (header)
+    v.level={miniStyle:'display:inline-block;margin-top:3px;font-size:10px;font-weight:700;background:rgba(255,255,255,.2);padding:2px 8px;border-radius:20px',short:lvl.short};
+    // segments
+    v.segs=this.DIMS.map(d=>{
+      const st=d.no,active=st===step;const done=this.dimEarned(d)>0&&!active;
+      return{onClick:()=>this.go(st),style:'flex:1;height:7px;border-radius:4px;border:0;padding:0;background:'+(active?'#fff':done?'rgba(255,255,255,.7)':'rgba(255,255,255,.28)')};
+    });
+    // DIM screen
+    if(v.isDim){
+      const dim=this.DIMS[step-1];
+      v.dimKicker='ด้านที่ '+dim.no+' จาก 5 · เต็ม '+dim.max+' คะแนน';
+      v.dimTitle=dim.title;
+      v.screen={no:dim.no,note:dim.note||'',indicators:dim.ids.map(id=>this.buildIndicator(id))};
+      v.onPrev=()=>this.go(step-1);
+      v.onNext=()=>this.go(step===5?6:step+1);
+      v.showPrev=step>1;
+      v.nextLabel=step===5?'ดูสรุปผล →':'ถัดไป →';
+    }
+    // SUMMARY
+    if(v.isSummary){
+      const C=2*Math.PI*52;
+      const fl=this.flags();
+      const answered=this.answeredCount(),totalInd=15,allDone=answered===totalInd;
+      const block=this.hasBlock();
+      const canSubmit=allDone&&!block&&s.signed;
+      v.onPrev=()=>this.go(5);
+      v.sum={
+        gaugeColor:lvl.color,gaugeC:C.toFixed(1),gaugeOffset:(C*(1-total/100)).toFixed(1),
+        levelName:lvl.name,
+        levelPillStyle:'margin-top:14px;font-size:15px;font-weight:800;padding:6px 18px;border-radius:20px;background:'+lvl.soft+';color:'+lvl.color,
+        rightText:lvl.right,
+        rightStyle:'margin-top:8px;font-size:13px;font-weight:600;color:'+(lvl.n===3?'#0B8A5F':'#5a6478'),
+        passText:total>=th?('ผ่านเกณฑ์ '+th+' คะแนน (เกิน '+(total-th)+')'):('ต้องการอีก '+(th-total)+' คะแนน จึงจะถึงเกณฑ์ '+th),
+        dims:this.DIMS.map(d=>{const e=this.dimEarned(d);const pct=Math.round(e/d.max*100);return{no:d.no,short:d.short,earned:e,max:d.max,barStyle:'height:100%;border-radius:4px;width:'+pct+'%;background:'+lvl.color+';transition:width .4s'};}),
+        hasFlags:fl.length>0,noFlags:fl.length===0,
+        flags:fl.map(f=>({code:f.code,text:f.text,style:this.toneChip(f.tone,0)})),
+        incomplete:!allDone,incompleteText:'ยังกรอกไม่ครบ ('+answered+'/'+totalInd+' ตัวชี้วัด) กรุณากลับไปกรอกให้ครบก่อนส่ง',
+        signed:s.signed,onSign:()=>this.setState(x=>({signed:!x.signed})),
+        checkStyle:'flex:none;width:24px;height:24px;border-radius:7px;display:flex;align-items:center;justify-content:center;border:2px solid '+(s.signed?'#1F4FD6':'#CBD2E0')+';background:'+(s.signed?'#1F4FD6':'#fff'),
+        onSubmit:()=>{if(canSubmit)this.submit();},
+        onEdit:()=>this.go(1),
+        submitStyle:'width:100%;height:50px;border:0;border-radius:14px;font-size:15.5px;font-weight:700;'+(canSubmit?'background:#1F4FD6;color:#fff;box-shadow:0 6px 16px rgba(31,79,214,.28)':'background:#E7EAF1;color:#A6AEBF'),
+        submitText:block?'แก้ข้อสังเกตที่บล็อกก่อนส่ง':(!allDone?'กรอกข้อมูลให้ครบก่อนส่ง':(!s.signed?'ลงนามรับรองก่อนส่ง':'ลงนามรับรองและส่งแบบประเมิน')),
+        twoTier:this.props.showTwoTierPay===true,
+        tierRows:[{range:'ระดับ 3 (≥ '+th+' คะแนน)',rate:'2,000 บาท/เดือน'},{range:'ระดับ 2 (60–'+(th-1)+' คะแนน)',rate:'1,000 บาท/เดือน'}]
+      };
+    }
+    // DONE
+    if(v.isDone){
+      const steps=[
+        {title:'ผู้อำนวยการลงนามรับรอง',sub:this.now(),done:true},
+        {title:'คณะกรรมการกลั่นกรองระดับเขต',sub:'รอตรวจหลักฐานและธง validation',done:false},
+        {title:'คณะกรรมการระดับจังหวัด',sub:'รออนุมัติผล',done:false},
+        {title:'ประกาศผล',sub:'—',done:false}
+      ];
+      v.done={
+        refNo:s.refNo,onHome:()=>this.setState({step:0,submitted:false}),
+        steps:steps.map((st,i)=>({
+          title:st.title,sub:st.sub,done:st.done,line:i<steps.length-1,
+          dotStyle:'width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:none;'+(st.done?'background:#0E9F6E':'background:#fff;border:2px solid #D6DBE6'),
+          lineStyle:'width:2px;height:100%;min-height:22px;background:'+(st.done?'#0E9F6E':'#E2E6EF'),
+          titleStyle:'font-size:13.5px;font-weight:700;margin-bottom:1px;color:'+(st.done?'#1a2540':'#5a6478')
+        }))
+      };
+    }
+    return v;
+  }
+}
+</script>
+</body>
+</html>

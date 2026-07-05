@@ -1,0 +1,42 @@
+# Deploy บน Ubuntu server ที่ /DATA/AppData/www/newssra
+#   1) cp .env.production.example .env.production  แล้วกรอกรหัสผ่านเอง
+#   2) docker compose up -d --build
+# แอปเปิดที่พอร์ต 3000 • ข้อมูล MySQL เก็บใน ./data/mysql • ไฟล์หลักฐานที่อัปโหลดเก็บใน ./data/uploads
+#
+# กรณีใช้ MySQL ที่มีอยู่แล้วบนเครื่อง host (ไม่ใช้ service db ด้านล่าง):
+#   - ลบ/คอมเมนต์ service "db" และ depends_on ของ app
+#   - ตั้ง DB_HOST=host.docker.internal ใน .env.production (มี extra_hosts รองรับแล้ว)
+
+services:
+  app:
+    build: .
+    container_name: newssra-app
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    env_file:
+      - .env.production
+    volumes:
+      - ./data/uploads:/app/uploads
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mysql:8.4
+    container_name: newssra-db
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+    healthcheck:
+      # ping ไม่ต้องใช้รหัสผ่าน — server ตอบ (แม้ access denied) ก็ถือว่า alive
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 40s

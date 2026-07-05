@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>แบบประเมินคัดกรองโรงเรียนพื้นที่พิเศษ พ.ส.ศ.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">พศ</div>
+        <div>
+          <p class="eyebrow">ระบบคัดกรองสถานศึกษาพื้นที่ลักษณะพิเศษ</p>
+          <h1>แบบประเมินเพื่อรับเงินเพิ่ม พ.ส.ศ.</h1>
+        </div>
+      </div>
+      <div class="top-actions" aria-label="เครื่องมือแบบประเมิน">
+        <button class="ghost-btn" type="button" id="demoBtn">เติมตัวอย่าง</button>
+        <button class="ghost-btn" type="button" id="exportBtn">ส่งออก JSON</button>
+        <button class="ghost-btn" type="button" id="printBtn">พิมพ์</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="score-rail" aria-label="สรุปคะแนน">
+        <section class="score-panel">
+          <div class="score-ring" aria-live="polite">
+            <span id="totalScore">0</span>
+            <small>/100</small>
+          </div>
+          <div class="level-pill neutral" id="levelPill">ยังไม่จัดระดับ</div>
+          <p class="score-note" id="scoreNote">กรอกข้อมูลดิบ ระบบจะคำนวณคะแนนและระดับให้อัตโนมัติ</p>
+        </section>
+
+        <nav class="section-nav" id="sectionNav" aria-label="นำทางตามด้านประเมิน"></nav>
+
+        <section class="readiness">
+          <h2>ความพร้อมก่อนส่ง</h2>
+          <ul id="readyList"></ul>
+        </section>
+      </aside>
+
+      <section class="workspace">
+        <form id="assessmentForm" novalidate>
+          <section class="panel" id="unitPanel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">ข้อมูลจุดจัดการศึกษา</p>
+                <h2>ประเมินแยกรายโรงเรียนหลัก โรงเรียนสาขา หรือห้องเรียนสาขา</h2>
+              </div>
+              <span class="config-badge">เกณฑ์ฉบับเสนอ v1</span>
+            </div>
+
+            <div class="unit-grid">
+              <label>
+                <span>ชื่อจุดจัดการศึกษา</span>
+                <input type="text" data-unit="name" placeholder="เช่น โรงเรียนบ้านห้วยเย็น">
+              </label>
+              <label>
+                <span>รหัสสถานศึกษา</span>
+                <input type="text" data-unit="code" inputmode="numeric" placeholder="10 หลัก">
+              </label>
+              <label>
+                <span>ปีการประเมิน</span>
+                <input type="text" data-unit="year" inputmode="numeric" placeholder="2569">
+              </label>
+              <label>
+                <span>ผู้เรียนทั้งหมด ณ 10 มิ.ย.</span>
+                <input type="number" min="0" data-unit="totalStudents" placeholder="คน">
+              </label>
+              <label>
+                <span>สำนักงานเขต/สกร.อำเภอ</span>
+                <input type="text" data-unit="areaOffice" placeholder="หน่วยงานต้นทาง">
+              </label>
+              <label>
+                <span>จังหวัด</span>
+                <input type="text" data-unit="province" placeholder="จังหวัด">
+              </label>
+              <label>
+                <span>ละติจูด</span>
+                <input type="number" step="0.000001" data-unit="lat" placeholder="เช่น 18.7891">
+              </label>
+              <label>
+                <span>ลองจิจูด</span>
+                <input type="number" step="0.000001" data-unit="lng" placeholder="เช่น 98.9832">
+              </label>
+            </div>
+
+            <div class="segmented" role="group" aria-label="ประเภทจุดจัดการศึกษา">
+              <button type="button" data-unit-choice="unitType" data-value="โรงเรียน">โรงเรียน</button>
+              <button type="button" data-unit-choice="unitType" data-value="โรงเรียนสาขา">โรงเรียนสาขา</button>
+              <button type="button" data-unit-choice="unitType" data-value="ห้องเรียนสาขา">ห้องเรียนสาขา</button>
+            </div>
+
+            <div class="notice">
+              ระบบนี้รับข้อมูลผู้เรียนเป็นยอดรวมเท่านั้น ห้ามแนบรายชื่อรายบุคคลในหมวดชาติพันธุ์ ความยากจน ความพิการ หรือสถานะทะเบียน เพื่อรักษาหลัก PDPA
+            </div>
+          </section>
+
+          <div id="criteriaSections"></div>
+
+          <section class="panel summary-panel" id="summaryPanel">
+            <div class="panel-head">
+              <div>
+                <p class="eyebrow">สรุปผลการประเมิน</p>
+                <h2>ผลคัดกรองและรายการที่ต้องตรวจทาน</h2>
+              </div>
+              <button class="ghost-btn" type="button" id="resetBtn">ล้างข้อมูล</button>
+            </div>
+
+            <div class="summary-grid">
+              <div class="result-block">
+                <p>คะแนนรวม</p>
+                <strong id="summaryTotal">0</strong>
+                <span id="summaryLevel">ยังไม่จัดระดับ</span>
+                <small id="summaryRight">ยังไม่เข้าเกณฑ์รับเงินเพิ่ม พ.ส.ศ.</small>
+              </div>
+              <div class="dimension-list" id="dimensionSummary"></div>
+            </div>
+
+            <div class="flags-wrap">
+              <h3>ข้อสังเกตจากระบบ</h3>
+              <div id="flagSummary"></div>
+            </div>
+
+            <label class="certify-box">
+              <input type="checkbox" id="signedCheck">
+              <span>ข้าพเจ้าในฐานะผู้รับรองข้อมูล ขอรับรองว่าข้อมูลและหลักฐานทั้งหมดเป็นความจริง และทราบว่าการรายงานเท็จมีผลทางวินัยและต้องคืนเงินที่รับไปทั้งหมด</span>
+            </label>
+
+            <div class="submit-row">
+              <button class="primary-btn" type="button" id="submitBtn">กรอกข้อมูลให้ครบก่อนส่ง</button>
+              <span id="submitHint"></span>
+            </div>
+          </section>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="assets/app.js"></script>
+</body>
+</html>
