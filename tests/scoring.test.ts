@@ -278,13 +278,59 @@ describe("flags — ธงบล็อก/เตือน", () => {
     assert.equal(v00?.tone, "block");
   });
 
-  test("V02: มีผู้เรียนพักนอนแต่ยังไม่ยืนยันหลักฐาน → block", () => {
+  test("V02: มีผู้เรียนพักนอนแต่ยังไม่แนบไฟล์หลักฐาน → block", () => {
     const s = makeBlankState();
     s.unit.totalStudents = "100";
-    s.responses["1.2"] = { count: "5" }; // evidence.ready ยัง false
+    s.responses["1.2"] = { count: "5" }; // evidence.files ยังว่าง
     const v02 = flags(s).find((x) => x.code === "V02");
     assert.ok(v02);
     assert.equal(v02?.tone, "block");
+  });
+
+  test("V02: ready=true แต่ไม่มีไฟล์จริง → ยัง block (ไม่เชื่อ boolean จาก client)", () => {
+    const s = makeBlankState();
+    s.unit.totalStudents = "100";
+    s.responses["1.2"] = { count: "5" };
+    s.evidence["1.2"] = { ready: true, note: "", files: [] }; // ปลอม ready แต่ไม่มีไฟล์
+    assert.ok(flags(s).find((x) => x.code === "V02"), "ready ปลอมต้องไม่ปลดล็อก V02");
+  });
+
+  test("V02: มีไฟล์หลักฐานจริง → ไม่มี block", () => {
+    const s = makeBlankState();
+    s.unit.totalStudents = "100";
+    s.responses["1.2"] = { count: "5" };
+    s.evidence["1.2"] = {
+      ready: false,
+      note: "",
+      files: [{ id: "f1", originalName: "a.pdf", mimeType: "application/pdf", size: 1, sha256: "x", uploadedAt: "t" }],
+    };
+    assert.equal(flags(s).find((x) => x.code === "V02"), undefined, "มีไฟล์แล้วต้องไม่ติด V02");
+  });
+
+  test("V04: เข้าถึงยากระดับสูง (3.2≥3) แต่เดินทางจากเขต ≤30 นาที → warn", () => {
+    const s = makeBlankState();
+    s.responses["3.2"] = { level: "3" };
+    s.responses["3.1"] = { minutes: "20" };
+    const v04 = flags(s).find((x) => x.code === "V04");
+    assert.ok(v04, "ต้องมีธง V04");
+    assert.equal(v04?.tone, "warn");
+  });
+
+  test("V06: ไม่มีไฟฟ้าสาธารณะ (4.1∈{2,3}) แต่อินเทอร์เน็ตปกติ (4.3=0) → warn", () => {
+    const s = makeBlankState();
+    s.responses["4.1"] = { level: "2" };
+    s.responses["4.3"] = { level: "0" };
+    const v06 = flags(s).find((x) => x.code === "V06");
+    assert.ok(v06, "ต้องมีธง V06");
+    assert.equal(v06?.tone, "warn");
+  });
+
+  test("V07: ไม่มีสัญญาณสื่อสาร (4.3=3) → info", () => {
+    const s = makeBlankState();
+    s.responses["4.3"] = { level: "3" };
+    const v07 = flags(s).find((x) => x.code === "V07");
+    assert.ok(v07, "ต้องมีธง V07");
+    assert.equal(v07?.tone, "info");
   });
 
   test("V09: คะแนนรวมแถบ 65-74 → info (ต้องตรวจภาคสนาม)", () => {

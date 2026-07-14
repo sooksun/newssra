@@ -8,6 +8,32 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+
+    # MySQL สำหรับ integration tests — แอปสร้าง database/ตารางเองเมื่อเชื่อมครั้งแรก (lazy init)
+    # และเทสต์ integration seed แถวของตัวเอง (ไม่พึ่งข้อมูล legacy) จึงรันบน DB เปล่าได้
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: ci_root_pw
+          MYSQL_DATABASE: newssra
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pci_root_pw"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=15
+
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: "3306"
+      DB_USER: root
+      DB_PASSWORD: ci_root_pw
+      DB_NAME: newssra
+      # secret เฉพาะ CI (>=16 ตัว, ไม่ใช่ค่า dev default) — ไม่ใช้บน production
+      AUTH_SECRET: ci-only-secret-not-for-production-0123456789
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -20,3 +46,7 @@ jobs:
         run: npx tsc --noEmit
       - name: Unit tests
         run: npm test
+      - name: Build
+        run: npm run build
+      - name: Integration tests
+        run: npm run test:integration

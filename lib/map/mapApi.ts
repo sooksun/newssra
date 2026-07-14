@@ -3,7 +3,11 @@
 // แล้วแสดงให้ผู้ใช้ผ่าน state error ของตัวเอง (routeErr / buildingsErr / ฯลฯ)
 // แยกออกมาเพื่อลดขนาด CesiumMap.tsx และเลิกเขียนโค้ดเรียก OSRM ซ้ำสองที่
 
-const OSRM_ROUTE_BASE = "https://router.project-osrm.org/route/v1/driving";
+// OSRM host — ตั้งค่าได้ผ่าน NEXT_PUBLIC_OSRM_URL (เช่น instance ของตัวเองที่ self-host)
+// ค่าเริ่มต้นคือ demo server สาธารณะ (ฟรี ไม่ต้องมี key แต่ไม่รับประกัน uptime ระดับ production
+// — สำหรับใช้งานจริงควร self-host แล้วชี้มาที่ instance นั้น). ตัดผ่านฝั่ง client จึงต้อง NEXT_PUBLIC_*
+const OSRM_BASE = (process.env.NEXT_PUBLIC_OSRM_URL || "https://router.project-osrm.org").replace(/\/+$/, "");
+const OSRM_ROUTE_BASE = `${OSRM_BASE}/route/v1/driving`;
 
 /** เส้นทางหนึ่งเส้นจาก OSRM — coords เป็น [lng,lat][] ตามรูปแบบ GeoJSON */
 export interface OsrmRoute {

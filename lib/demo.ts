@@ -17,6 +17,20 @@ function withEvidence(state: AssessmentState, note12 = ""): AssessmentState {
   (Object.keys(state.evidence) as IndicatorId[]).forEach((id) => {
     state.evidence[id] = { ready: true, note: id === "1.2" ? note12 : "", files: [] };
   });
+  // โปรไฟล์ที่มีผู้เรียนพักนอน (note12) แนบไฟล์ตัวอย่างให้ 1.2 เพื่อให้ผ่านธง V02 (ซึ่งยึดไฟล์จริง)
+  // ไฟล์สาธิตเป็น PDF จึงแสดงเป็นชิป "PDF" สะอาด ๆ (ไม่ใช่รูปเสีย) — เป็นข้อมูลสมมติ ไม่มีบนดิสก์
+  if (note12) {
+    state.evidence["1.2"].files = [
+      {
+        id: "demo-1-2-duty-order",
+        originalName: "คำสั่งเวรพักนอน-ตัวอย่าง.pdf",
+        mimeType: "application/pdf",
+        size: 245000,
+        sha256: "demo",
+        uploadedAt: "2569-01-15T09:00:00.000Z",
+      },
+    ];
+  }
   return state;
 }
 

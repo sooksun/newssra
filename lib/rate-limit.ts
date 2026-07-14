@@ -79,6 +79,15 @@ export const loginRateLimiter = new RateLimiter({
   blockMs: 15 * 60 * 1000, // ล็อก 15 นาที
 });
 
+// ตัวจำกัดคำขอ /api/buildings ต่อผู้ใช้ — กันการไล่ pan/zoom หรือสคริปต์ที่กระตุ้นการนำเข้า
+// quadkey ใหม่ (สตรีมไฟล์ Microsoft หลายสิบวินาที + insert แถวจำนวนมาก) รัว ๆ
+// ใช้ pattern check()+countRequest(): นับทุกคำขอเป็นโควตา (ไม่ใช่เฉพาะที่ล้มเหลว)
+export const buildingsRateLimiter = new RateLimiter({
+  maxFails: 40, // 40 คำขอ/นาที/ผู้ใช้ (การ pan แผนที่ปกติต่ำกว่านี้มาก)
+  windowMs: 60 * 1000,
+  blockMs: 60 * 1000,
+});
+
 /** ดึง IP ผู้เรียกจาก header ของ reverse proxy — คืน null ถ้าระบุไม่ได้ (จะได้ไม่ล็อกรวมกันทั้งระบบด้วย key เดียว) */
 export function clientIp(headers: Headers): string | null {
   const xff = headers.get("x-forwarded-for");

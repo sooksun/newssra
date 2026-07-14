@@ -189,12 +189,16 @@ export function flags(state: AssessmentState): Flag[] {
     }
   });
 
-  if (num(state.responses["1.2"]?.count) >= 1 && !state.evidence["1.2"]?.ready) {
+  // V02 — มีผู้เรียนพักนอน (1.2 ≥ 1) แต่ยังไม่แนบไฟล์หลักฐาน → บล็อกการยื่น
+  // ยึด "ไฟล์จริงที่อัปโหลด" (evidence.files) ไม่ใช่ checkbox ready ที่ client ตั้งเองได้
+  // — evidence.files เป็นฟิลด์ที่ server เป็นเจ้าของ (เขียนโดย route อัปโหลดเท่านั้น + preserve จาก DB)
+  // จึงปลอมข้ามเงื่อนไขนี้ไม่ได้ ตรงตามสเปก §1.2 ("ไม่แนบคำสั่งเวร → ระบบไม่ให้ส่ง")
+  if (num(state.responses["1.2"]?.count) >= 1 && (state.evidence["1.2"]?.files?.length ?? 0) === 0) {
     items.push({
       code: "V02",
       id: "1.2",
       tone: "block",
-      text: "มีผู้เรียนพักนอน แต่ยังไม่ยืนยันคำสั่งเวรพักนอนและหลักฐานเรือนนอน",
+      text: "มีผู้เรียนพักนอน แต่ยังไม่แนบไฟล์หลักฐาน (คำสั่งเวรพักนอน/ภาพเรือนนอน) จึงยังยื่นไม่ได้",
     });
   }
 

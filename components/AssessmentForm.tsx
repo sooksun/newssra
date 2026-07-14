@@ -4,7 +4,7 @@
 // คะแนนฝั่ง client ใช้แสดงผลทันที ส่วนคะแนนจริงที่บันทึก server คำนวณซ้ำเสมอ
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DIMENSIONS } from "@/lib/criteria";
 import { DEMO_PROFILES, makeDemoState } from "@/lib/demo";
 import { computeAll } from "@/lib/scoring";
@@ -20,6 +20,8 @@ import UserMenu from "./UserMenu";
 type SaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
 
 const SAVE_DEBOUNCE_MS = 800;
+const MAX_SAVE_RETRIES = 4;
+const RETRY_DELAYS_MS = [1000, 2000, 5000, 10000]; // backoff ต่อครั้งที่ล้มเหลว
 
 interface Props {
   id: number;
@@ -39,44 +41,83 @@ export default function AssessmentForm({ id, initial, user }: Props) {
 
   const lastSavedRef = useRef<string>(JSON.stringify(initial));
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // autosave: หน่วงหลังแก้ไขล่าสุด แล้วส่งทั้ง state ให้ server คำนวณและบันทึก
-  useEffect(() => {
-    if (stateJson === lastSavedRef.current) return;
-    setSaveStatus("pending");
-    const timer = setTimeout(async () => {
-      setSaveStatus("saving");
-      try {
-        const res = await fetch(`/api/assessments/${id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: `{"state":${stateJson}}`,
-        });
-        if (!res.ok) throw new Error(`save failed: ${res.status}`);
-        lastSavedRef.current = stateJson;
-        setSaveStatus("saved");
-        setSavedAt(
-          new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" })
-        );
-      } catch (error) {
-        console.error(error);
-        setSaveStatus("error");
-      }
-    }, SAVE_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [id, stateJson]);
-
-  useEffect(() => {
-    return () => {
-      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    };
-  }, []);
+  const saveSeqRef = useRef(0); // ลำดับคำขอบันทึก — กันผลลัพธ์ของคำขอเก่าเขียนทับคำขอใหม่ (out-of-order)
+  const abortRef = useRef<AbortController | null>(null);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function showToast(message: string) {
     setToast(message);
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = setTimeout(() => setToast(""), 2600);
+    toastTimerRef.current = setTimeout(() => setToast(""), 3600);
   }
+
+  // ส่งคำขอบันทึกหนึ่งครั้ง — ยกเลิกคำขอที่ค้าง (กันชนกัน), กันผลลัพธ์ล้าสมัยด้วย seq,
+  // และลองใหม่อัตโนมัติแบบ backoff เมื่อล้มเหลว จนกว่าจะครบเพดานจึงแจ้งเตือนผู้ใช้
+  const runSave = useCallback((json: string, attempt: number) => {
+    abortRef.current?.abort(); // ยกเลิก PUT ก่อนหน้าที่ยังไม่จบ
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const seq = ++saveSeqRef.current;
+    setSaveStatus("saving");
+    fetch(`/api/assessments/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: `{"state":${json}}`,
+      signal: controller.signal,
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`save failed: ${res.status}`);
+        if (seq !== saveSeqRef.current) return; // มีคำขอใหม่กว่าแซงแล้ว — ไม่แตะสถานะ
+        lastSavedRef.current = json;
+        setSaveStatus("saved");
+        setSavedAt(
+          new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" })
+        );
+      })
+      .catch((error) => {
+        if (controller.signal.aborted || seq !== saveSeqRef.current) return; // ถูกแทนที่แล้ว
+        if (attempt < MAX_SAVE_RETRIES) {
+          setSaveStatus("pending");
+          retryTimerRef.current = setTimeout(() => runSave(json, attempt + 1), RETRY_DELAYS_MS[attempt] ?? 10000);
+        } else {
+          console.error(error);
+          setSaveStatus("error");
+          showToast("บันทึกอัตโนมัติไม่สำเร็จ — ตรวจสอบการเชื่อมต่อ ระบบจะลองใหม่เมื่อคุณแก้ไขต่อ");
+        }
+      });
+  }, [id]);
+
+  // autosave: หน่วงหลังแก้ไขล่าสุด แล้วเรียก runSave (ซึ่งจัดการ retry/abort เอง)
+  useEffect(() => {
+    if (stateJson === lastSavedRef.current) return;
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current); // มีแก้ไขใหม่ — ยกเลิก retry ของ snapshot เก่า
+      retryTimerRef.current = null;
+    }
+    setSaveStatus("pending");
+    const timer = setTimeout(() => runSave(stateJson, 0), SAVE_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [stateJson, runSave]);
+
+  // เตือนก่อนออกจากหน้าเมื่อยังบันทึกไม่เสร็จ/ล้มเหลว (กันข้อมูลหายเงียบ ๆ)
+  useEffect(() => {
+    const dirty = saveStatus === "pending" || saveStatus === "saving" || saveStatus === "error";
+    if (!dirty) return;
+    const handler = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [saveStatus]);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
 
   function updateUnit<K extends keyof UnitInfo>(key: K, value: UnitInfo[K]) {
     setState((prev) => ({ ...prev, unit: { ...prev.unit, [key]: value } }));
@@ -157,6 +198,13 @@ export default function AssessmentForm({ id, initial, user }: Props) {
 
   async function handleSubmit() {
     if (!computed.submittable || submitting) return;
+    // ยกเลิก autosave ที่ค้าง + เลื่อน seq เพื่อไม่ให้ผลลัพธ์ของมันมาเขียนทับสถานะหลังยื่น
+    abortRef.current?.abort();
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
+    saveSeqRef.current += 1;
     setSubmitting(true);
     try {
       const res = await fetch(`/api/assessments/${id}/submit`, {
