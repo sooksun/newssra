@@ -166,3 +166,14 @@ export function getPool(): Promise<Pool> {
   }
   return poolPromise;
 }
+
+/** ตรวจว่าฐานข้อมูลตอบสนองจริง (readiness probe) — คืน false แทนการโยน เพื่อให้ผู้เรียกตัดสินใจเอง */
+export async function pingDb(): Promise<boolean> {
+  try {
+    const pool = await getPool();
+    await pool.query("SELECT 1");
+    return true;
+  } catch {
+    return false;
+  }
+}

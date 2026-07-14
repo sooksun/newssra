@@ -12,7 +12,9 @@
     "buildings:import": "node --import tsx scripts/import-buildings.mts",
     "users:migrate": "node scripts/migrate-legacy-users.mjs",
     "test": "node --import tsx --test tests/scoring.test.ts tests/gis.test.ts tests/auth.test.ts tests/rate-limit.test.ts tests/state.test.ts tests/uploads.test.ts lib/map/geometry.test.ts lib/map/borders.test.ts",
-    "test:integration": "node --import tsx --experimental-test-module-mocks --test-force-exit --test tests/integration/login-route.test.mts tests/integration/assessment-security.test.mts"
+    "test:integration": "node --import tsx --experimental-test-module-mocks --test-force-exit --test tests/integration/login-route.test.mts tests/integration/assessment-security.test.mts",
+    "format": "prettier --write \"app/**/*.{ts,tsx}\" \"lib/**/*.{ts,tsx}\" \"components/**/*.{ts,tsx}\" \"tests/**/*.{ts,mts}\"",
+    "format:check": "prettier --check \"app/**/*.{ts,tsx}\" \"lib/**/*.{ts,tsx}\" \"components/**/*.{ts,tsx}\" \"tests/**/*.{ts,mts}\""
   },
   "dependencies": {
     "cesium": "^1.143.0",
@@ -25,6 +27,7 @@
     "@types/node": "^24.3.0",
     "@types/react": "^19.1.9",
     "@types/react-dom": "^19.1.7",
+    "prettier": "^3.9.5",
     "tsx": "^4.23.0",
     "typescript": "^5.9.2"
   },

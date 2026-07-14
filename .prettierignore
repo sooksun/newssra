@@ -1,0 +1,20 @@
+# build output / deps
+node_modules
+.next
+out
+build
+
+# generated / vendored
+public/cesium
+public/geo
+next-env.d.ts
+
+# data + uploads (runtime)
+data
+uploads
+
+# legacy prototype (excluded from tsconfig/Docker too)
+legacy
+
+# separate Python analysis project
+ssra-policy-report

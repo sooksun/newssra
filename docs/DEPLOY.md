@@ -159,3 +159,4 @@ docker compose restart app
 - ระบบมีการยืนยันตัวตนแบบ 3 บทบาท (ดูหัวข้อ "ระบบผู้ใช้และสิทธิ์" ในข้อ 3) — **ต้องตั้ง `AUTH_SECRET` และเปลี่ยนรหัสผ่านบัญชีตั้งต้นทันที** ก่อนเปิดใช้จริง
 - แผนที่ 3 มิติ (`/map`, หน้าแรกหลัง login) ทำงานแบบ keyless — ไม่ต้องตั้งค่าเพิ่ม ไฟล์ static ของ Cesium ถูกคัดลอกเข้า `public/cesium` อัตโนมัติตอน `npm run build` (ผ่าน `scripts/copy-cesium.mjs`) และรวมอยู่ใน Docker image แล้ว (ใส่ `NEXT_PUBLIC_CESIUM_ION_TOKEN` เพิ่มได้ถ้าต้องการ terrain/ภาพคุณภาพสูง)
 - พอร์ต 9950 เปลี่ยนได้ที่ `ports` ใน `docker-compose.yml` เช่น `"8080:3000"` (หรือกำหนด `APP_PORT` ตอนรัน)
+- **Health check:** `GET /api/health` เป็น liveness (ตอบเร็ว ไม่แตะ DB) — ใช้โดย healthcheck ของ compose; เพิ่ม `?deep=1` (`GET /api/health?deep=1`) เพื่อ readiness ที่ ping ฐานข้อมูลด้วย (ตอบ 503 ถ้า DB ล่ม) เหมาะสำหรับ monitor ภายนอกที่ต้องการรู้ว่า DB ใช้งานได้จริง
