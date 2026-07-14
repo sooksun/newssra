@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { makeBlankState, sanitizeState } from "../lib/state";
+import { makeBlankState, preserveServerOwned, sanitizeState } from "../lib/state";
+import type { AssessmentState, EvidenceFile } from "../lib/types";
 
 test("input ที่ไม่ใช่ object → blank state", () => {
   const s = sanitizeState(null);
@@ -76,4 +77,49 @@ test("submitted — รับเฉพาะเมื่อมี ref + at เ�
   assert.equal(ok.submitted?.ref, "พสศ-2569-0001");
   const bad = sanitizeState({ submitted: { ref: 123, at: null } });
   assert.equal(bad.submitted, null);
+});
+
+// preserveServerOwned — helper ที่ทั้ง PUT autosave และ POST submit ใช้ร่วมกัน
+// ยืนยันว่า client เขียนทับฟิลด์ที่ server เป็นเจ้าของไม่ได้ (บั๊กเดิม: submit ลืม merge แบบ PUT)
+const DB_FILE: EvidenceFile = {
+  id: "db-file", originalName: "a.pdf", mimeType: "application/pdf", size: 1, sha256: "x", uploadedAt: "t",
+};
+
+test("preserveServerOwned — evidence.files มาจาก DB แต่ ready/ฟิลด์ปกติมาจาก client", () => {
+  const existing = makeBlankState();
+  existing.evidence["1.2"] = { ready: true, note: "จาก DB", files: [DB_FILE] };
+  const incoming = makeBlankState();
+  incoming.unit.name = "ชื่อใหม่จากฟอร์ม";
+  incoming.evidence["1.2"] = { ready: false, note: "จาก client", files: [{ ...DB_FILE, id: "FAKE" }] };
+
+  const merged = preserveServerOwned(incoming, existing);
+  assert.equal(merged.evidence["1.2"].files.length, 1);
+  assert.equal(merged.evidence["1.2"].files[0].id, "db-file", "ไฟล์หลักฐานต้องมาจาก DB ไม่ใช่ client");
+  assert.equal(merged.evidence["1.2"].ready, false, "ready (ธงไม่ใช่ไฟล์) ยังมาจาก client");
+  assert.equal(merged.evidence["1.2"].note, "จาก client");
+  assert.equal(merged.unit.name, "ชื่อใหม่จากฟอร์ม", "ฟิลด์ปกติของ client ต้องผ่าน");
+});
+
+test("preserveServerOwned — gis/scoringVersion มาจาก DB, client แก้ไม่ได้", () => {
+  const existing = makeBlankState();
+  existing.gis = { sentinel: "from-db" } as unknown as AssessmentState["gis"];
+  existing.scoringVersion = "v2-gis";
+  const incoming = makeBlankState();
+  incoming.gis = { sentinel: "forged" } as unknown as AssessmentState["gis"];
+  incoming.scoringVersion = "v2-gis";
+
+  const merged = preserveServerOwned(incoming, existing);
+  assert.equal((merged.gis as unknown as Record<string, unknown>).sentinel, "from-db");
+  assert.equal(merged.scoringVersion, "v2-gis");
+});
+
+test("preserveServerOwned — existing เป็นแถว v1 → client ยัด gis เข้ามาไม่ได้ (ไม่งอก key)", () => {
+  const existing = makeBlankState(); // v1 — ไม่มี gis
+  const incoming = makeBlankState();
+  incoming.gis = { sentinel: "forged" } as unknown as AssessmentState["gis"];
+  incoming.scoringVersion = "v2-gis";
+
+  const merged = preserveServerOwned(incoming, existing);
+  assert.equal("gis" in merged, false, "gis ต้องไม่งอกจากค่าที่ client ส่งมา");
+  assert.equal("scoringVersion" in merged, false);
 });

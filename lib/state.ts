@@ -166,3 +166,24 @@ export function sanitizeState(input: unknown): AssessmentState {
 
   return state;
 }
+
+/**
+ * รวม state ที่รับจาก client เข้ากับฟิลด์ที่ฝั่ง server เป็นเจ้าของ (ดึงจาก DB)
+ * ใช้ร่วมกันทั้ง PUT autosave และ POST submit เพื่อกันไม่ให้ payload จาก client เขียนทับ:
+ *  - evidence[].files: จัดการโดย route อัปโหลด/ลบไฟล์เท่านั้น (กัน snapshot ค้างมาทับจนไฟล์หาย/ปลอม)
+ *  - gis / scoringVersion: เขียนโดย POST .../gis เท่านั้น (server คำนวณ ratio ทั้งหมดเอง)
+ * conditional spread เพื่อให้แถว v1 (ไม่มี gis) ไม่งอก key — round-trip เหมือนเดิมทุก byte
+ * หมายเหตุ: ไม่ยุ่งกับ `submitted` — ผู้เรียกจัดการเอง (PUT preserve จาก DB, submit ออกเลขใหม่)
+ */
+export function preserveServerOwned(incoming: AssessmentState, existing: AssessmentState): AssessmentState {
+  const evidence = {} as AssessmentState["evidence"];
+  INDICATOR_IDS.forEach((id) => {
+    evidence[id] = { ...incoming.evidence[id], files: existing.evidence[id]?.files ?? [] };
+  });
+  const merged: AssessmentState = { ...incoming, evidence };
+  delete merged.gis;
+  delete merged.scoringVersion;
+  if (existing.gis) merged.gis = existing.gis;
+  if (existing.scoringVersion) merged.scoringVersion = existing.scoringVersion;
+  return merged;
+}

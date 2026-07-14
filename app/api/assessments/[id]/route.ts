@@ -2,9 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { deleteAssessment, getAssessment, saveAssessment } from "@/lib/repo";
 import { requireAssessmentAccess } from "@/lib/api-auth";
-import { sanitizeState } from "@/lib/state";
+import { preserveServerOwned, sanitizeState } from "@/lib/state";
 import { deleteAllEvidenceFiles } from "@/lib/uploads";
-import { INDICATOR_IDS } from "@/lib/types";
 import type { AssessmentState } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -46,23 +45,14 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
 
   const incoming = sanitizeState((body as { state?: unknown })?.state);
   try {
-    // ฟิลด์ที่ฝั่ง server เป็นเจ้าของ — autosave PUT ต้องไม่เขียนทับด้วยค่าจาก client:
-    //  - submitted: ออกเลขที่อ้างอิงโดย POST .../submit เท่านั้น (กัน client ปลอมสถานะยื่นข้าม canSubmit)
-    //  - evidence[].files: จัดการโดย route อัปโหลด/ลบไฟล์เท่านั้น (กัน snapshot autosave ที่ค้างมาทับจนไฟล์ที่เพิ่งอัปโหลดหาย)
-    //  - gis / scoringVersion: เขียนโดย POST .../gis เท่านั้น (server เป็นผู้คำนวณ ratio ทั้งหมดเอง)
-    //    conditional spread เพื่อให้แถว v1 ไม่งอก key — round-trip เหมือนเดิมทุก byte
+    // ฟิลด์ที่ฝั่ง server เป็นเจ้าของ ถูก preserve จาก DB โดย preserveServerOwned
+    // (evidence[].files, gis, scoringVersion) ส่วน submitted ที่ออกโดย POST .../submit เท่านั้น
+    // ก็ preserve จาก DB ที่นี่ (กัน client ปลอมสถานะยื่นข้าม canSubmit)
     const existing = await getAssessment(id);
     if (!existing) return NextResponse.json({ error: "ไม่พบแบบประเมิน" }, { status: 404 });
 
-    const evidence = {} as AssessmentState["evidence"];
-    INDICATOR_IDS.forEach((eid) => {
-      evidence[eid] = { ...incoming.evidence[eid], files: existing.state.evidence[eid]?.files ?? [] };
-    });
-    const state: AssessmentState = { ...incoming, submitted: existing.state.submitted, evidence };
-    delete state.gis;
-    delete state.scoringVersion;
-    if (existing.state.gis) state.gis = existing.state.gis;
-    if (existing.state.scoringVersion) state.scoringVersion = existing.state.scoringVersion;
+    const state: AssessmentState = preserveServerOwned(incoming, existing.state);
+    state.submitted = existing.state.submitted;
 
     const summary = await saveAssessment(id, state);
     if (!summary) return NextResponse.json({ error: "ไม่พบแบบประเมิน" }, { status: 404 });

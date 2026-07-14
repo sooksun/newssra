@@ -3,8 +3,8 @@ import type { NextRequest } from "next/server";
 import { getAssessment, maxSubmissionSeq, saveAssessment } from "@/lib/repo";
 import { requireAssessmentAccess } from "@/lib/api-auth";
 import { canSubmit, levelFor, totalScore } from "@/lib/scoring";
-import { sanitizeState } from "@/lib/state";
-import type { AssessmentSummary, SubmittedInfo } from "@/lib/types";
+import { preserveServerOwned, sanitizeState } from "@/lib/state";
+import type { AssessmentState, AssessmentSummary, SubmittedInfo } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -26,20 +26,22 @@ export async function POST(request: NextRequest, { params }: Ctx) {
   if (!guard.ok) return guard.response;
 
   // รับ state ล่าสุดจาก client ถ้าส่งมา (กัน autosave ที่ยังค้างอยู่) ไม่งั้นใช้ของใน DB
-  let state = null;
+  let clientState: AssessmentState | null = null;
   try {
     const body = (await request.json()) as { state?: unknown };
-    if (body?.state) state = sanitizeState(body.state);
+    if (body?.state) clientState = sanitizeState(body.state);
   } catch {
     // ไม่มี body ก็ได้ — ใช้ state จากฐานข้อมูล
   }
 
   try {
-    if (!state) {
-      const record = await getAssessment(id);
-      if (!record) return NextResponse.json({ error: "ไม่พบแบบประเมิน" }, { status: 404 });
-      state = record.state;
-    }
+    const record = await getAssessment(id);
+    if (!record) return NextResponse.json({ error: "ไม่พบแบบประเมิน" }, { status: 404 });
+
+    // ใช้ responses/feedback ล่าสุดของ client (ถ้ามี) แต่ preserve ฟิลด์ที่ server เป็นเจ้าของ
+    // (evidence[].files, gis, scoringVersion) จาก DB เสมอ — เหมือน PUT autosave
+    // กัน snapshot การยื่นถูกฝัง metadata หลักฐานปลอมหรือค่า GIS ที่ client แก้
+    const state = clientState ? preserveServerOwned(clientState, record.state) : record.state;
 
     if (!canSubmit(state)) {
       return NextResponse.json(

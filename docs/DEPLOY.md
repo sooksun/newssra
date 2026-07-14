@@ -70,8 +70,9 @@ docker compose up -d --build
 ```
 
 - เปิดใช้งานที่ `http://<SERVER-IP>:9950`
-- ข้อมูล MySQL ถูกเก็บถาวรที่ `/DATA/AppData/www/newssra/data/mysql` (bind mount)
-- ไฟล์หลักฐานที่อัปโหลด (ภาพ/PDF) ถูกเก็บถาวรที่ `/DATA/AppData/www/newssra/data/uploads` (bind mount)
+- **ค่าเริ่มต้นของ `docker-compose.yml` รันเฉพาะ service `app`** (service `db` ถูกคอมเมนต์ไว้) และเชื่อม MySQL ของเครื่อง host ผ่าน `host.docker.internal` — ในโหมดนี้ **ข้อมูล MySQL อยู่ในเครื่อง host ไม่ได้อยู่ใน `data/mysql`** การสำรองจึงทำที่ host โดยตรง (ดูข้อ 8)
+- ถ้าเปิด service `db` (ยกเลิกคอมเมนต์) ข้อมูล MySQL จะถูกเก็บถาวรที่ `/DATA/AppData/www/newssra/data/mysql` (bind mount)
+- ไฟล์หลักฐานที่อัปโหลด (ภาพ/PDF) ถูกเก็บถาวรที่ `/DATA/AppData/www/newssra/data/uploads` (bind mount) เสมอ ไม่ว่าจะใช้ topology ใด
 - ตารางถูกสร้างอัตโนมัติเมื่อแอปเชื่อมต่อครั้งแรก
 
 ## 5. อัปเดตเวอร์ชัน
@@ -96,13 +97,62 @@ docker compose up -d --build
 
 ```bash
 docker compose logs -f app    # ดู log แอป
-docker compose logs -f db     # ดู log MySQL
+docker compose logs -f db     # ดู log MySQL (เฉพาะเมื่อเปิด service db)
 docker compose restart app    # รีสตาร์ตแอป
 docker compose down           # หยุดทั้งชุด (ข้อมูลใน data/ ไม่หาย)
-
-# สำรองฐานข้อมูล
-docker exec newssra-db mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" newssra > backup-$(date +%F).sql
 ```
+
+## 8. สำรองและกู้คืนข้อมูล (Backup & Restore)
+
+ต้องสำรอง **2 ส่วนคู่กันเสมอ** — ฐานข้อมูล (แบบประเมิน/ผู้ใช้/คะแนน) และไฟล์หลักฐานที่อัปโหลด
+(ตามข้อกำหนดในเอกสารเกณฑ์ หลักฐานต้องเก็บอย่างน้อย 10 ปี — วางรอบสำรองและเก็บสำเนานอกเครื่องให้สอดคล้อง)
+
+คำสั่ง `mysqldump`/`mysql` ต่างกันตาม topology ที่ใช้ (ดูข้อ 4):
+
+**ก) ใช้ MySQL ของเครื่อง host (ค่าเริ่มต้น — service `db` ถูกคอมเมนต์):**
+
+```bash
+cd /DATA/AppData/www/newssra
+set -a; . ./.env.production; set +a          # โหลดค่า DB_USER / DB_PASSWORD / DB_NAME
+
+# 8.1 สำรองฐานข้อมูล (รันบน host ที่ติดตั้ง mysql-client)
+mysqldump -h 127.0.0.1 -u "$DB_USER" -p"$DB_PASSWORD" \
+  --single-transaction --routines --triggers "$DB_NAME" > "db-$(date +%F).sql"
+```
+
+**ข) ใช้ MySQL container (เปิด service `db` แล้ว — ชื่อ container ดูจาก `docker compose ps`):**
+
+```bash
+cd /DATA/AppData/www/newssra
+DB_CONTAINER=$(docker compose ps -q db)      # อย่า hard-code ชื่อ container
+docker exec "$DB_CONTAINER" sh -c \
+  'mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" --single-transaction --routines --triggers "$MYSQL_DATABASE"' \
+  > "db-$(date +%F).sql"
+```
+
+**8.2 สำรองไฟล์หลักฐาน (เหมือนกันทุก topology):**
+
+```bash
+cd /DATA/AppData/www/newssra
+tar czf "uploads-$(date +%F).tar.gz" -C data uploads
+```
+
+**8.3 กู้คืน (Restore):**
+
+```bash
+cd /DATA/AppData/www/newssra
+# ฐานข้อมูล — host MySQL:
+mysql -h 127.0.0.1 -u "$DB_USER" -p"$DB_PASSWORD" "$DB_NAME" < db-2026-07-14.sql
+#           — container MySQL:
+#   DB_CONTAINER=$(docker compose ps -q db)
+#   docker exec -i "$DB_CONTAINER" sh -c 'mysql -u root -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE"' < db-2026-07-14.sql
+
+# ไฟล์หลักฐาน — คลายทับโฟลเดอร์ data/ (uploads/ จะถูกเขียนกลับที่เดิม)
+tar xzf uploads-2026-07-14.tar.gz -C data
+docker compose restart app
+```
+
+> แนะนำให้ทำ 8.1–8.2 เป็น cron รายวันแล้ว `rsync`/อัปโหลดไฟล์สำรองไปเก็บนอกเครื่อง (offsite) พร้อมหมุนเวียนลบของเก่าตามนโยบายเก็บรักษา; ทดสอบขั้นตอน 8.3 กับข้อมูลจริงเป็นระยะเพื่อยืนยันว่าไฟล์สำรองกู้คืนได้จริง
 
 ## ข้อควรทราบ
 
