@@ -4,11 +4,42 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import type { AllowedMimeType } from "./upload-constants";
 
 const UPLOAD_ROOT = path.join(process.cwd(), "uploads");
 
 /** ตรวจรูปแบบ UUID v4 ของ fileId ที่รับมาจาก URL — กัน path traversal ก่อนใช้ต่อ path.join ใด ๆ */
 export const FILE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * ตรวจชนิดไฟล์จริงจาก "magic bytes" ของเนื้อไฟล์ — ไม่เชื่อ Content-Type ที่ client ส่งมา (ปลอมได้)
+ * คืนชนิดที่ตรวจพบเมื่อเป็นชนิดที่อนุญาตเท่านั้น (JPEG/PNG/WebP/PDF) มิฉะนั้นคืน null
+ */
+export function sniffMimeType(buffer: Buffer): AllowedMimeType | null {
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return "image/jpeg";
+  }
+  if (
+    buffer.length >= 8 &&
+    buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47 &&
+    buffer[4] === 0x0d && buffer[5] === 0x0a && buffer[6] === 0x1a && buffer[7] === 0x0a
+  ) {
+    return "image/png";
+  }
+  // WebP: "RIFF"<4 ไบต์ขนาด>"WEBP"
+  if (
+    buffer.length >= 12 &&
+    buffer.toString("ascii", 0, 4) === "RIFF" &&
+    buffer.toString("ascii", 8, 12) === "WEBP"
+  ) {
+    return "image/webp";
+  }
+  // PDF: "%PDF-"
+  if (buffer.length >= 5 && buffer.toString("ascii", 0, 5) === "%PDF-") {
+    return "application/pdf";
+  }
+  return null;
+}
 
 function indicatorDir(assessmentId: number, indicatorId: string): string {
   return path.join(UPLOAD_ROOT, String(assessmentId), indicatorId);

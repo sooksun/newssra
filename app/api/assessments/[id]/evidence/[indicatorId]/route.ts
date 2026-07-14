@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getAssessment, saveAssessment } from "@/lib/repo";
-import { saveEvidenceFile } from "@/lib/uploads";
+import { requireAssessmentAccess } from "@/lib/api-auth";
+import { saveEvidenceFile, sniffMimeType } from "@/lib/uploads";
 import { isAllowedMimeType, MAX_FILE_SIZE, MAX_FILES_PER_INDICATOR } from "@/lib/upload-constants";
 import { INDICATOR_IDS } from "@/lib/types";
 import type { IndicatorId } from "@/lib/types";
@@ -27,6 +28,8 @@ export async function POST(request: NextRequest, { params }: Ctx) {
   if (!assessmentId || !indicatorId) {
     return NextResponse.json({ error: "รหัสไม่ถูกต้อง" }, { status: 400 });
   }
+  const guard = await requireAssessmentAccess(assessmentId);
+  if (!guard.ok) return guard.response;
 
   let formData: FormData;
   try {
@@ -59,7 +62,18 @@ export async function POST(request: NextRequest, { params }: Ctx) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const savedFile = await saveEvidenceFile(assessmentId, indicatorId, file.name, file.type, buffer);
+
+    // ตรวจชนิดไฟล์จริงจาก magic bytes ของเนื้อไฟล์ (ไม่เชื่อ Content-Type ที่ client ส่ง — ปลอมได้)
+    // แล้วเก็บชนิดที่ตรวจพบเป็นค่าจริง เพื่อกันไฟล์อันตรายที่ปลอมส่วนหัวเป็นภาพ/PDF
+    const detectedType = sniffMimeType(buffer);
+    if (!detectedType) {
+      return NextResponse.json(
+        { error: "เนื้อไฟล์ไม่ตรงกับชนิดที่รองรับ (รองรับเฉพาะภาพ JPEG/PNG/WebP หรือ PDF จริงเท่านั้น)" },
+        { status: 400 }
+      );
+    }
+
+    const savedFile = await saveEvidenceFile(assessmentId, indicatorId, file.name, detectedType, buffer);
 
     const nextState = {
       ...record.state,

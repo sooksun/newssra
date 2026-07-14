@@ -20,12 +20,21 @@ CREATE TABLE IF NOT EXISTS assessments (
   total_score INT NOT NULL DEFAULT 0,
   level_key VARCHAR(16) NOT NULL DEFAULT 'neutral',
   level_label VARCHAR(64) NOT NULL DEFAULT 'ยังไม่จัดระดับ',
+  community_class_key VARCHAR(32) NULL,
+  community_class_label VARCHAR(100) NULL,
+  setting_type VARCHAR(32) NULL,
   signed TINYINT(1) NOT NULL DEFAULT 0,
   submitted_ref VARCHAR(40) NULL,
   submitted_at DATETIME NULL,
+  owner_user_id INT UNSIGNED NULL,
+  owner_school_code VARCHAR(16) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_updated_at (updated_at),
-  KEY idx_unit_code (unit_code)
+  KEY idx_unit_code (unit_code),
+  KEY idx_owner (owner_user_id),
+  KEY idx_owner_school (owner_school_code),
+  KEY idx_community_class (community_class_key),
+  UNIQUE KEY uq_submitted_ref (submitted_ref)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

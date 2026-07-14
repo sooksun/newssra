@@ -157,6 +157,24 @@ select.demo-select {
   background: #ffdeda;
 }
 
+.ghost-btn.disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.pager-status {
+  color: #64748b;
+  font-size: 14px;
+}
+
 .primary-btn {
   background: var(--blue);
   color: #fff;
@@ -603,6 +621,185 @@ textarea:focus {
   color: var(--muted);
   border-top: 1px dashed var(--line);
   padding-top: 8px;
+}
+
+.help-trigger-wrap {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+.help-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid #93b4f5;
+  border-radius: 50%;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.help-icon-btn:hover,
+.help-icon-btn:focus-visible {
+  background: #dbeafe;
+  border-color: #2563eb;
+  outline: 3px solid rgba(37, 99, 235, 0.18);
+  outline-offset: 2px;
+}
+
+.help-panel-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  border: 0;
+  background: rgba(15, 23, 42, 0.32);
+  cursor: default;
+}
+
+.help-panel {
+  position: fixed;
+  z-index: 91;
+  top: 88px;
+  right: 24px;
+  width: min(430px, calc(100vw - 32px));
+  max-height: calc(100vh - 112px);
+  overflow-y: auto;
+  border: 1px solid #c7d7f0;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
+  padding: 16px;
+  text-align: left;
+}
+
+.help-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+
+.help-panel-kicker {
+  margin: 0 0 3px;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.help-panel h2 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.help-panel-close {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #cbd5e1;
+  border-radius: 50%;
+  background: #f8fafc;
+  color: #334155;
+  font-family: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.help-panel-close:hover,
+.help-panel-close:focus-visible {
+  background: #e2e8f0;
+  outline: 3px solid rgba(71, 85, 105, 0.16);
+  outline-offset: 2px;
+}
+
+.help-panel-lead {
+  margin: 0 0 12px;
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.help-panel-callout {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #bfdbfe;
+  border-left: 4px solid #2563eb;
+  border-radius: 8px;
+  background: #eff6ff;
+}
+
+.help-panel-callout span {
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.help-panel-callout strong {
+  color: #1e3a8a;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.help-rule-list {
+  display: grid;
+  gap: 8px;
+}
+
+.help-rule-item {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 10px 12px;
+}
+
+.help-rule-item h3 {
+  margin: 0 0 4px;
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.help-rule-item p {
+  margin: 0;
+  color: #475569;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.help-panel-foot {
+  margin: 12px 0 0;
+  border-top: 1px dashed #cbd5e1;
+  padding-top: 10px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+@media (max-width: 720px) {
+  .help-panel {
+    inset: auto 10px 10px 10px;
+    width: auto;
+    max-height: min(78vh, calc(100vh - 20px));
+    padding: 14px;
+  }
+
+  .help-panel h2 {
+    font-size: 16px;
+  }
 }
 
 .indicator-desc {
@@ -1605,6 +1802,1307 @@ textarea:focus {
   }
 }
 
+/* ---------- ผู้ใช้ในแถบด้านบน (ชื่อ + บทบาท + ปุ่มออกจากระบบ) ---------- */
+
+.user-menu {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 12px;
+  margin-left: 2px;
+  border-left: 1px solid var(--line);
+}
+
+.user-menu-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+  text-align: right;
+}
+
+.user-menu-name {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.user-menu-role {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* ---------- หน้าเข้าสู่ระบบ ---------- */
+
+.login-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+  padding: 30px 28px;
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 8px;
+}
+
+.login-brand h1 {
+  margin: 2px 0 0;
+  font-size: 22px;
+}
+
+.login-lead {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 4px 0 20px;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.login-field span {
+  font-size: 13px;
+  font-weight: 700;
+  color: #33415f;
+}
+
+.login-field input {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+}
+
+.login-field input:focus {
+  outline: none;
+  border-color: var(--blue);
+  background: #fff;
+}
+
+.login-error {
+  margin: 0;
+  border: 1px solid #ffc7c2;
+  background: var(--red-soft);
+  color: var(--red);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.login-submit {
+  min-width: 0;
+  width: 100%;
+  margin-top: 4px;
+}
+
+/* ---------- จัดการผู้ใช้ (admin) ---------- */
+
+.admin-hint {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.admin-hint code {
+  background: var(--soft);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0 5px;
+  font-size: 12px;
+}
+
+.admin-create {
+  margin-bottom: 18px;
+}
+
+.admin-create h3 {
+  margin: 0 0 14px;
+  font-size: 16px;
+}
+
+.admin-create-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.admin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 160px;
+}
+
+.admin-field span {
+  font-size: 12px;
+  font-weight: 700;
+  color: #33415f;
+}
+
+.admin-field input,
+.admin-field select {
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+}
+
+.admin-field input:focus,
+.admin-field select:focus {
+  outline: none;
+  border-color: var(--blue);
+  background: #fff;
+}
+
+/* ---------- แผนที่ 3 มิติ (Cesium) ---------- */
+
+.map-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.map-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: #0b1220;
+}
+
+.cesium-container {
+  position: absolute;
+  inset: 0;
+}
+
+/* ซ่อนโลโก้ Cesium ion (เราใช้ keyless) แต่คงแถบเครดิตข้อความไว้ */
+.cesium-container .cesium-viewer-bottom {
+  right: 8px;
+  bottom: 4px;
+}
+
+.map-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #cfd8e6;
+  font-weight: 600;
+}
+
+.map-processing-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: rgba(11, 18, 32, 0.55);
+  color: #ffffff;
+  font-weight: 600;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* ภาพโลกเคลื่อนไหวระหว่างรอประมวลผล — public/animate_glob.webp (พื้นหลังโปร่งใส เห็นเฉพาะลูกโลก)
+   drop-shadow ตามรูปทรงกลม (ไม่ใช่กรอบสี่เหลี่ยม) ให้ลูกโลกดูมีมิติบนพื้น overlay สีเข้ม */
+.map-spinner-gif {
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+  display: block;
+  filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.45));
+}
+
+.map-compass {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 5;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  padding: 0;
+}
+
+.map-compass-needle {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.map-compass-n {
+  position: absolute;
+  top: 4px;
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--red);
+}
+
+.map-compass-arrow {
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 16px solid var(--red);
+}
+
+.map-panel {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  width: 320px;
+  max-width: calc(100% - 32px);
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 16px 18px;
+  z-index: 5;
+}
+
+.map-panel-error {
+  border-color: #ffc7c2;
+  background: rgba(255, 236, 235, 0.97);
+  color: var(--red);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.map-panel-title {
+  margin: 0;
+  font-size: 17px;
+}
+
+.map-panel-sub {
+  margin: 2px 0 8px;
+  font-weight: 700;
+  color: var(--blue);
+  font-size: 14px;
+}
+
+.map-coord {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.map-search {
+  position: relative;
+  margin: 0 0 8px;
+}
+
+.map-search input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 32px 0 10px;
+  font-size: 13px;
+  height: 36px;
+}
+
+/* สปินเนอร์ระหว่างค้นหา (มุมขวาของช่องค้นหา) */
+.map-search-spinner {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--line);
+  border-top-color: #7c3aed;
+  border-radius: 50%;
+  animation: map-search-spin 0.7s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes map-search-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* รายการผลลัพธ์ autocomplete (dropdown) */
+.map-search-results {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 288px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.14);
+}
+
+.map-search-source {
+  padding: 5px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line);
+}
+
+.map-search-result {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #1f2a44;
+  background: none;
+  border: none;
+  border-bottom: 1px solid rgba(215, 226, 242, 0.5);
+  cursor: pointer;
+}
+
+.map-search-result:last-child {
+  border-bottom: none;
+}
+
+.map-search-result:hover,
+.map-search-result:focus {
+  background: #f2f4f7;
+  outline: none;
+}
+
+/* กล่องยืนยันย้ายจุดวิเคราะห์ไปยังพิกัดที่ค้นหา */
+.map-confirm-coord {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 10px;
+  border: 1px solid #d8ccf5;
+  border-radius: 8px;
+  background: #f7f3ff;
+}
+
+.map-confirm-coord-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.map-confirm-coord-info span {
+  font-size: 11px;
+  font-weight: 800;
+  color: #6d4bce;
+}
+
+.map-confirm-coord-info strong {
+  font-size: 13px;
+  line-height: 1.35;
+  color: #2a1a54;
+  word-break: break-word;
+}
+
+.map-confirm-coord-info em {
+  font-size: 11px;
+  font-style: normal;
+  color: #7c6aa8;
+}
+
+.map-confirm-coord-btn {
+  width: 100%;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: #7c3aed;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.map-confirm-coord-btn:hover {
+  background: #6d28d9;
+}
+
+.map-confirm-coord-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.map-confirm-coord-warning {
+  margin: 0;
+  color: #5b21b6;
+  font-size: 12px;
+}
+
+.map-confirm-school-move {
+  border-top: 1px dashed #d8ccf5;
+  display: grid;
+  gap: 6px;
+  padding-top: 9px;
+}
+
+.map-confirm-school-label {
+  color: #7c6aa8;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.map-confirm-school-btn {
+  background: #475569;
+}
+
+.map-confirm-school-btn:hover {
+  background: #334155;
+}
+
+/* ปุ่มเลือกเส้นทาง (เมื่อ OSRM คืนหลายเส้น) */
+.map-route-picker {
+  margin: 0 0 12px;
+}
+
+.map-route-picker-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  color: #344054;
+  margin: 0 0 6px;
+}
+
+.map-route-picker-btns {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.map-route-btn {
+  flex: 1;
+  min-width: 88px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.map-route-btn strong {
+  font-size: 12px;
+  font-weight: 700;
+  color: #1f2a44;
+}
+
+.map-route-btn em {
+  font-size: 11px;
+  font-style: normal;
+  color: var(--muted);
+}
+
+.map-route-btn:hover {
+  border-color: #93b4f5;
+}
+
+.map-route-btn-active {
+  border-color: #2563eb;
+  background: #eff5ff;
+}
+
+.map-route-btn-active strong {
+  color: #1d4ed8;
+}
+
+.map-drag-hint {
+  margin: 0 0 10px;
+  padding: 7px 9px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: #475467;
+  background: #f2f7ff;
+  border: 1px dashed #b9d0f5;
+  border-radius: 8px;
+}
+
+.map-imagery-status {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0 0 12px;
+  padding: 9px 10px;
+  border: 1px solid #d7e2f2;
+  border-radius: 8px;
+  background: #f8fbff;
+  color: #344054;
+}
+
+.map-imagery-status span {
+  font-size: 11px;
+  font-weight: 800;
+  color: #667085;
+}
+
+.map-imagery-status strong {
+  font-size: 12px;
+  line-height: 1.45;
+  color: #1f2a44;
+}
+
+.map-imagery-status-ok {
+  border-color: #b7e4ca;
+  background: #f3fbf6;
+}
+
+.map-imagery-status-warn {
+  border-color: #ffd8a8;
+  background: #fff8ed;
+}
+
+.map-imagery-status-muted {
+  border-color: #d7e2f2;
+  background: #f8fbff;
+}
+
+.map-border-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: #475467;
+  margin: 8px 0 2px;
+  cursor: pointer;
+}
+.map-border-toggle input {
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+
+.map-rings {
+  margin: 4px 0 12px;
+}
+.map-rings-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin: 2px 0 6px;
+}
+.map-rings-table th,
+.map-rings-table td {
+  padding: 4px 6px;
+  text-align: right;
+  border-bottom: 1px solid #eef2f6;
+  white-space: nowrap;
+}
+.map-rings-table th {
+  color: #667085;
+  font-weight: 700;
+  font-size: 11px;
+}
+.map-rings-table th:first-child,
+.map-rings-table td:first-child {
+  text-align: left;
+}
+.map-ring-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.map-population {
+  margin: 0 0 12px;
+}
+
+.map-population-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: #344054;
+  margin: 0 0 8px;
+}
+
+.map-draw-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 8px;
+}
+
+.map-note {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 0 0 12px;
+}
+
+.map-note-error {
+  color: var(--red);
+}
+
+.map-note-sync {
+  color: #0f766e;
+}
+
+.map-stats {
+  margin: 0 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.map-stats div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.map-stats dt {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.map-stats dd {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.map-stat-strong {
+  font-weight: 800;
+  color: var(--green);
+  font-size: 15px;
+}
+
+.map-stat-en {
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.map-credit {
+  margin: 10px 0 0;
+  font-size: 10px;
+  color: #98a2b3;
+  line-height: 1.5;
+}
+
+/* ---------- ข้อสรุปของพื้นที่หลังประมวลผลผังอาคาร ---------- */
+
+.map-area-summary {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #94a3b8;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.map-area-summary-sparse {
+  border-left-color: #16a34a;
+  background: #f0fdf4;
+}
+
+.map-area-summary-rural {
+  border-left-color: #65a30d;
+  background: #f7fee7;
+}
+
+.map-area-summary-semi {
+  border-left-color: #d97706;
+  background: #fffbeb;
+}
+
+.map-area-summary-urban {
+  border-left-color: #dc2626;
+  background: #fef2f2;
+}
+
+.map-area-summary-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #334155;
+  margin: 0 0 8px;
+}
+
+.map-area-summary-verdict {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+.map-area-summary-note {
+  margin: 8px 0 0;
+  font-size: 11px;
+}
+
+.map-area-send-btn {
+  margin-top: 10px;
+  background: #059669;
+}
+
+.map-area-send-btn:hover:not(:disabled) {
+  background: #047857;
+}
+
+/* จำแนกชุมชน 3 แกน (A ภูมิประเทศ / B เข้าถึง / C ความหนาแน่น) */
+.gis-community-class {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #c7d7f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+.gis-community-class.gis-community-warn {
+  border-color: #fcd34d;
+  background: #fffbeb;
+}
+.gis-community-class.gis-community-info {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+.gis-community-class.gis-community-ok {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+.gis-community-title {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.gis-community-key {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.gis-community-axes {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin: 0;
+}
+.gis-community-axes dt {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.gis-community-axes dd {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink);
+}
+.gis-community-reasons {
+  margin: 4px 0 0;
+  padding-left: 1.2em;
+  font-size: 12px;
+  color: var(--muted);
+}
+.gis-community-c-note {
+  display: inline;
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.gis-landform-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.gis-elev-band,
+.gis-landform-note {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+  line-height: 1.4;
+  flex-basis: 100%;
+}
+
+.map-landform-tip {
+  vertical-align: middle;
+}
+
+.map-landform-note {
+  display: block;
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+/* legend popup บนแผนที่ — อย่าให้ถูกตัดใน sidebar แคบ */
+.map-analysis .info-popup {
+  min-width: min(280px, 70vw);
+  z-index: 40;
+}
+
+.map-community-class {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #c7d7f0;
+  background: #f8fafc;
+  font-size: 12px;
+}
+.map-community-class.map-community-warn {
+  border-color: #fcd34d;
+  background: #fffbeb;
+}
+.map-community-class.map-community-info {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+.map-community-class.map-community-ok {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+.map-community-title {
+  margin: 0 0 6px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.map-community-axes {
+  margin: 0;
+  padding-left: 1.1em;
+  color: var(--ink);
+}
+.map-community-axis {
+  display: inline-block;
+  min-width: 5.5em;
+  font-weight: 700;
+  color: var(--muted);
+  margin-right: 4px;
+}
+.map-community-c-note {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* ข้อสรุปพื้นที่ในหน้าแบบประเมิน (GisSummary) */
+.gis-area-summary {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  background: #f0fdf4;
+}
+
+.gis-area-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #166534;
+  margin: 0 0 8px;
+}
+
+.gis-area-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px 16px;
+  margin: 0;
+}
+
+.gis-area-grid dt {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.gis-area-grid dd {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+/* ---------- โหมดวิเคราะห์แบบประเมิน (GIS) บนแผนที่ ---------- */
+
+.map-gis {
+  margin: 0 0 14px;
+  padding: 12px;
+  border: 1px solid #c7d7f0;
+  border-radius: 12px;
+  background: #f4f8ff;
+}
+
+.map-gis-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #1d4ed8;
+  margin: 0 0 8px;
+}
+
+.map-gis-route {
+  padding: 8px 0;
+  border-bottom: 1px dashed #d3ddf0;
+}
+
+.map-gis-route:last-of-type {
+  border-bottom: 0;
+}
+
+.map-gis-route-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.map-gis-stats {
+  margin-bottom: 4px;
+}
+
+.map-gis-remove {
+  border: 1px solid #fecaca;
+  background: #fff;
+  color: var(--red);
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.map-gis-explain {
+  margin: 8px 0;
+  padding: 0 0 0 18px;
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: #334155;
+}
+
+.map-gis-severity {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  font-size: 13px;
+  color: #3730a3;
+}
+
+.map-gis-auto {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.map-gis-apply {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink);
+  margin: 8px 0;
+  cursor: pointer;
+}
+
+.map-gis-apply input {
+  margin-top: 3px;
+}
+
+.map-gis-save-btn {
+  width: 100%;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  background: #1d4ed8;
+  cursor: pointer;
+}
+
+.map-gis-save-btn:hover {
+  background: #1e40af;
+}
+
+.map-gis-save-btn:disabled {
+  background: #94a3b8;
+  cursor: not-allowed;
+}
+
+.map-gis-saved {
+  color: var(--green);
+  font-weight: 700;
+}
+
+.map-gis-saved a {
+  color: #1d4ed8;
+}
+
+.map-gis-disclaimer {
+  font-size: 11px;
+  color: #98a2b3;
+  margin-top: 8px;
+}
+
+.map-gis-dest-add {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #d3ddf0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.map-gis-dest-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.map-gis-dest-types {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.map-gis-dest-btn {
+  background: #059669;
+}
+
+.map-gis-dest-btn:hover:not(:disabled) {
+  background: #047857;
+}
+
+/* ---------- ส่วนแสดงผล GIS ในหน้าแบบประเมิน (GisSummary) ---------- */
+
+.gis-summary .gis-meta,
+.gis-summary .gis-elevation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+
+.gis-badge-v2 {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #86efac;
+}
+
+.gis-empty-note {
+  font-size: 13.5px;
+  color: var(--muted);
+  line-height: 1.7;
+  margin: 0 0 12px;
+}
+
+.gis-table-wrap {
+  overflow-x: auto;
+  margin: 0 0 12px;
+}
+
+.gis-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.gis-table th,
+.gis-table td {
+  border: 1px solid #e2e8f0;
+  padding: 6px 8px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.gis-table th {
+  background: #f1f5f9;
+  font-weight: 700;
+  color: #334155;
+  font-size: 11.5px;
+}
+
+.gis-severity-line {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #3730a3;
+  margin: 0 0 10px;
+}
+
+.gis-auto-score {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  margin: 0 0 12px;
+  font-size: 13.5px;
+}
+
+.gis-auto-note {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.gis-compare-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--muted);
+  margin: 0 0 6px;
+}
+
+.gis-disclaimer {
+  font-size: 11.5px;
+  color: #98a2b3;
+  margin: 0 0 10px;
+}
+
+.unit-map-link {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 12px 0;
+}
+
+.unit-map-hint {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.unit-setting {
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--soft);
+}
+
+.unit-setting-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.unit-setting-label {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.unit-setting-hint {
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.unit-setting-options {
+  margin-top: 0;
+}
+
+.gis-setting-suggest {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #c7d7f0;
+  background: #f8fafc;
+  font-size: 12.5px;
+  color: var(--ink);
+  line-height: 1.45;
+}
+
+.list-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+
+.list-filter-btn.active {
+  border-color: var(--blue);
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-weight: 800;
+}
+
+.status-pill.community-warn {
+  background: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+}
+
+.status-pill.community-info {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #93c5fd;
+}
+
+.status-pill.community-ok {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.status-pill.community-muted {
+  background: #f1f5f9;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+}
+
+.chart-bar-label {
+  min-width: 11rem;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
 /* ---------- รูปแบบการพิมพ์: จัดหน้าให้ใกล้เคียงแบบฟอร์มราชการ (หัวเรื่องกลางหน้า, ---------- */
 /* หัวข้อมีแถบสี, ข้อมูลกรอกแบบขีดเส้นใต้, ตัวเลือกแบบ checkbox, คะแนนชิดขวา) ---------- */
 
@@ -1627,8 +3125,39 @@ textarea:focus {
   .evidence-box,
   .pilot-banner,
   .feedback-box,
-  .info-icon-wrap {
+  .user-menu,
+  .info-icon-wrap,
+  .help-trigger-wrap,
+  .help-panel,
+  .help-panel-backdrop,
+  .gis-actions,
+  .gis-summary-empty {
     display: none !important;
+  }
+
+  /* ---- ส่วนผล GIS: พิมพ์เป็นตารางแบบราชการ ขาว-ดำ ไม่แตกกลางหน้า ---- */
+  .gis-summary {
+    break-inside: avoid;
+  }
+
+  .gis-table th,
+  .gis-table td {
+    border-color: #666;
+    white-space: normal;
+  }
+
+  .gis-table th {
+    background: #eee !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .gis-auto-score,
+  .gis-severity-line,
+  .gis-area-summary {
+    background: none;
+    border-color: #999;
+    color: #000;
   }
 
   .layout {

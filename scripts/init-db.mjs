@@ -30,14 +30,39 @@ CREATE TABLE IF NOT EXISTS assessments (
   total_score INT NOT NULL DEFAULT 0,
   level_key VARCHAR(16) NOT NULL DEFAULT 'neutral',
   level_label VARCHAR(64) NOT NULL DEFAULT 'ยังไม่จัดระดับ',
+  community_class_key VARCHAR(32) NULL,
+  community_class_label VARCHAR(100) NULL,
+  setting_type VARCHAR(32) NULL,
   signed TINYINT(1) NOT NULL DEFAULT 0,
   submitted_ref VARCHAR(40) NULL,
   submitted_at DATETIME NULL,
+  owner_user_id INT UNSIGNED NULL,
+  owner_school_code VARCHAR(16) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_updated_at (updated_at),
-  KEY idx_unit_code (unit_code)
+  KEY idx_unit_code (unit_code),
+  KEY idx_owner (owner_user_id),
+  KEY idx_owner_school (owner_school_code),
+  KEY idx_community_class (community_class_key),
+  UNIQUE KEY uq_submitted_ref (submitted_ref)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+`;
+
+const USERS_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS users (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  username VARCHAR(64) NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  role VARCHAR(16) NOT NULL DEFAULT 'school',
+  display_name VARCHAR(120) NOT NULL DEFAULT '',
+  school_code VARCHAR(16) NULL,
+  active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_username (username)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 `;
 
@@ -48,6 +73,54 @@ await conn.query(
 );
 await conn.changeUser({ database: dbName });
 await conn.query(SCHEMA_SQL);
+await conn.query(USERS_SCHEMA_SQL);
+
+// migration แถวเดิม (MySQL 8 ไม่มี ADD COLUMN IF NOT EXISTS จึงเช็ค information_schema ก่อน)
+async function ensureColumn(table, column, alterSql) {
+  const [rows] = await conn.query(
+    `SELECT COUNT(*) AS n FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+    [dbName, table, column]
+  );
+  if (rows[0].n === 0) {
+    await conn.query(alterSql);
+    console.log(`[db:init] migrated: added ${table}.${column}`);
+  }
+}
+await ensureColumn("assessments", "owner_user_id",
+  "ALTER TABLE assessments ADD COLUMN owner_user_id INT UNSIGNED NULL, ADD KEY idx_owner (owner_user_id)");
+await ensureColumn("assessments", "owner_school_code",
+  "ALTER TABLE assessments ADD COLUMN owner_school_code VARCHAR(16) NULL, ADD KEY idx_owner_school (owner_school_code)");
+await ensureColumn("assessments", "community_class_key",
+  "ALTER TABLE assessments ADD COLUMN community_class_key VARCHAR(32) NULL, ADD KEY idx_community_class (community_class_key)");
+await ensureColumn("assessments", "community_class_label",
+  "ALTER TABLE assessments ADD COLUMN community_class_label VARCHAR(100) NULL");
+await ensureColumn("assessments", "setting_type",
+  "ALTER TABLE assessments ADD COLUMN setting_type VARCHAR(32) NULL");
+await ensureColumn("users", "school_code", "ALTER TABLE users ADD COLUMN school_code VARCHAR(16) NULL");
+
+async function ensureUniqueIndex(table, indexName, alterSql) {
+  const [rows] = await conn.query(
+    `SELECT COUNT(*) AS n FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?`,
+    [dbName, table, indexName]
+  );
+  if (rows[0].n > 0) return;
+  try {
+    await conn.query(alterSql);
+    console.log(`[db:init] migrated: added unique index ${table}.${indexName}`);
+  } catch (error) {
+    console.warn(
+      `[db:init] ไม่สามารถเพิ่ม unique index ${table}.${indexName} ได้ (อาจมีค่าซ้ำเดิม) — โปรด dedupe แล้วลองใหม่:`,
+      error instanceof Error ? error.message : error
+    );
+  }
+}
+
+await ensureUniqueIndex("assessments", "uq_submitted_ref",
+  "ALTER TABLE assessments ADD UNIQUE KEY uq_submitted_ref (submitted_ref)");
+
 const [rows] = await conn.query("SELECT COUNT(*) AS n FROM assessments");
 console.log(`[db:init] database "${dbName}" ready — assessments rows: ${rows[0].n}`);
+console.log("[db:init] หมายเหตุ: บัญชีผู้ใช้ตั้งต้น (admin/ssra_admin/school) จะถูกสร้างอัตโนมัติเมื่อแอปเชื่อมต่อฐานข้อมูลครั้งแรก");
 await conn.end();

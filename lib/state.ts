@@ -1,7 +1,8 @@
 // State factories + sanitizer — ใช้ทั้งฝั่ง client (ฟอร์ม) และ server (ตรวจ payload ก่อนบันทึก)
 
+import { sanitizeGis } from "./gis";
 import { MAX_FILES_PER_INDICATOR } from "./upload-constants";
-import { FEEDBACK_OPINIONS, INDICATOR_IDS, UNIT_TYPES } from "./types";
+import { FEEDBACK_OPINIONS, INDICATOR_IDS, SETTING_TYPES, UNIT_TYPES } from "./types";
 import type {
   AssessmentState,
   EvidenceFile,
@@ -10,6 +11,7 @@ import type {
   IndicatorFeedback,
   IndicatorId,
   ResponseData,
+  SettingType,
   SubmittedInfo,
   UnitInfo,
   UnitType,
@@ -40,6 +42,7 @@ export function makeBlankState(): AssessmentState {
       lat: "",
       lng: "",
       unitType: "โรงเรียน",
+      settingType: "",
     },
     responses,
     evidence,
@@ -86,7 +89,7 @@ export function sanitizeState(input: unknown): AssessmentState {
   const raw = input as Record<string, unknown>;
 
   const rawUnit = (raw.unit && typeof raw.unit === "object" ? raw.unit : {}) as Record<string, unknown>;
-  const unitKeys: Exclude<keyof UnitInfo, "unitType">[] = [
+  const unitKeys: Exclude<keyof UnitInfo, "unitType" | "settingType">[] = [
     "name", "code", "year", "totalStudents", "areaOffice", "province", "lat", "lng",
   ];
   unitKeys.forEach((key) => {
@@ -95,6 +98,12 @@ export function sanitizeState(input: unknown): AssessmentState {
   const unitType = cleanString(rawUnit.unitType);
   if ((UNIT_TYPES as readonly string[]).includes(unitType)) {
     state.unit.unitType = unitType as UnitType;
+  }
+  const settingType = cleanString(rawUnit.settingType);
+  if ((SETTING_TYPES as readonly string[]).includes(settingType)) {
+    state.unit.settingType = settingType as SettingType;
+  } else {
+    state.unit.settingType = "";
   }
 
   const rawResponses = (raw.responses && typeof raw.responses === "object" ? raw.responses : {}) as Record<string, unknown>;
@@ -148,6 +157,12 @@ export function sanitizeState(input: unknown): AssessmentState {
       state.submitted = submitted;
     }
   }
+
+  // ผล GIS + เวอร์ชันคะแนน (v2) — ทั้งคู่ optional: ไม่ผ่านเกณฑ์ = ไม่มี key = แถว v1 เดิม round-trip
+  // เหมือนเดิมทุก byte; "v2-gis" ยอมรับเฉพาะเมื่อมีก้อน gis ที่ใช้ได้จริงเท่านั้น
+  const gis = sanitizeGis(raw.gis);
+  if (gis) state.gis = gis;
+  if (raw.scoringVersion === "v2-gis" && gis) state.scoringVersion = "v2-gis";
 
   return state;
 }

@@ -6,6 +6,9 @@
 /out/
 next-env.d.ts
 
+# Cesium static assets — คัดลอกจาก node_modules อัตโนมัติ (scripts/copy-cesium.mjs) ก่อน dev/build
+/public/cesium/
+
 # production
 /build
 
@@ -33,3 +36,9 @@ npm-debug.log*
 
 # แยกโปรเจกต์วิเคราะห์ข้อมูล (Python) — มีข้อมูลโรงเรียนดิบ ไม่เกี่ยวกับแอปหลัก
 /ssra-policy-report/
+
+# MCP task tooling / session data — ไม่ใช่ซอร์สของแอป
+/mcps/
+
+# Claude Code scheduled-task lock (pid/sessionId ของ process ปัจจุบัน)
+/.claude/scheduled_tasks.lock

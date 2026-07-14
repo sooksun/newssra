@@ -11,9 +11,11 @@ import { computeAll } from "@/lib/scoring";
 import { makeBlankState } from "@/lib/state";
 import type { AssessmentState, EvidenceInfo, IndicatorFeedback, IndicatorId, SubmittedInfo, UnitInfo } from "@/lib/types";
 import DimensionPanel from "./DimensionPanel";
+import GisSummary from "./GisSummary";
 import ScoreRail from "./ScoreRail";
 import SummaryPanel from "./SummaryPanel";
 import UnitPanel from "./UnitPanel";
+import UserMenu from "./UserMenu";
 
 type SaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
 
@@ -22,9 +24,10 @@ const SAVE_DEBOUNCE_MS = 800;
 interface Props {
   id: number;
   initial: AssessmentState;
+  user: { name: string; roleLabel: string };
 }
 
-export default function AssessmentForm({ id, initial }: Props) {
+export default function AssessmentForm({ id, initial, user }: Props) {
   const [state, setState] = useState<AssessmentState>(initial);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [savedAt, setSavedAt] = useState<string>("");
@@ -248,6 +251,7 @@ export default function AssessmentForm({ id, initial }: Props) {
           <button className="ghost-btn" type="button" onClick={() => window.print()}>
             พิมพ์
           </button>
+          <UserMenu name={user.name} roleLabel={user.roleLabel} />
         </div>
       </header>
 
@@ -264,7 +268,7 @@ export default function AssessmentForm({ id, initial }: Props) {
 
         <section className="workspace">
           <form onSubmit={(event) => event.preventDefault()} noValidate>
-            <UnitPanel unit={state.unit} onChange={updateUnit} />
+            <UnitPanel unit={state.unit} onChange={updateUnit} assessmentId={id} />
 
             {DIMENSIONS.map((dimension) => (
               <DimensionPanel
@@ -281,6 +285,8 @@ export default function AssessmentForm({ id, initial }: Props) {
                 }}
               />
             ))}
+
+            <GisSummary state={state} assessmentId={id} />
 
             <SummaryPanel
               computed={computed}

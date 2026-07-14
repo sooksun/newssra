@@ -20,6 +20,13 @@ services:
       - ./data/uploads:/app/uploads
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    healthcheck:
+      # liveness: ให้ node เรียก /api/health เอง (image node:alpine ไม่มี curl; node มี global fetch)
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     # ใช้ MySQL ที่ติดตั้งอยู่บนเครื่อง host แล้ว (ตั้ง DB_HOST=host.docker.internal ใน .env.production)
     # depends_on:
     #   db:

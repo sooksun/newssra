@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getAssessment, saveAssessment } from "@/lib/repo";
+import { requireAssessmentAccess } from "@/lib/api-auth";
 import { deleteEvidenceFile, FILE_ID_PATTERN, readEvidenceFile } from "@/lib/uploads";
 import { INDICATOR_IDS } from "@/lib/types";
 import type { IndicatorId } from "@/lib/types";
@@ -26,6 +27,8 @@ export async function GET(_request: NextRequest, { params }: Ctx) {
   if (!assessmentId || !indicatorId || !FILE_ID_PATTERN.test(fileId)) {
     return NextResponse.json({ error: "รหัสไม่ถูกต้อง" }, { status: 400 });
   }
+  const guard = await requireAssessmentAccess(assessmentId);
+  if (!guard.ok) return guard.response;
 
   try {
     const record = await getAssessment(assessmentId);
@@ -36,7 +39,7 @@ export async function GET(_request: NextRequest, { params }: Ctx) {
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": meta.mimeType,
-        "Content-Disposition": `inline; filename="${encodeURIComponent(meta.originalName)}"`,
+        "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(meta.originalName)}`,
         "Cache-Control": "private, max-age=31536000, immutable",
       },
     });
@@ -53,6 +56,8 @@ export async function DELETE(_request: NextRequest, { params }: Ctx) {
   if (!assessmentId || !indicatorId || !FILE_ID_PATTERN.test(fileId)) {
     return NextResponse.json({ error: "รหัสไม่ถูกต้อง" }, { status: 400 });
   }
+  const guard = await requireAssessmentAccess(assessmentId);
+  if (!guard.ok) return guard.response;
 
   try {
     const record = await getAssessment(assessmentId);

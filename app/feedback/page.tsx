@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { DIMENSIONS, INDICATORS } from "@/lib/criteria";
 import { listAllFeedback } from "@/lib/repo";
+import { requireRole } from "@/lib/auth";
 import type { FeedbackEntry } from "@/lib/repo";
 import { FEEDBACK_OPINIONS, FEEDBACK_OPINION_LABELS } from "@/lib/types";
 import type { FeedbackOpinion, IndicatorId } from "@/lib/types";
@@ -99,6 +100,8 @@ function CommentList({ comments }: { comments: Comment[] }) {
 }
 
 export default async function FeedbackPage() {
+  await requireRole("admin", "ssra_admin");
+
   let entries: FeedbackEntry[] = [];
   let dbError: string | null = null;
 

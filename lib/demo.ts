@@ -1,9 +1,10 @@
 // ชุดตัวอย่างโรงเรียนสำหรับสาธิต/ทดสอบระบบ (ไม่ใช่ข้อมูลโรงเรียนจริง)
 // ครอบคลุมทุกระดับผลลัพธ์: ผ่านเฉียดจุดตัด, ผ่านชัดเจน, ก้ำกึ่งต้องตรวจภาคสนาม, ระดับ 1, และไม่เข้าเกณฑ์
 
+import { computeAutoGisScore, computeCommunityClass } from "./gis";
 import { levelFor, totalScore } from "./scoring";
 import { makeBlankState } from "./state";
-import type { AssessmentState, IndicatorId } from "./types";
+import type { AssessmentState, GisAnalysis, IndicatorId } from "./types";
 
 interface DemoProfileDef {
   id: string;
@@ -36,6 +37,7 @@ const PROFILE_DEFS: DemoProfileDef[] = [
         lat: "18.789100",
         lng: "98.983200",
         unitType: "ห้องเรียนสาขา",
+        settingType: "ภูเขาสูง",
       };
       s.responses = {
         "1.1": { count: "92" },
@@ -73,6 +75,8 @@ const PROFILE_DEFS: DemoProfileDef[] = [
         lat: "19.302000",
         lng: "97.965400",
         unitType: "โรงเรียนสาขา",
+        // ลักษณะที่ตั้ง (ข้อมูลประกอบ R2) — สอดคล้อง GIS ภูเขาสูง
+        settingType: "ภูเขาสูง",
       };
       s.responses = {
         "1.1": { count: "180" },
@@ -91,6 +95,73 @@ const PROFILE_DEFS: DemoProfileDef[] = [
         "5.1": { level: "2" },
         "5.2": { level: "2" },
       };
+      // ตัวอย่างผลวิเคราะห์ GIS (scoring v2) — ตัวเลขสอดคล้องกับคำตอบด้านที่ 3 ที่กรอกไว้ข้างบนพอดี
+      // (3.1: 200 นาที/72 กม., 3.2: severity 4 จาก TTR 2.78 + ไต่สะสม 1,350 ม., 3.3: รพ. 130 นาที)
+      // จึงไม่ปลุกธง V19/V20 และคะแนนรวมยังคง 98 ตามที่ test ยึดไว้
+      const gis: GisAnalysis = {
+        center: {
+          lat: 19.302,
+          lng: 97.9654,
+          source: "unit",
+          confirmedAt: "2569-01-15T09:00:00.000Z",
+          nearestProvinceName: "แม่ฮ่องสอน",
+        },
+        elevation: {
+          schoolElevationM: 1180,
+          meanSlopePct: 28,
+          slopeClass: "E: เนินเขา/ลาดชันสูง (20–35%)",
+          landformTh: "ชุมชนบนภูเขาสูง",
+          terrainConfidence: "client",
+          provinceAvgElev: 400,
+          routeFullMaxElev: 1400,
+          routeTailMaxElev: 1250,
+        },
+        routes: [
+          {
+            destinationType: "province_hall",
+            destinationName: "ศาลากลางจังหวัดแม่ฮ่องสอน",
+            destLat: 19.032,
+            destLng: 97.9654,
+            straightDistanceKm: 30,
+            roadDistanceKm: 72,
+            travelTimeMin: 200,
+            roadCircuityRatio: 2.4,
+            travelTimeRatio: 2.78,
+            effectiveDistanceKm: 200.16,
+            averageSpeedKmh: 21.6,
+            elevationGainM: 1350,
+            elevationLossM: 620,
+            routeSource: "osrm",
+            selected: true,
+            calculatedAt: "2569-01-15T09:00:00.000Z",
+          },
+          {
+            destinationType: "hospital",
+            destinationName: "รพ.สต.ห้วยน้ำริน",
+            destLat: 19.122,
+            destLng: 97.9654,
+            straightDistanceKm: 20,
+            roadDistanceKm: 48,
+            travelTimeMin: 130,
+            roadCircuityRatio: 2.4,
+            travelTimeRatio: 2.71,
+            effectiveDistanceKm: 130.08,
+            averageSpeedKmh: 22.2,
+            elevationGainM: 900,
+            elevationLossM: 410,
+            routeSource: "osrm",
+            selected: true,
+            calculatedAt: "2569-01-15T09:00:00.000Z",
+          },
+        ],
+        autoScore: null,
+        appliedToResponses: true,
+        savedAt: "2569-01-15T09:00:00.000Z",
+      };
+      gis.autoScore = computeAutoGisScore(gis, "2569-01-15T09:00:00.000Z");
+      gis.communityClass = computeCommunityClass(gis, "2569-01-15T09:00:00.000Z");
+      s.gis = gis;
+      s.scoringVersion = "v2-gis";
       return withEvidence(s, "มีคำสั่งเวรพักนอนและภาพเรือนนอนพร้อมพิกัด");
     },
   },
@@ -110,6 +181,7 @@ const PROFILE_DEFS: DemoProfileDef[] = [
         lat: "16.700000",
         lng: "98.566700",
         unitType: "โรงเรียน",
+        settingType: "พื้นราบห่างไกล",
       };
       s.responses = {
         "1.1": { count: "100" },
@@ -147,6 +219,7 @@ const PROFILE_DEFS: DemoProfileDef[] = [
         lat: "19.910500",
         lng: "99.840600",
         unitType: "โรงเรียน",
+        settingType: "",
       };
       s.responses = {
         "1.1": { count: "65" },
@@ -184,6 +257,7 @@ const PROFILE_DEFS: DemoProfileDef[] = [
         lat: "13.819700",
         lng: "100.061900",
         unitType: "โรงเรียน",
+        settingType: "อื่น ๆ",
       };
       s.responses = {
         "1.1": { count: "150" },

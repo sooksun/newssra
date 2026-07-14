@@ -1,13 +1,16 @@
-import { UNIT_TYPES } from "@/lib/types";
-import type { UnitInfo } from "@/lib/types";
+import Link from "next/link";
+import { SETTING_TYPES, UNIT_TYPES } from "@/lib/types";
+import type { SettingType, UnitInfo } from "@/lib/types";
 
 interface Props {
   unit: UnitInfo;
   onChange: <K extends keyof UnitInfo>(key: K, value: UnitInfo[K]) => void;
+  /** ใช้สร้างลิงก์ไปหน้าแผนที่โหมดวิเคราะห์แบบประเมิน (/map?assessment=ID) */
+  assessmentId: number;
 }
 
 interface UnitField {
-  key: keyof UnitInfo;
+  key: Exclude<keyof UnitInfo, "unitType" | "settingType">;
   label: string;
   placeholder: string;
   type: "text" | "number";
@@ -26,7 +29,7 @@ const UNIT_FIELDS: UnitField[] = [
   { key: "lng", label: "ลองจิจูด", placeholder: "เช่น 98.9832", type: "number", step: "0.000001" },
 ];
 
-export default function UnitPanel({ unit, onChange }: Props) {
+export default function UnitPanel({ unit, onChange, assessmentId }: Props) {
   return (
     <section className="panel" id="unitPanel">
       <div className="panel-head">
@@ -54,6 +57,15 @@ export default function UnitPanel({ unit, onChange }: Props) {
         ))}
       </div>
 
+      <div className="unit-map-link gis-actions">
+        <Link className="ghost-btn" href={`/map?assessment=${assessmentId}`}>
+          🗺️ เปิดแผนที่ 3 มิติเพื่อวิเคราะห์พิกัด (GIS)
+        </Link>
+        <span className="unit-map-hint">
+          ระบบจะคำนวณระยะทางจริง ความคดเคี้ยว เวลาเดินทาง และความสูงของพื้นที่ แล้วนำผลมาช่วยคำนวณคะแนนด้านที่ 3 อัตโนมัติ
+        </span>
+      </div>
+
       <div className="segmented" role="group" aria-label="ประเภทจุดจัดการศึกษา">
         {UNIT_TYPES.map((type) => (
           <button
@@ -65,6 +77,34 @@ export default function UnitPanel({ unit, onChange }: Props) {
             {type}
           </button>
         ))}
+      </div>
+
+      <div className="unit-setting" role="group" aria-label="ลักษณะที่ตั้ง">
+        <div className="unit-setting-head">
+          <span className="unit-setting-label">ลักษณะที่ตั้ง (ข้อมูลประกอบ)</span>
+          <span className="unit-setting-hint">
+            ไม่ใช่เงื่อนไขตัดสิทธิ์ — ใช้ประกอบภูมิประเทศ (เกาะ / ภูเขาสูง / หุบเขา / เชิงเขา / พื้นราบห่างไกล)
+          </span>
+        </div>
+        <div className="segmented unit-setting-options">
+          <button
+            type="button"
+            className={unit.settingType === "" ? "active" : ""}
+            onClick={() => onChange("settingType", "")}
+          >
+            ยังไม่ระบุ
+          </button>
+          {SETTING_TYPES.map((type) => (
+            <button
+              key={type}
+              type="button"
+              className={unit.settingType === type ? "active" : ""}
+              onClick={() => onChange("settingType", type as SettingType)}
+            >
+              {type}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="notice">

@@ -2,7 +2,7 @@
 // สร้าง database + ตารางอัตโนมัติถ้ายังไม่มี (ถ้าสิทธิ์ไม่พอจะข้ามและถือว่ามีอยู่แล้ว)
 
 import mysql from "mysql2/promise";
-import type { Pool } from "mysql2/promise";
+import type { Pool, RowDataPacket } from "mysql2/promise";
 
 const DB_NAME = process.env.DB_NAME || "newssra";
 
@@ -28,14 +28,42 @@ CREATE TABLE IF NOT EXISTS assessments (
   total_score INT NOT NULL DEFAULT 0,
   level_key VARCHAR(16) NOT NULL DEFAULT 'neutral',
   level_label VARCHAR(64) NOT NULL DEFAULT 'ยังไม่จัดระดับ',
+  community_class_key VARCHAR(32) NULL,
+  community_class_label VARCHAR(100) NULL,
+  setting_type VARCHAR(32) NULL,
   signed TINYINT(1) NOT NULL DEFAULT 0,
   submitted_ref VARCHAR(40) NULL,
   submitted_at DATETIME NULL,
+  owner_user_id INT UNSIGNED NULL,
+  owner_school_code VARCHAR(16) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
   KEY idx_updated_at (updated_at),
-  KEY idx_unit_code (unit_code)
+  KEY idx_unit_code (unit_code),
+  KEY idx_owner (owner_user_id),
+  KEY idx_owner_school (owner_school_code),
+  KEY idx_community_class (community_class_key),
+  UNIQUE KEY uq_submitted_ref (submitted_ref)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+`;
+// หมายเหตุ: MySQL อนุญาตหลายแถวเป็น NULL ใน UNIQUE index ได้ → แบบประเมินที่ยังไม่ยื่น (submitted_ref = NULL)
+// ไม่ชนกัน ส่วนเลขที่อ้างอิงจริงหลังยื่นจะไม่ซ้ำกันเด็ดขาด (บังคับโดยฐานข้อมูล)
+
+// ผู้ใช้ระบบ 3 บทบาท (admin / ssra_admin / school) — เก็บเฉพาะบัญชี/บทบาท ไม่มีข้อมูลส่วนบุคคลนักเรียน
+export const USERS_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS users (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  username VARCHAR(64) NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  role VARCHAR(16) NOT NULL DEFAULT 'school',
+  display_name VARCHAR(120) NOT NULL DEFAULT '',
+  school_code VARCHAR(16) NULL,
+  active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_username (username)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 `;
 
@@ -64,7 +92,69 @@ async function init(): Promise<Pool> {
   });
 
   await pool.query(SCHEMA_SQL);
+  await pool.query(USERS_SCHEMA_SQL);
+
+  // migration สำหรับฐานข้อมูลเดิม — MySQL 8 ไม่มี ADD COLUMN IF NOT EXISTS จึงเช็ค information_schema ก่อน
+  await ensureColumn(pool, "assessments", "owner_user_id",
+    "ALTER TABLE assessments ADD COLUMN owner_user_id INT UNSIGNED NULL, ADD KEY idx_owner (owner_user_id)");
+  await ensureColumn(pool, "assessments", "owner_school_code",
+    "ALTER TABLE assessments ADD COLUMN owner_school_code VARCHAR(16) NULL, ADD KEY idx_owner_school (owner_school_code)");
+  // Phase 4: สรุปจำแนกชุมชน + ลักษณะที่ตั้ง สำหรับรายการ/กรอง (derive จาก state ตอน save)
+  await ensureColumn(pool, "assessments", "community_class_key",
+    "ALTER TABLE assessments ADD COLUMN community_class_key VARCHAR(32) NULL, ADD KEY idx_community_class (community_class_key)");
+  await ensureColumn(pool, "assessments", "community_class_label",
+    "ALTER TABLE assessments ADD COLUMN community_class_label VARCHAR(100) NULL");
+  await ensureColumn(pool, "assessments", "setting_type",
+    "ALTER TABLE assessments ADD COLUMN setting_type VARCHAR(32) NULL");
+  await ensureColumn(pool, "users", "school_code",
+    "ALTER TABLE users ADD COLUMN school_code VARCHAR(16) NULL");
+
+  // บังคับให้เลขที่อ้างอิงการยื่นไม่ซ้ำในระดับฐานข้อมูล (ถ้าฐานเดิมมีเลขซ้ำอยู่แล้ว การ ALTER จะล้ม
+  // — จับ error ไว้แล้วเตือน ให้ผู้ดูแลไป dedupe เอง; แอปยังทำงานต่อได้ด้วยตัวสร้างเลขแบบรันในโค้ด)
+  await ensureUniqueIndex(pool, "assessments", "uq_submitted_ref",
+    "ALTER TABLE assessments ADD UNIQUE KEY uq_submitted_ref (submitted_ref)");
+
+  // สร้างบัญชีตั้งต้นผู้ดูแล (dynamic import เพื่อเลี่ยง cycle db ↔ users-repo)
+  try {
+    const { seedDefaultUsers } = await import("./users-repo");
+    await seedDefaultUsers(pool);
+  } catch (error) {
+    console.warn("[db] seed default users failed:", error instanceof Error ? error.message : error);
+  }
+
   return pool;
+}
+
+/** เพิ่มคอลัมน์ถ้ายังไม่มี (เช็ค information_schema เพราะ MySQL 8 ไม่รองรับ ADD COLUMN IF NOT EXISTS) */
+async function ensureColumn(pool: Pool, table: string, column: string, alterSql: string): Promise<void> {
+  const [rows] = await pool.query<(RowDataPacket & { n: number })[]>(
+    `SELECT COUNT(*) AS n FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
+    [DB_NAME, table, column]
+  );
+  if ((rows[0]?.n ?? 0) === 0) {
+    await pool.query(alterSql);
+    console.log(`[db] migrated: added ${table}.${column}`);
+  }
+}
+
+/** เพิ่ม index/unique key ถ้ายังไม่มี — best-effort: ถ้า ALTER ล้ม (เช่นมีค่าซ้ำเดิม) แค่เตือน ไม่ล้มทั้งแอป */
+async function ensureUniqueIndex(pool: Pool, table: string, indexName: string, alterSql: string): Promise<void> {
+  const [rows] = await pool.query<(RowDataPacket & { n: number })[]>(
+    `SELECT COUNT(*) AS n FROM information_schema.STATISTICS
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?`,
+    [DB_NAME, table, indexName]
+  );
+  if ((rows[0]?.n ?? 0) > 0) return;
+  try {
+    await pool.query(alterSql);
+    console.log(`[db] migrated: added unique index ${table}.${indexName}`);
+  } catch (error) {
+    console.warn(
+      `[db] ไม่สามารถเพิ่ม unique index ${table}.${indexName} ได้ (อาจมีค่าซ้ำเดิม) — โปรด dedupe แล้วลองใหม่:`,
+      error instanceof Error ? error.message : error
+    );
+  }
 }
 
 export function getPool(): Promise<Pool> {

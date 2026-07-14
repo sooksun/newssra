@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { DIMENSIONS, INDICATORS, PASS_THRESHOLD } from "@/lib/criteria";
-import { listAllStates } from "@/lib/repo";
+import { countAllAssessments, DASHBOARD_ROW_CAP, listAllStates } from "@/lib/repo";
+import { requireRole } from "@/lib/auth";
+import { computeCommunityClass } from "@/lib/gis";
+import {
+  COMMUNITY_DASHBOARD_LABELS,
+  COMMUNITY_DASHBOARD_ORDER,
+} from "@/lib/community-class";
 import { computeAll } from "@/lib/scoring";
 import { INDICATOR_IDS } from "@/lib/types";
 import type { IndicatorId } from "@/lib/types";
@@ -24,15 +30,21 @@ function formatThaiDateTime(iso: string): string {
 }
 
 export default async function DashboardPage() {
+  await requireRole("admin", "ssra_admin");
+
   let records: Awaited<ReturnType<typeof listAllStates>> = [];
+  let totalInDb = 0;
   let dbError: string | null = null;
 
   try {
-    records = await listAllStates();
+    [records, totalInDb] = await Promise.all([listAllStates(), countAllAssessments()]);
   } catch (error) {
     console.error("[dashboard] list states failed:", error);
     dbError = "เชื่อมต่อฐานข้อมูล MySQL ไม่สำเร็จ — ตรวจสอบว่า MySQL เปิดใช้งานอยู่และค่าเชื่อมต่อถูกต้อง";
   }
+
+  // ถ้าจำนวนแถวจริงเกินเพดานที่ดึงมา → แจ้งผู้ใช้อย่างตรงไปตรงมาว่าสถิติคำนวณจาก "N ล่าสุด" ไม่ใช่ทั้งหมด
+  const capped = totalInDb > records.length;
 
   const rows = records.map((record) => ({ ...record, computed: computeAll(record.state) }));
   const total = rows.length;
@@ -47,6 +59,22 @@ export default async function DashboardPage() {
     levelCounts[row.computed.level.key] = (levelCounts[row.computed.level.key] ?? 0) + 1;
   });
   const maxLevelCount = Math.max(1, ...Object.values(levelCounts));
+
+  // จำแนกชุมชน 3 แกน (จาก state.gis — คำนวณ live เหมือนคะแนน)
+  const communityCounts: Record<string, number> = Object.fromEntries(
+    COMMUNITY_DASHBOARD_ORDER.map((k) => [k, 0]),
+  );
+  rows.forEach((row) => {
+    if (!row.state.gis) {
+      communityCounts.none += 1;
+      return;
+    }
+    const cc = row.state.gis.communityClass ?? computeCommunityClass(row.state.gis);
+    const key = cc.composite.key;
+    communityCounts[key] = (communityCounts[key] ?? 0) + 1;
+  });
+  const maxCommunityCount = Math.max(1, ...Object.values(communityCounts));
+
 
   const buckets = Array.from({ length: HISTOGRAM_BUCKETS }, (_, index) => ({
     label: `${index * 10}-${index === HISTOGRAM_BUCKETS - 1 ? 100 : index * 10 + 9}`,
@@ -114,10 +142,20 @@ export default async function DashboardPage() {
           </section>
         ) : (
           <>
+            {capped ? (
+              <div className="pilot-banner">
+                <strong>
+                  แสดงสถิติจาก {total.toLocaleString("th-TH")} รายการล่าสุด (จากทั้งหมด {totalInDb.toLocaleString("th-TH")})
+                </strong>
+                <span>
+                  เพื่อความเร็วในการโหลด แดชบอร์ดคำนวณจากแบบประเมินล่าสุดสูงสุด {DASHBOARD_ROW_CAP.toLocaleString("th-TH")} รายการ
+                </span>
+              </div>
+            ) : null}
             <div className="stat-cards">
               <div className="stat-card">
                 <div className="stat-value">{total}</div>
-                <div className="stat-label">แบบประเมินทั้งหมด</div>
+                <div className="stat-label">{capped ? "รายการที่นำมาคำนวณ" : "แบบประเมินทั้งหมด"}</div>
               </div>
               <div className="stat-card accent-green">
                 <div className="stat-value">
@@ -164,6 +202,39 @@ export default async function DashboardPage() {
                   );
                 })}
               </div>
+            </section>
+
+            <section className="panel">
+              <div className="panel-head">
+                <div>
+                  <p className="eyebrow">จำแนกชุมชน (GIS · แกน A+B)</p>
+                  <h2>จำนวนตามประเภทพื้นที่สูง/ห่างไกล vs พื้นราบ</h2>
+                </div>
+              </div>
+              <div className="chart-bar-list">
+                {COMMUNITY_DASHBOARD_ORDER.map((key) => {
+                  const count = communityCounts[key] ?? 0;
+                  const percent = total ? (count / total) * 100 : 0;
+                  const widthPercent = (count / maxCommunityCount) * 100;
+                  return (
+                    <div className="chart-bar-row" key={key}>
+                      <span className="chart-bar-label">{COMMUNITY_DASHBOARD_LABELS[key]}</span>
+                      <div className="chart-bar-track">
+                        <div className="chart-bar-fill fill-level-2" style={{ width: `${widthPercent}%` }} />
+                      </div>
+                      <span className="chart-bar-value">
+                        {count} <small>({percent.toFixed(0)}%)</small>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="gis-community-c-note" style={{ marginTop: 10 }}>
+                คำนวณ live จาก state.gis (communityClass) ทุกครั้งที่โหลดแดชบอร์ด — ตรงกับเกณฑ์ปัจจุบัน
+                (cc-3: ต้องมีทั้งแกน A+B ถึงได้ป้าย highland/flat; แกนเดียว = ข้อมูลไม่ครบ; WSC 1–5 = ประมาณจากความลาดชัน)
+                · หน้ารายการใช้คอลัมน์ดัชนีที่อัปเดตตอนบันทึก — ถ้าแสดง &quot;ยังไม่จัดดัชนีรายการ&quot; ให้เปิดบันทึกอีกครั้ง
+                · ไม่ใช่ความหนาแน่นประชากร · WSC proxy ไม่ใช่แผนที่ลุ่มน้ำราชการ
+              </p>
             </section>
 
             <section className="panel">

@@ -3,6 +3,7 @@
 
 import { DIMENSIONS, INDICATORS, PASS_THRESHOLD } from "./criteria";
 import type { DimensionDef } from "./criteria";
+import { allGisFlags } from "./gis-flags";
 import { INDICATOR_IDS } from "./types";
 import type { AssessmentState, Flag, IndicatorId, LevelDescriptor } from "./types";
 
@@ -239,6 +240,9 @@ export function flags(state: AssessmentState): Flag[] {
       text: "คะแนนรวมอยู่ในแถบ 65-74 ต้องเข้าคิวตรวจภาคสนาม 100% ก่อนประกาศผล",
     });
   }
+
+  // ธง GIS / จำแนกชุมชน (V11–V23) — โมดูล gis-flags; info/warn เท่านั้น
+  items.push(...allGisFlags(state));
 
   return items;
 }
