@@ -8,6 +8,7 @@ import {
   derive32Severity,
   deriveD3Responses,
   effectiveScoringVersion,
+  futureIndicators,
   rcrSeverity,
   severityLabelTh,
   suggestSettingTypeFromGis,
@@ -61,6 +62,7 @@ export default function GisSummary({ state, assessmentId }: Props) {
   // แถวเก่าอาจยังไม่มี communityClass ใน JSON — คำนวณสดจาก gis (pure เดียวกับ server)
   const community = gis.communityClass ?? computeCommunityClass(gis, gis.savedAt);
   const suggestedSetting = suggestSettingTypeFromGis(gis);
+  const future = futureIndicators(gis);
   const settingMismatch =
     suggestedSetting &&
     state.unit.settingType &&
@@ -293,6 +295,44 @@ export default function GisSummary({ state, assessmentId }: Props) {
           <span className="gis-auto-note">
             คะแนนประกอบการพิจารณา — ไม่รวมกับคะแนนทางการ 100 คะแนน; องค์ประกอบที่ยังไม่มีข้อมูล
             (เช่น พื้นที่ชายแดน/เขตเทศบาล) ไม่ถูกนับ
+          </span>
+        </div>
+      ) : null}
+
+      {future.length > 0 ? (
+        <div className="gis-compare gis-future">
+          <p className="gis-compare-title">
+            เกณฑ์เสนอเพิ่ม (อนาคต) — <strong>ไม่นับรวมในคะแนน 100</strong>
+          </p>
+          <div className="gis-table-wrap">
+            <table className="gis-table gis-compare-table">
+              <thead>
+                <tr>
+                  <th>เกณฑ์</th>
+                  <th>ค่าที่วัดได้</th>
+                  <th>ระดับ</th>
+                  <th>คำอธิบาย</th>
+                </tr>
+              </thead>
+              <tbody>
+                {future.map((f, i) => (
+                  <tr key={f.id}>
+                    <td>
+                      {i + 1}) {f.title}
+                    </td>
+                    <td>{f.valueLabel}</td>
+                    <td>
+                      {f.score} / {f.maxScore} ({severityLabelTh(f.severity)})
+                    </td>
+                    <td>{f.explain}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <span className="gis-auto-note">
+            คำนวณอัตโนมัติจากเส้นทางหลัก (ที่ว่าการอำเภอ/ศาลากลาง) ที่บันทึกจากแผนที่ —
+            เกณฑ์ทดลองเพื่อประกอบการพิจารณา ไม่มีผลต่อคะแนนรวมและการยื่นแบบประเมิน
           </span>
         </div>
       ) : null}
