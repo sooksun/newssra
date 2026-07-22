@@ -78,6 +78,8 @@ import MapPanelToggle from "@/components/map/MapPanelToggle";
 import type { MapAssessmentSaveAction, MapAssessmentSaveResponse } from "@/lib/map-assessment";
 import { GIS_DESTINATION_LABELS } from "@/lib/types";
 import type { GisAnalysis, GisAreaSummary, GisDestinationType, GisRouteAnalysis } from "@/lib/types";
+import { SNAPSHOT_VIEWS } from "@/lib/map/snapshotViews";
+import { captureCurrentView, dataUrlToBlob, waitForTilesLoaded } from "@/lib/map/snapshotCapture";
 
 // ── ค่าคงที่การวิเคราะห์ ──────────────────────────────────────────────────
 // รัศมีวิเคราะห์ภูมิประเทศรอบจุดตั้งโรงเรียน (เส้นรัศมีจริง วัดจากจุดศูนย์กลางแบบวงกลม ไม่ใช่ขอบสี่เหลี่ยม)
@@ -474,6 +476,10 @@ export default function CesiumMap({
   const [routeElevationStatus, setRouteElevationStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [savingGis, setSavingGis] = useState(false);
   const [gisSaveErr, setGisSaveErr] = useState("");
+  // จับภาพ 3D ยืนยันที่ตั้ง (9 มุม) แล้วอัปโหลดเข้าแบบประเมินที่เปิดอยู่
+  const [capturing, setCapturing] = useState(false);
+  const [captureProgress, setCaptureProgress] = useState(0);
+  const [captureErr, setCaptureErr] = useState("");
   // ผลบันทึกครั้งล่าสุด (created/updated/locked) — ใช้แสดงข้อความยืนยันก่อน redirect ไปหน้าแบบประเมิน
   const [saveAction, setSaveAction] = useState<MapAssessmentSaveAction | null>(null);
   const assessmentUnitCenter = assessment?.unitCenter ?? null;
@@ -532,6 +538,8 @@ export default function CesiumMap({
         // false = เรนเดอร์ตาม devicePixelRatio ของจอ (จอ HiDPI จะคมขึ้นชัดเจน; default true = เรนเดอร์ที่ CSS px จึงดูเบลอ)
         useBrowserRecommendedResolution: false,
         baseLayer: false,
+        // จำเป็นสำหรับ canvas.toDataURL() ตอนจับภาพ 3D — ไม่เปิด buffer จะถูกล้างก่อนอ่าน ได้ภาพว่างเปล่า
+        contextOptions: { webgl: { preserveDrawingBuffer: true } },
       });
     } catch (e) {
       setErrMsg(e instanceof Error ? e.message : String(e));
@@ -1946,6 +1954,58 @@ export default function CesiumMap({
     buildRoutesPayload,
   ]);
 
+  // ── จับภาพ 3D ยืนยันที่ตั้ง: หมุนกล้องไป 9 มุมตายตัว จับภาพแต่ละมุม แล้วอัปโหลดเข้าแบบประเมินที่เปิดอยู่ ──
+  //    ทำงานเฉพาะเมื่อมี assessment?.id (ไม่สร้างแบบประเมินเอง) — คืนมุมกล้องเดิมเสมอใน finally
+  const captureSiteSnapshots = useCallback(async () => {
+    const viewer = viewerRef.current;
+    const targetId = assessment?.id;
+    if (!viewer || capturing || national || !targetId) return;
+    setCapturing(true);
+    setCaptureErr("");
+    setCaptureProgress(0);
+
+    const prevPos = viewer.camera.position.clone();
+    const prevHeading = viewer.camera.heading;
+    const prevPitch = viewer.camera.pitch;
+    const prevRoll = viewer.camera.roll;
+
+    try {
+      const blobs: { blob: Blob; viewKey: string }[] = [];
+      for (let i = 0; i < SNAPSHOT_VIEWS.length; i++) {
+        const view = SNAPSHOT_VIEWS[i];
+        viewer.camera.setView({
+          destination: Cartesian3.fromDegrees(center.lng, center.lat, view.heightM),
+          orientation: {
+            heading: CesiumMath.toRadians(view.headingDeg),
+            pitch: CesiumMath.toRadians(view.pitchDeg),
+            roll: 0,
+          },
+        });
+        await waitForTilesLoaded(viewer);
+        blobs.push({ blob: dataUrlToBlob(captureCurrentView(viewer)), viewKey: view.key });
+        setCaptureProgress(i + 1);
+      }
+
+      const fd = new FormData();
+      for (const b of blobs) fd.append("files", b.blob, `${b.viewKey}.jpg`);
+      fd.append("viewKeys", JSON.stringify(blobs.map((b) => b.viewKey)));
+      const res = await fetch(`/api/assessments/${targetId}/site-snapshots`, { method: "POST", body: fd });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error || "อัปโหลดภาพไม่สำเร็จ");
+      }
+      window.location.assign(`/assessment/${targetId}#unitPanel`);
+    } catch (e) {
+      setCaptureErr(e instanceof Error ? e.message : "จับภาพไม่สำเร็จ");
+    } finally {
+      viewer.camera.setView({
+        destination: prevPos,
+        orientation: { heading: prevHeading, pitch: prevPitch, roll: prevRoll },
+      });
+      setCapturing(false);
+    }
+  }, [capturing, national, center, assessment]);
+
   return (
     <div
       className="map-stage"
@@ -2237,6 +2297,33 @@ export default function CesiumMap({
                   onSave={() => void saveAssessmentFromMap()}
                   onRemoveDestination={removeGisDestination}
                 />
+              ) : null}
+
+              {!national ? (
+                <div className="map-snapshot-block">
+                  {assessment?.id ? (
+                    <>
+                      <button
+                        type="button"
+                        className="ghost-btn map-snapshot-btn"
+                        onClick={captureSiteSnapshots}
+                        disabled={capturing || Boolean(assessment.submitted)}
+                      >
+                        {capturing
+                          ? `กำลังจับภาพ ${captureProgress}/${SNAPSHOT_VIEWS.length}…`
+                          : "📸 จับภาพ 3D ยืนยันที่ตั้ง"}
+                      </button>
+                      {captureErr ? <p className="map-snapshot-err">{captureErr}</p> : null}
+                      <p className="map-snapshot-hint">
+                        จับภาพ 9 มุม (มุมบน + ใกล้/ไกล 4 ทิศ) แล้วแนบเข้าแบบประเมินในหัวข้อ “ลักษณะที่ตั้ง” — จับใหม่จะแทนชุดเดิม
+                      </p>
+                    </>
+                  ) : (
+                    <p className="map-snapshot-hint">
+                      กดบันทึกแบบประเมินก่อน แล้วเปิดแผนที่จากแบบประเมินอีกครั้งเพื่อจับภาพ 3D ยืนยันที่ตั้ง
+                    </p>
+                  )}
+                </div>
               ) : null}
 
               <div className="map-population">
