@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { makeBlankState, preserveServerOwned, sanitizeState } from "../lib/state";
 import type { AssessmentState, EvidenceFile } from "../lib/types";
@@ -134,4 +134,47 @@ test("preserveServerOwned — existing เป็นแถว v1 → client ย�
   const merged = preserveServerOwned(incoming, existing);
   assert.equal("gis" in merged, false, "gis ต้องไม่งอกจากค่าที่ client ส่งมา");
   assert.equal("scoringVersion" in merged, false);
+});
+
+describe("siteSnapshots — ภาพยืนยันที่ตั้ง (server-owned)", () => {
+  const snap = (over = {}) => ({
+    id: "123e4567-e89b-12d3-a456-426614174000",
+    originalName: "top.jpg",
+    mimeType: "image/jpeg",
+    size: 1234,
+    sha256: "a".repeat(64),
+    uploadedAt: "2026-07-23T00:00:00.000Z",
+    viewKey: "top",
+    viewLabel: "มุมมองจากด้านบน",
+    ...over,
+  });
+
+  test("แถวไม่มี siteSnapshots → sanitize ไม่งอก key", () => {
+    const s = sanitizeState({ unit: { name: "รร" } });
+    assert.equal("siteSnapshots" in s.unit, false);
+  });
+
+  test("sanitize รับ array + cap ที่ 9 และกรองรายการไม่มี id ทิ้ง", () => {
+    const many = Array.from({ length: 12 }, (_, i) => snap({ id: `123e4567-e89b-12d3-a456-42661417400${i % 10}` }));
+    many.push({ viewKey: "x" } as never); // ไม่มี id → ถูกกรอง
+    const s = sanitizeState({ unit: { siteSnapshots: many } });
+    assert.ok(Array.isArray(s.unit.siteSnapshots));
+    assert.equal(s.unit.siteSnapshots!.length, 9);
+    assert.equal(s.unit.siteSnapshots![0].viewLabel, "มุมมองจากด้านบน");
+  });
+
+  test("preserveServerOwned — siteSnapshots มาจาก DB, client แก้ไม่ได้", () => {
+    const existing = makeBlankState();
+    existing.unit.siteSnapshots = [snap()];
+    const incoming = makeBlankState();
+    incoming.unit.siteSnapshots = [snap({ id: "00000000-0000-4000-8000-000000000000", originalName: "ปลอม.jpg" })];
+    const merged = preserveServerOwned(incoming, existing);
+    assert.equal(merged.unit.siteSnapshots!.length, 1);
+    assert.equal(merged.unit.siteSnapshots![0].originalName, "top.jpg");
+  });
+
+  test("preserveServerOwned — existing ไม่มี key → ไม่งอก key", () => {
+    const merged = preserveServerOwned(makeBlankState(), makeBlankState());
+    assert.equal("siteSnapshots" in merged.unit, false);
+  });
 });

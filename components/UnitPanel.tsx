@@ -10,7 +10,7 @@ interface Props {
 }
 
 interface UnitField {
-  key: Exclude<keyof UnitInfo, "unitType" | "settingType">;
+  key: Exclude<keyof UnitInfo, "unitType" | "settingType" | "siteSnapshots">;
   label: string;
   placeholder: string;
   type: "text" | "number";

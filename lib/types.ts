@@ -92,6 +92,8 @@ export interface UnitInfo {
    * GIS อาจแนะนำค่าเมื่อ apply scoring v2 ถ้าช่องว่าง; ผู้ใช้แก้ได้เสมอ
    */
   settingType: SettingType | "";
+  /** ภาพจับหน้าจอ 3D ยืนยันที่ตั้ง (server-owned) — optional เพื่อให้แถวเก่า round-trip ไม่งอก key */
+  siteSnapshots?: SnapshotFile[];
 }
 
 /** ข้อมูลดิบรายตัวชี้วัด — key ขึ้นกับชนิดตัวชี้วัด (count/langs/frame/actual/rate/minutes/km/unitName/level) */
@@ -106,6 +108,20 @@ export interface EvidenceFile {
   /** SHA-256 ของเนื้อไฟล์ ณ เวลาอัปโหลด — ใช้ตรวจสอบว่าไฟล์ไม่ถูกแก้ไขหลังยื่น ตามหลักข้อ 6.5 ของสเปก */
   sha256: string;
   uploadedAt: string;
+}
+
+/** ภาพจับหน้าจอ 3D ยืนยันที่ตั้ง — metadata เท่านั้น; ไฟล์จริงอยู่ที่ uploads/{id}/__site/ (lib/uploads.ts) */
+export interface SnapshotFile {
+  id: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  sha256: string;
+  uploadedAt: string;
+  /** คีย์มุมกล้อง (จาก SNAPSHOT_VIEWS) */
+  viewKey: string;
+  /** ป้ายไทยของมุม เช่น "ใกล้–เหนือ" */
+  viewLabel: string;
 }
 
 export interface EvidenceInfo {

@@ -2,7 +2,7 @@
 
 import { currentBuddhistYear } from "./assessment-year";
 import { sanitizeGis } from "./gis";
-import { MAX_FILES_PER_INDICATOR } from "./upload-constants";
+import { MAX_FILES_PER_INDICATOR, MAX_SITE_SNAPSHOTS } from "./upload-constants";
 import { FEEDBACK_OPINIONS, INDICATOR_IDS, SETTING_TYPES, UNIT_TYPES } from "./types";
 import type {
   AssessmentState,
@@ -13,6 +13,7 @@ import type {
   IndicatorId,
   ResponseData,
   SettingType,
+  SnapshotFile,
   SubmittedInfo,
   UnitInfo,
   UnitType,
@@ -80,6 +81,25 @@ function cleanFiles(value: unknown): EvidenceFile[] {
     .filter((file) => file.id.length > 0);
 }
 
+/** ตรวจ metadata ภาพ snapshot ที่มากับ payload (ไฟล์จริงจัดการแยกผ่าน route) — cap จำนวน + กันปลอม metadata */
+function cleanSnapshotFiles(value: unknown): SnapshotFile[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
+    .slice(0, MAX_SITE_SNAPSHOTS)
+    .map((item) => ({
+      id: cleanString(item.id, 64),
+      originalName: cleanString(item.originalName, MAX_FILE_META_TEXT),
+      mimeType: cleanString(item.mimeType, 100),
+      size: typeof item.size === "number" && Number.isFinite(item.size) ? item.size : 0,
+      sha256: cleanString(item.sha256, 64),
+      uploadedAt: cleanString(item.uploadedAt, 40),
+      viewKey: cleanString(item.viewKey, 32),
+      viewLabel: cleanString(item.viewLabel, 64),
+    }))
+    .filter((f) => f.id.length > 0);
+}
+
 /**
  * แปลง payload ที่รับจากภายนอกให้เป็น AssessmentState ที่โครงถูกต้องเสมอ
  * — ตัด key แปลกปลอม, บังคับชนิดข้อมูล, จำกัดความยาวข้อความ
@@ -90,7 +110,7 @@ export function sanitizeState(input: unknown): AssessmentState {
   const raw = input as Record<string, unknown>;
 
   const rawUnit = (raw.unit && typeof raw.unit === "object" ? raw.unit : {}) as Record<string, unknown>;
-  const unitKeys: Exclude<keyof UnitInfo, "unitType" | "settingType">[] = [
+  const unitKeys: Exclude<keyof UnitInfo, "unitType" | "settingType" | "siteSnapshots">[] = [
     "name",
     "code",
     "year",
@@ -112,6 +132,11 @@ export function sanitizeState(input: unknown): AssessmentState {
     state.unit.settingType = settingType as SettingType;
   } else {
     state.unit.settingType = "";
+  }
+  const rawSnapshots = (rawUnit as Record<string, unknown>).siteSnapshots;
+  if (Array.isArray(rawSnapshots)) {
+    const cleaned = cleanSnapshotFiles(rawSnapshots);
+    if (cleaned.length > 0) state.unit.siteSnapshots = cleaned;
   }
 
   const rawResponses = (raw.responses && typeof raw.responses === "object" ? raw.responses : {}) as Record<
@@ -191,10 +216,14 @@ export function preserveServerOwned(incoming: AssessmentState, existing: Assessm
   INDICATOR_IDS.forEach((id) => {
     evidence[id] = { ...incoming.evidence[id], files: existing.evidence[id]?.files ?? [] };
   });
-  const merged: AssessmentState = { ...incoming, evidence };
+  const merged: AssessmentState = { ...incoming, unit: { ...incoming.unit }, evidence };
   delete merged.gis;
   delete merged.scoringVersion;
   if (existing.gis) merged.gis = existing.gis;
   if (existing.scoringVersion) merged.scoringVersion = existing.scoringVersion;
+  delete merged.unit.siteSnapshots;
+  if (existing.unit.siteSnapshots) {
+    merged.unit = { ...merged.unit, siteSnapshots: existing.unit.siteSnapshots };
+  }
   return merged;
 }
