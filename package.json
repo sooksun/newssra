@@ -11,7 +11,7 @@
     "db:init": "node scripts/init-db.mjs",
     "buildings:import": "node --import tsx scripts/import-buildings.mts",
     "users:migrate": "node scripts/migrate-legacy-users.mjs",
-    "test": "node --import tsx --test tests/scoring.test.ts tests/gis.test.ts tests/auth.test.ts tests/rate-limit.test.ts tests/state.test.ts tests/uploads.test.ts lib/map/geometry.test.ts lib/map/borders.test.ts",
+    "test": "node --import tsx --test tests/scoring.test.ts tests/gis.test.ts tests/auth.test.ts tests/rate-limit.test.ts tests/state.test.ts tests/uploads.test.ts tests/route-elevation-flags.test.ts lib/map/geometry.test.ts lib/map/borders.test.ts lib/map/routeElevation.test.ts",
     "test:integration": "node --import tsx --experimental-test-module-mocks --test-force-exit --test tests/integration/login-route.test.mts tests/integration/assessment-security.test.mts",
     "format": "prettier --write \"app/**/*.{ts,tsx}\" \"lib/**/*.{ts,tsx}\" \"components/**/*.{ts,tsx}\" \"tests/**/*.{ts,mts}\"",
     "format:check": "prettier --check \"app/**/*.{ts,tsx}\" \"lib/**/*.{ts,tsx}\" \"components/**/*.{ts,tsx}\" \"tests/**/*.{ts,mts}\""

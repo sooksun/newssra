@@ -55,6 +55,12 @@ import { deriveThaiSharedBorders, type BorderCountry } from "@/lib/map/borders";
 import { fetchBuildings, fetchNearestProvince, fetchOsrmRoutes } from "@/lib/map/mapApi";
 import { searchPlaces, resolvePlaceHit, reverseProvince, type PlaceHit } from "@/lib/map/placeSearch";
 import {
+  buildRouteElevationProfile,
+  formatElevationMeters,
+  sampleRouteCoordinates,
+  type RouteElevationProfile,
+} from "@/lib/map/routeElevation";
+import {
   buildRouteAnalysis,
   computeAutoGisScore,
   computeCommunityClass,
@@ -121,6 +127,9 @@ const MAX_ROUTE_SAMPLE_POINTS = 40; // จำกัดจำนวนจุด�
 // พอสำหรับ band ความสูงสะสมขั้น 100 ม. โดยไม่ยิงขอ tile terrain มากเกินไป
 // UI แผง/จุดหมาย → components/map/GisAssessmentPanel.tsx (MAX_GIS_DESTINATIONS อยู่ที่นั่น)
 const MAX_GAIN_SAMPLE_POINTS = 120;
+const RED_FLAG_ICON = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 44"><path d="M9 41V4" stroke="white" stroke-width="5" stroke-linecap="round"/><path d="M9 5h22l-6 8 6 8H9z" fill="#dc2626" stroke="white" stroke-width="2" stroke-linejoin="round"/><circle cx="9" cy="41" r="3" fill="#7f1d1d" stroke="white" stroke-width="2"/></svg>',
+)}`;
 
 // ลดจำนวนจุดแบบกระจายสม่ำเสมอ (ไม่เอาแค่ N ตัวแรก) — ใช้กับจุดตามเส้นทางที่อาจมีหนาแน่นไม่เท่ากัน
 function downsample<T>(arr: T[], maxCount: number): T[] {
@@ -446,6 +455,8 @@ export default function CesiumMap({
   const [addingDest, setAddingDest] = useState(false);
   // ความสูงสะสมของเส้นทางหลัก (ศาลากลาง→จุดวิเคราะห์ เส้นที่เลือก) — null = ยังไม่ได้/สุ่มไม่สำเร็จ
   const [mainRouteGain, setMainRouteGain] = useState<{ gainM: number; lossM: number } | null>(null);
+  const [routeElevationProfile, setRouteElevationProfile] = useState<RouteElevationProfile | null>(null);
+  const [routeElevationStatus, setRouteElevationStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [applyToScores, setApplyToScores] = useState(true);
   const [savingGis, setSavingGis] = useState(false);
   const [gisSaved, setGisSaved] = useState(false);
@@ -687,38 +698,56 @@ export default function CesiumMap({
     return () => controller.abort();
   }, [center.lat, center.lng, national, replaceEsriImageryLayer]);
 
-  // ── หมุด + กล้อง เมื่อพร้อมหรือเปลี่ยนพิกัด ──────────────────────────────────
+  // ── หมุดโรงเรียน เมื่อพร้อม เปลี่ยนพิกัด หรือโหลดระดับความสูงเสร็จ ──────────────
   useEffect(() => {
-    const viewer = viewerRef.current;
     const pinDs = pinDsRef.current;
-    if (!viewer || !pinDs || status !== "ready") return;
+    if (!pinDs || status !== "ready") return;
 
     pinDs.entities.removeAll();
     centerPinRef.current = null;
     if (!national) {
+      const schoolElevationText =
+        routeElevationProfile?.schoolElevationM != null
+          ? `ระดับความสูง ${formatElevationMeters(routeElevationProfile.schoolElevationM)}`
+          : routeElevationStatus === "loading" || routeElevationStatus === "idle"
+            ? "กำลังอ่านระดับความสูง…"
+            : "ไม่พบข้อมูลระดับความสูง";
       // id "center-pin" ใช้ระบุหมุดตอน pick เพื่อเริ่มลาก; เก็บ entity ไว้ที่ centerPinRef เพื่อย้ายตำแหน่งระหว่างลาก
       centerPinRef.current = pinDs.entities.add({
         id: "center-pin",
         position: Cartesian3.fromDegrees(center.lng, center.lat),
-        point: { pixelSize: 12, color: Color.RED, outlineColor: Color.WHITE, outlineWidth: 2, heightReference: HeightReference.CLAMP_TO_GROUND },
+        billboard: {
+          image: RED_FLAG_ICON,
+          width: 36,
+          height: 44,
+          verticalOrigin: VerticalOrigin.BOTTOM,
+          heightReference: HeightReference.CLAMP_TO_GROUND,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
         label: {
-          text: center.name,
+          text: `${center.name}\n${schoolElevationText}`,
           font: "600 14px 'Sarabun', sans-serif",
           fillColor: Color.WHITE,
           style: LabelStyle.FILL_AND_OUTLINE,
           outlineColor: Color.fromCssColorString("#111827"),
           outlineWidth: 3,
           showBackground: true,
-          backgroundColor: Color.fromCssColorString("#b91c1c").withAlpha(0.85),
+          backgroundColor: Color.fromCssColorString("#b91c1c").withAlpha(0.88),
           backgroundPadding: new Cartesian2(9, 6),
           verticalOrigin: VerticalOrigin.BOTTOM,
-          pixelOffset: new Cartesian2(0, -18),
+          pixelOffset: new Cartesian2(0, -48),
           heightReference: HeightReference.CLAMP_TO_GROUND,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
       });
     }
 
+  }, [center.lat, center.lng, center.name, national, status, routeElevationProfile, routeElevationStatus]);
+
+  // แยกกล้องจาก effect ของหมุด เพื่อไม่ให้กล้องบินซ้ำตอน terrain ส่งค่าความสูงกลับมา
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || status !== "ready") return;
     if (national) {
       // มุมมองทั้งประเทศจากด้านบน
       viewer.camera.flyTo({
@@ -733,7 +762,7 @@ export default function CesiumMap({
         duration: 1.4,
       });
     }
-  }, [center.lat, center.lng, center.name, national, status]);
+  }, [center.lat, center.lng, national, status]);
 
   // ── ดึงเส้นทางรถยนต์จากศาลากลางจังหวัดมาจุดวิเคราะห์ (OSRM demo server สาธารณะ ฟรี ไม่ต้องมี key) ──
   // หมายเหตุ: เป็น demo server ของ OSRM ไม่รับประกัน uptime ระดับ production — ใช้เพื่อแสดงผลประกอบเท่านั้น
@@ -837,6 +866,37 @@ export default function CesiumMap({
       });
     }
 
+    const highestPoint = routeElevationProfile?.highestPoint;
+    if (sel && highestPoint) {
+      routeDs.entities.add({
+        id: "route-highest-point",
+        position: Cartesian3.fromDegrees(highestPoint.lng, highestPoint.lat),
+        billboard: {
+          image: RED_FLAG_ICON,
+          width: 36,
+          height: 44,
+          verticalOrigin: VerticalOrigin.BOTTOM,
+          heightReference: HeightReference.CLAMP_TO_GROUND,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+        label: {
+          text: `จุดสูงสุดบนเส้นทาง\n${formatElevationMeters(highestPoint.elevationM)}`,
+          font: "600 13px 'Sarabun', sans-serif",
+          fillColor: Color.WHITE,
+          style: LabelStyle.FILL_AND_OUTLINE,
+          outlineColor: Color.fromCssColorString("#111827"),
+          outlineWidth: 3,
+          showBackground: true,
+          backgroundColor: Color.fromCssColorString("#b91c1c").withAlpha(0.88),
+          backgroundPadding: new Cartesian2(8, 5),
+          verticalOrigin: VerticalOrigin.BOTTOM,
+          pixelOffset: new Cartesian2(0, -48),
+          heightReference: HeightReference.CLAMP_TO_GROUND,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+      });
+    }
+
     // โหมดวิเคราะห์แบบประเมิน: วาดเส้นตรงทางอากาศ (เส้นประสีเหลืองอำพัน) เทียบกับเส้นทางถนนจริง
     // เพื่อให้เห็นความคดเคี้ยว (RCR = ระยะถนน ÷ ระยะเส้นตรง) ด้วยตาเปล่า — FR-05 ของ PRD
     if (assessment) {
@@ -873,7 +933,17 @@ export default function CesiumMap({
         },
       });
     }
-  }, [routeAlternatives, selectedRouteIdx, province, national, status, assessment, center.lat, center.lng]);
+  }, [
+    routeAlternatives,
+    selectedRouteIdx,
+    province,
+    national,
+    status,
+    assessment,
+    center.lat,
+    center.lng,
+    routeElevationProfile,
+  ]);
 
   // ── วาด polygon เอง: จับคลิกบนโลกระหว่างโหมดวาด (ไม่ผูก handler ตอนไม่ได้วาด กันชนกับกล้อง) ──
   useEffect(() => {
@@ -1486,30 +1556,67 @@ export default function CesiumMap({
 
   // ════════════════ โหมดวิเคราะห์แบบประเมิน (assessment != null) ════════════════
 
-  // ── ความสูงสะสมของเส้นทางหลักทั้งเส้น (ศาลากลาง→จุดวิเคราะห์) — ล้มเหลว → null ไม่ block อย่างอื่น ──
+  // ── โปรไฟล์ความสูงของเส้นทางหลัก: ระดับโรงเรียน จุดสูงสุด และความสูงสะสม ──
   useEffect(() => {
-    if (!assessment || national) return;
+    if (national) {
+      setRouteElevationProfile(null);
+      setRouteElevationStatus("idle");
+      setMainRouteGain(null);
+      return;
+    }
+
     const provider = terrainRef.current;
-    const sel = routeAlternatives[selectedRouteIdx];
+    const selected = routeAlternatives[selectedRouteIdx];
+    const selectedRoute = selected && selected.coords.length >= 2 ? selected : null;
+    setRouteElevationProfile(null);
     setMainRouteGain(null);
-    if (!provider || !terrainReady || !sel || sel.coords.length < 2) return;
+
+    if (!provider || !terrainReady || (!selectedRoute && !routeSettled)) {
+      setRouteElevationStatus("loading");
+      return;
+    }
+
+    const sampledCoords = selectedRoute
+      ? sampleRouteCoordinates(selectedRoute.coords, MAX_GAIN_SAMPLE_POINTS)
+      : ([[center.lng, center.lat]] as [number, number][]);
+    sampledCoords[sampledCoords.length - 1] = [center.lng, center.lat];
+
     let cancelled = false;
-    const points = downsample(sel.coords, MAX_GAIN_SAMPLE_POINTS).map(([lng, lat]) => ({ lat, lng }));
+    setRouteElevationStatus("loading");
     withTimeout(
-      sampleCesiumPoints(provider, points, KEYLESS_SAMPLE_LEVEL),
+      sampleCesiumPoints(
+        provider,
+        sampledCoords.map(([lng, lat]) => ({ lat, lng })),
+        KEYLESS_SAMPLE_LEVEL,
+      ),
       ANALYSIS_TIMEOUT_MS,
-      "สุ่มความสูงสะสมตามเส้นทางใช้เวลานานเกินไป",
+      "สุ่มระดับความสูงตามเส้นทางใช้เวลานานเกินไป",
     )
       .then((heights) => {
-        if (!cancelled) setMainRouteGain(elevationGainLoss(Array.from(heights)));
+        if (cancelled) return;
+        const profile = buildRouteElevationProfile(sampledCoords, heights);
+        setRouteElevationProfile(profile);
+        setRouteElevationStatus(profile.highestPoint ? "ready" : "error");
+        setMainRouteGain(selectedRoute && profile.highestPoint ? elevationGainLoss(Array.from(heights)) : null);
       })
       .catch(() => {
-        if (!cancelled) setMainRouteGain(null);
+        if (cancelled) return;
+        setRouteElevationProfile(null);
+        setRouteElevationStatus("error");
+        setMainRouteGain(null);
       });
     return () => {
       cancelled = true;
     };
-  }, [assessment, national, terrainReady, routeAlternatives, selectedRouteIdx]);
+  }, [
+    center.lat,
+    center.lng,
+    national,
+    terrainReady,
+    routeSettled,
+    routeAlternatives,
+    selectedRouteIdx,
+  ]);
 
   // ── เพิ่มจุดหมายวิเคราะห์จากผลค้นหา: ดึงเส้นทาง OSRM center→จุดหมาย + สุ่มความสูงสะสม ──
   const addGisDestination = useCallback(
