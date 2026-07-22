@@ -18,7 +18,7 @@ import {
 } from "./community-class";
 import { computeCommunityClass } from "./gis";
 import { applyMapGisToState } from "./map-assessment";
-import type { MapAssessmentSaveResult, SaveAssessmentFromMapInput } from "./map-assessment";
+import type { MapAssessmentSaveResult, SaveAssessmentFromMapInput, SchoolAssessmentMaster } from "./map-assessment";
 import { sanitizeState } from "./state";
 
 interface AssessmentRow extends RowDataPacket {
@@ -680,6 +680,23 @@ export async function schoolProvinceName(schoolCode: string): Promise<string | n
     console.error("[repo] schoolProvinceName failed (legacy table missing?):", error);
     return null;
   }
+}
+
+/** ข้อมูลโรงเรียนสำหรับ prefill แบบประเมินจากแผนที่ (Task 4 /from-map) — รวมพิกัด + จังหวัดจากทะเบียนระบบเดิม
+ *  คืน null ถ้าไม่พบพิกัดโรงเรียน (schoolLocationByCode ไม่พบ) — จังหวัดที่หาไม่เจอจะเป็นสตริงว่างแทน (ไม่ใช่ null ทั้งก้อน) */
+export async function schoolAssessmentMaster(schoolCode: string): Promise<SchoolAssessmentMaster | null> {
+  const [location, province] = await Promise.all([
+    schoolLocationByCode(schoolCode),
+    schoolProvinceName(schoolCode),
+  ]);
+  if (!location) return null;
+  return {
+    code: schoolCode,
+    name: location.name,
+    province: province ?? "",
+    lat: location.lat,
+    lng: location.lng,
+  };
 }
 
 /** หา ProvinceInfo (พิกัดศาลากลาง + ความสูงเฉลี่ย) จากชื่อจังหวัด — เทียบแบบตัดช่องว่างปลาย, ตามด้วยเทียบแบบ substring
