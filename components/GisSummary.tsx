@@ -30,6 +30,18 @@ function fmtMin(min: number): string {
   return h > 0 ? `${h} ชม. ${m} นาที` : `${m} นาที`;
 }
 
+/** ตัวจัดรูปค่ากลาง — ใช้ทั่วส่วนหลักฐาน GIS: ไม่มีข้อมูล (null/undefined) แสดง "ไม่มีข้อมูล" เสมอ ห้ามเดา/แทนค่าอื่น */
+function valueOrMissing(value: number | null | undefined, suffix = ""): string {
+  return value === null || value === undefined ? "ไม่มีข้อมูล" : `${value.toLocaleString("th-TH")}${suffix}`;
+}
+
+function fmtAnalyzedAt(iso: string): string {
+  if (!iso) return "ไม่มีข้อมูล";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "ไม่มีข้อมูล";
+  return d.toLocaleString("th-TH", { timeZone: "Asia/Bangkok" });
+}
+
 export default function GisSummary({ state, assessmentId }: Props) {
   const gis = state.gis;
 
@@ -103,7 +115,7 @@ export default function GisSummary({ state, assessmentId }: Props) {
       <div className="panel-head">
         <div>
           <p className="eyebrow">ผลวิเคราะห์เชิงพื้นที่ (GIS)</p>
-          <h2>ระยะทาง เส้นทาง และภูมิประเทศจากแผนที่</h2>
+          <h2>ข้อมูลประกอบเกณฑ์จากแผนที่ 3 มิติ</h2>
         </div>
         {isV2 ? <span className="config-badge gis-badge-v2">คะแนนด้านคมนาคมคำนวณจาก GIS (v2)</span> : null}
       </div>
@@ -118,12 +130,42 @@ export default function GisSummary({ state, assessmentId }: Props) {
 
       {gis.elevation ? (
         <div className="gis-elevation">
-          <span>
-            ความสูงโดยประมาณ:{" "}
-            {gis.elevation.schoolMarkerElevationM !== null
-              ? `${gis.elevation.schoolMarkerElevationM.toLocaleString("th-TH")} ม.`
-              : "—"}
-          </span>
+          <dl className="gis-evidence-grid">
+            <div>
+              <dt>ระดับความสูงจุดตั้งโรงเรียน</dt>
+              <dd>{valueOrMissing(gis.elevation.schoolMarkerElevationM, " ม.")}</dd>
+            </div>
+            <div>
+              <dt>ความสูงเฉลี่ยพื้นที่วิเคราะห์</dt>
+              <dd>{valueOrMissing(gis.elevation.meanElevationM, " ม.")}</dd>
+            </div>
+            <div>
+              <dt>ความสูงต่ำสุด / สูงสุด</dt>
+              <dd>
+                {valueOrMissing(gis.elevation.minElevationM, " ม.")} / {valueOrMissing(gis.elevation.maxElevationM, " ม.")}
+              </dd>
+            </div>
+            <div>
+              <dt>ผลต่างความสูงสูงสุด−ต่ำสุด (relief)</dt>
+              <dd>{valueOrMissing(gis.elevation.reliefM, " ม.")}</dd>
+            </div>
+            <div>
+              <dt>ความสูงสุดในรัศมี 1 กม.</dt>
+              <dd>{valueOrMissing(gis.elevation.localMaxElevation1KmM, " ม.")}</dd>
+            </div>
+            <div>
+              <dt>ความลาดชันเฉลี่ย / สูงสุด</dt>
+              <dd>
+                {valueOrMissing(gis.elevation.meanSlopePct, "%")} / {valueOrMissing(gis.elevation.maxSlopePct, "%")}
+              </dd>
+            </div>
+            {gis.elevation.slopeClass ? (
+              <div>
+                <dt>ชั้นความลาดชัน (LDD)</dt>
+                <dd>{gis.elevation.slopeClass}</dd>
+              </div>
+            ) : null}
+          </dl>
           {gis.elevation.landformTh ? (
             <span className="gis-landform-line">
               ลักษณะพื้นที่: {gis.elevation.landformTh} <LandformLegendTip />
@@ -133,7 +175,6 @@ export default function GisSummary({ state, assessmentId }: Props) {
               เกณฑ์ถ้อยคำภูมิประเทศ <LandformLegendTip />
             </span>
           )}
-          {gis.elevation.meanSlopePct !== null ? <span>ความลาดชันเฉลี่ย: {gis.elevation.meanSlopePct.toFixed(1)}%</span> : null}
           {officialElevBandTh(gis.elevation.schoolMarkerElevationM) ? (
             <span className="gis-elev-band">{officialElevBandTh(gis.elevation.schoolMarkerElevationM)}</span>
           ) : null}
@@ -283,6 +324,25 @@ export default function GisSummary({ state, assessmentId }: Props) {
         </div>
       ) : null}
 
+      {gis.routes.some((r) => r.highestPoint) ? (
+        <dl className="gis-evidence-grid gis-route-highest">
+          {gis.routes
+            .filter((r) => r.highestPoint)
+            .map((r, i) => (
+              <div key={i}>
+                <dt>
+                  จุดสูงสุดบนเส้นทาง — {GIS_DESTINATION_LABELS[r.destinationType]}
+                  {r.destinationName && r.destinationType !== "province_hall" ? ` — ${r.destinationName}` : ""}
+                </dt>
+                <dd>
+                  {valueOrMissing(r.highestPoint?.elevationM, " ม.")}
+                  {r.highestPoint ? ` (${r.highestPoint.lat.toFixed(5)}, ${r.highestPoint.lng.toFixed(5)})` : ""}
+                </dd>
+              </div>
+            ))}
+        </dl>
+      ) : null}
+
       {gisSeverity !== null ? (
         <p className="gis-severity-line">
           GIS ประเมินความยากลำบากในการเข้าถึง (3.2) ระดับ {gisSeverity} ({severityLabelTh(gisSeverity)})
@@ -336,6 +396,32 @@ export default function GisSummary({ state, assessmentId }: Props) {
             คำนวณอัตโนมัติจากเส้นทางหลัก (ที่ว่าการอำเภอ/ศาลากลาง) ที่บันทึกจากแผนที่ —
             เกณฑ์ทดลองเพื่อประกอบการพิจารณา ไม่มีผลต่อคะแนนรวมและการยื่นแบบประเมิน
           </span>
+        </div>
+      ) : null}
+
+      {gis.radiusSummaries && gis.radiusSummaries.length > 0 ? (
+        <div className="gis-table-wrap">
+          <p className="gis-compare-title">อาคารและประชากรโดยประมาณในรัศมีรอบจุดวิเคราะห์</p>
+          <table className="gis-table gis-radius-table">
+            <thead>
+              <tr>
+                <th>รัศมี (ม.)</th>
+                <th>จำนวนอาคาร</th>
+                <th>ประชากรโดยประมาณ</th>
+                <th>ความหนาแน่นประชากร</th>
+              </tr>
+            </thead>
+            <tbody>
+              {gis.radiusSummaries.map((r) => (
+                <tr key={r.radiusM}>
+                  <td>{r.radiusM.toLocaleString("th-TH")}</td>
+                  <td>{r.buildingCount.toLocaleString("th-TH")} หลัง</td>
+                  <td>{valueOrMissing(r.estPopulation, " คน")}</td>
+                  <td>{valueOrMissing(r.popDensityPerKm2, " คน/ตร.กม.")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       ) : null}
 
@@ -405,6 +491,16 @@ export default function GisSummary({ state, assessmentId }: Props) {
             </table>
           </div>
         </div>
+      ) : null}
+
+      {gis.dataSources ? (
+        <ul className="gis-source-list">
+          <li>แหล่งข้อมูลภูมิประเทศ: {gis.dataSources.terrain}</li>
+          <li>แหล่งข้อมูลเส้นทาง: {gis.dataSources.routing}</li>
+          <li>แหล่งข้อมูลอาคาร: {gis.dataSources.buildings ?? "ไม่มีข้อมูล"}</li>
+          <li>วิธีประมาณประชากร: {gis.dataSources.populationMethod ?? "ไม่มีข้อมูล"}</li>
+          <li>วิเคราะห์เมื่อ: {fmtAnalyzedAt(gis.dataSources.analyzedAt)}</li>
+        </ul>
       ) : null}
 
       <p className="gis-disclaimer">

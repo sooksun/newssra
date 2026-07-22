@@ -3049,6 +3049,44 @@ textarea:focus {
   margin: 0 0 10px;
 }
 
+/* กลุ่มหลักฐานแบบ definition-list (ความสูง/จุดสูงสุดบนเส้นทาง ฯลฯ) ในหน้าแบบประเมิน (GisSummary) */
+.gis-evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 8px 16px;
+  margin: 0 0 10px;
+}
+
+.gis-evidence-grid dt {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.gis-evidence-grid dd {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.gis-route-highest {
+  margin-bottom: 12px;
+}
+
+/* ตารางอาคาร/ประชากรในรัศมี 500/1,000/1,500 ม. — ใช้สไตล์ตารางเดียวกับ .gis-table */
+.gis-radius-table {
+  margin: 0;
+}
+
+.gis-source-list {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
 .unit-map-link {
   display: flex;
   align-items: center;
@@ -3204,6 +3242,12 @@ textarea:focus {
     background: none;
     border-color: #999;
     color: #000;
+  }
+
+  /* ---- กลุ่มหลักฐาน (ความสูง/จุดสูงสุดบนเส้นทาง/แหล่งข้อมูล) — หัวข้อ+ค่าอยู่ด้วยกันเสมอ ไม่แยกข้ามหน้า ---- */
+  .gis-evidence-grid > div,
+  .gis-source-list li {
+    break-inside: avoid;
   }
 
   .layout {
