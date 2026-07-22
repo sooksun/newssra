@@ -1,19 +1,36 @@
-// เครื่องมือจับภาพจาก Cesium canvas — client-only (ต้องมี WebGL จริง จึงไม่มี unit test; ทดสอบผ่าน browser)
+// เครื่องมือจับภาพจาก Cesium canvas — client-only
+// captureCurrentView/dataUrlToBlob ต้องมี WebGL/canvas จริง จึงไม่มี unit test (ทดสอบผ่าน browser)
+// waitForTilesLoaded เป็น timing utility ล้วน ๆ (ไม่แตะ rAF/canvas) จึงมี unit test ด้วย fake viewer ได้ — ดู snapshotCapture.test.ts
 import type { Viewer } from "cesium";
 
-/** รอจน terrain/imagery tile รอบมุมกล้องปัจจุบันโหลดครบ (หรือหมดเวลา) เพื่อกันภาพเบลอ/โหลดไม่ครบ */
+/**
+ * รอจน terrain/imagery tile รอบมุมกล้องปัจจุบันโหลดครบ (หรือหมดเวลา) เพื่อกันภาพเบลอ/โหลดไม่ครบ
+ *
+ * ใช้ setTimeout polling แทน requestAnimationFrame โดยเจตนา: rAF จะไม่ยิงเลยเมื่อแท็บ/webview
+ * ไม่ได้ compositing เฟรม (แท็บถูกซ่อน/สลับไปแท็บอื่น) ซึ่งจะทำให้ทั้ง poll และ timeout (ที่เดิม
+ * เช็คอยู่ใน callback ของ rAF) ค้างตลอดไป — setTimeout ยังคงยิงในแท็บที่ถูกซ่อนอยู่ (แค่ถูก throttle)
+ * จึงการันตีว่า timeout จะทำงานเสมอไม่ว่าแท็บจะอยู่ foreground หรือไม่
+ */
 export function waitForTilesLoaded(viewer: Viewer, timeoutMs = 4000): Promise<void> {
   return new Promise((resolve) => {
-    const start = performance.now();
+    const start = Date.now();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const finish = () => {
+      if (timer !== undefined) clearTimeout(timer);
+      resolve();
+    };
+
     const tick = () => {
-      if (viewer.isDestroyed()) return resolve();
-      if (viewer.scene.globe.tilesLoaded || performance.now() - start > timeoutMs) {
-        return resolve();
+      if (viewer.isDestroyed()) return finish();
+      if (viewer.scene.globe.tilesLoaded || Date.now() - start > timeoutMs) {
+        return finish();
       }
       viewer.scene.requestRender();
-      requestAnimationFrame(tick);
+      timer = setTimeout(tick, 100);
     };
-    requestAnimationFrame(tick);
+
+    tick();
   });
 }
 
