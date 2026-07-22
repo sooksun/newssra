@@ -1,7 +1,7 @@
 // Repository ของแบบประเมิน — จุดเดียวที่แตะตาราง assessments
 // หลักการ: state JSON คือ source of truth, summary columns คำนวณโดย server ทุกครั้งที่บันทึก
 
-import type { PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getPool } from "./db";
 import { levelFor, totalScore } from "./scoring";
 import type {
@@ -92,6 +92,85 @@ function summaryValues(state: AssessmentState) {
     submittedRef: state.submitted?.ref ?? null,
     submittedAt: state.submitted?.at ? new Date(state.submitted.at) : null,
   };
+}
+
+// ── INSERT/UPDATE ของ assessments ที่ createAssessment/saveAssessment/saveAssessmentFromMapOnce ใช้ร่วมกัน ──
+// เดิม 3 ที่นี้คัดลอกรายชื่อคอลัมน์ 17 คอลัมน์ซ้ำกัน (ความเสี่ยง drift จริงเพราะเป็น summary column ที่ derive
+// จาก state) — รวมไว้ที่เดียว: SHARED_SUMMARY_COLUMNS + summaryColumnValues() คุมลำดับคอลัมน์/ค่าให้ตรงกันเสมอ
+// owner_user_id/owner_school_code ไม่รวมอยู่ในชุดนี้เพราะตั้งครั้งเดียวตอนสร้างแถว (INSERT เท่านั้น ไม่มีใน UPDATE)
+
+/** ลำดับคอลัมน์ต้องตรงกับ summaryColumnValues() เป๊ะ (ทั้ง INSERT และ UPDATE ใช้ลำดับเดียวกัน) */
+const SHARED_SUMMARY_COLUMNS = [
+  "state",
+  "unit_name",
+  "unit_code",
+  "assessment_year",
+  "province",
+  "unit_type",
+  "total_score",
+  "level_key",
+  "level_label",
+  "community_class_key",
+  "community_class_label",
+  "setting_type",
+  "signed",
+  "submitted_ref",
+  "submitted_at",
+] as const;
+
+function summaryColumnValues(indexed: AssessmentState, s: ReturnType<typeof summaryValues>) {
+  return [
+    JSON.stringify(indexed),
+    s.unitName,
+    s.unitCode,
+    s.year,
+    s.province,
+    s.unitType,
+    s.totalScore,
+    s.levelKey,
+    s.levelLabel,
+    s.communityClassKey,
+    s.communityClassLabel,
+    s.settingType,
+    s.signed,
+    s.submittedRef,
+    s.submittedAt,
+  ];
+}
+
+/** ตัวรัน query ที่ createAssessment/saveAssessment ใช้ pool ตรง ๆ ส่วน saveAssessmentFromMapOnce ใช้
+ *  PoolConnection ที่อยู่ใน transaction เดียวกัน — ทั้งสองแบบมี .query() หน้าตาเหมือนกัน (mysql2/promise) */
+type SqlExecutor = Pool | PoolConnection;
+
+/** INSERT แถว assessments ใหม่ — ใช้ร่วมกันทั้ง createAssessment (pool) และ saveAssessmentFromMapOnce (conn ใน transaction) */
+async function insertAssessmentRow(
+  executor: SqlExecutor,
+  indexed: AssessmentState,
+  owner: { userId: number | null; schoolCode: string | null },
+): Promise<number> {
+  const s = summaryValues(indexed);
+  const [result] = await executor.query<ResultSetHeader>(
+    `INSERT INTO assessments
+      (${SHARED_SUMMARY_COLUMNS.join(", ")}, owner_user_id, owner_school_code)
+     VALUES (${SHARED_SUMMARY_COLUMNS.map(() => "?").join(", ")}, ?, ?)`,
+    [...summaryColumnValues(indexed, s), owner.userId, owner.schoolCode],
+  );
+  return result.insertId;
+}
+
+/** UPDATE แถว assessments ที่มีอยู่ — ใช้ร่วมกันทั้ง saveAssessment (pool) และ saveAssessmentFromMapOnce (conn ใน transaction)
+ *  ไม่แตะ owner_user_id/owner_school_code (เจ้าของตั้งครั้งเดียวตอนสร้าง ไม่เปลี่ยนภายหลัง) */
+async function updateAssessmentRow(
+  executor: SqlExecutor,
+  id: number,
+  indexed: AssessmentState,
+): Promise<number> {
+  const s = summaryValues(indexed);
+  const [result] = await executor.query<ResultSetHeader>(
+    `UPDATE assessments SET ${SHARED_SUMMARY_COLUMNS.map((c) => `${c} = ?`).join(", ")} WHERE id = ?`,
+    [...summaryColumnValues(indexed, s), id],
+  );
+  return result.affectedRows;
 }
 
 function rowToSummary(row: AssessmentRow): AssessmentSummary {
@@ -254,67 +333,14 @@ export interface AssessmentOwner {
 export async function createAssessment(state: AssessmentState, owner: AssessmentOwner): Promise<number> {
   const pool = await getPool();
   const indexed = reindexCommunityOnState(state);
-  const s = summaryValues(indexed);
-  const [result] = await pool.query<ResultSetHeader>(
-    `INSERT INTO assessments
-      (state, unit_name, unit_code, assessment_year, province, unit_type,
-       total_score, level_key, level_label, community_class_key, community_class_label, setting_type,
-       signed, submitted_ref, submitted_at, owner_user_id, owner_school_code)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      JSON.stringify(indexed),
-      s.unitName,
-      s.unitCode,
-      s.year,
-      s.province,
-      s.unitType,
-      s.totalScore,
-      s.levelKey,
-      s.levelLabel,
-      s.communityClassKey,
-      s.communityClassLabel,
-      s.settingType,
-      s.signed,
-      s.submittedRef,
-      s.submittedAt,
-      owner.userId,
-      owner.schoolCode,
-    ]
-  );
-  return result.insertId;
+  return insertAssessmentRow(pool, indexed, owner);
 }
 
 export async function saveAssessment(id: number, state: AssessmentState): Promise<AssessmentSummary | null> {
   const pool = await getPool();
   const indexed = reindexCommunityOnState(state);
-  const s = summaryValues(indexed);
-  const [result] = await pool.query<ResultSetHeader>(
-    `UPDATE assessments SET
-       state = ?, unit_name = ?, unit_code = ?, assessment_year = ?, province = ?, unit_type = ?,
-       total_score = ?, level_key = ?, level_label = ?,
-       community_class_key = ?, community_class_label = ?, setting_type = ?,
-       signed = ?, submitted_ref = ?, submitted_at = ?
-     WHERE id = ?`,
-    [
-      JSON.stringify(indexed),
-      s.unitName,
-      s.unitCode,
-      s.year,
-      s.province,
-      s.unitType,
-      s.totalScore,
-      s.levelKey,
-      s.levelLabel,
-      s.communityClassKey,
-      s.communityClassLabel,
-      s.settingType,
-      s.signed,
-      s.submittedRef,
-      s.submittedAt,
-      id,
-    ]
-  );
-  if (result.affectedRows === 0) return null;
+  const affectedRows = await updateAssessmentRow(pool, id, indexed);
+  if (affectedRows === 0) return null;
 
   const [rows] = await pool.query<AssessmentRow[]>(
     `SELECT ${SUMMARY_COLUMNS} FROM assessments WHERE id = ? LIMIT 1`,
@@ -356,33 +382,7 @@ async function saveAssessmentFromMapOnce(
       const nextState = reindexCommunityOnState(
         applyMapGisToState(stateWithMasterFields, input.gis, { syncUnitLocation: input.syncUnitLocation })
       );
-      const s = summaryValues(nextState);
-      await conn.query<ResultSetHeader>(
-        `UPDATE assessments SET
-           state = ?, unit_name = ?, unit_code = ?, assessment_year = ?, province = ?, unit_type = ?,
-           total_score = ?, level_key = ?, level_label = ?,
-           community_class_key = ?, community_class_label = ?, setting_type = ?,
-           signed = ?, submitted_ref = ?, submitted_at = ?
-         WHERE id = ?`,
-        [
-          JSON.stringify(nextState),
-          s.unitName,
-          s.unitCode,
-          s.year,
-          s.province,
-          s.unitType,
-          s.totalScore,
-          s.levelKey,
-          s.levelLabel,
-          s.communityClassKey,
-          s.communityClassLabel,
-          s.settingType,
-          s.signed,
-          s.submittedRef,
-          s.submittedAt,
-          existing.id,
-        ]
-      );
+      await updateAssessmentRow(conn, existing.id, nextState);
       await conn.commit();
       return { assessmentId: existing.id, action: "updated", state: nextState };
     }
@@ -390,40 +390,26 @@ async function saveAssessmentFromMapOnce(
     const nextState = reindexCommunityOnState(
       applyMapGisToState(input.initialState, input.gis, { syncUnitLocation: input.syncUnitLocation })
     );
-    const s = summaryValues(nextState);
-    const [result] = await conn.query<ResultSetHeader>(
-      `INSERT INTO assessments
-        (state, unit_name, unit_code, assessment_year, province, unit_type,
-         total_score, level_key, level_label, community_class_key, community_class_label, setting_type,
-         signed, submitted_ref, submitted_at, owner_user_id, owner_school_code)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        JSON.stringify(nextState),
-        s.unitName,
-        s.unitCode,
-        s.year,
-        s.province,
-        s.unitType,
-        s.totalScore,
-        s.levelKey,
-        s.levelLabel,
-        s.communityClassKey,
-        s.communityClassLabel,
-        s.settingType,
-        s.signed,
-        s.submittedRef,
-        s.submittedAt,
-        input.ownerUserId,
-        input.schoolCode,
-      ]
-    );
+    const insertId = await insertAssessmentRow(conn, nextState, {
+      userId: input.ownerUserId,
+      schoolCode: input.schoolCode,
+    });
     await conn.commit();
-    return { assessmentId: result.insertId, action: "created", state: nextState };
+    return { assessmentId: insertId, action: "created", state: nextState };
   } catch (error) {
     await conn.rollback();
     throw error;
   }
 }
+
+/** error code ที่ "ลองใหม่อีกครั้งเดียว" แล้วมักสำเร็จ — ไม่ใช่ bug เชิงตรรกะ แค่การแข่งกันของธุรกรรมคู่ขนาน:
+ *  - ER_DUP_ENTRY: สอง request ชนกันตอนยังไม่มีแถว (unique key ทำให้ INSERT ที่แพ้ชนคีย์ซ้ำ)
+ *  - ER_LOCK_DEADLOCK: สอง connection ถือ gap lock จาก SELECT ... FOR UPDATE คนละลำดับกัน แล้ว MySQL
+ *    เลือกยกเลิกธุรกรรมหนึ่งฝ่ายเพื่อคลายเดดล็อก — ฝ่ายที่ถูกยกเลิกไม่ได้ค้างอะไรไว้จริง ลองใหม่จึงมักผ่าน
+ *  - ER_LOCK_WAIT_TIMEOUT: รอปล่อยล็อกจากอีกฝ่ายนานเกิน innodb_lock_wait_timeout — พอฝ่ายนั้นปล่อยแล้ว
+ *    รอบถัดไปมักผ่านทันที
+ *  ทั้งสามกรณีนี้รอบสองจะเจอแถวที่ได้ล็อกไปแล้วจาก SELECT ... FOR UPDATE และตัดสินใจ updated/locked ตามจริง */
+const RETRYABLE_TRANSACTION_ERROR_CODES = new Set(["ER_DUP_ENTRY", "ER_LOCK_DEADLOCK", "ER_LOCK_WAIT_TIMEOUT"]);
 
 export async function saveAssessmentFromMapAtomic(
   input: SaveAssessmentFromMapInput
@@ -434,9 +420,9 @@ export async function saveAssessmentFromMapAtomic(
     try {
       return await saveAssessmentFromMapOnce(conn, input);
     } catch (error) {
-      // แข่งกันสร้างพร้อมกัน (สอง request ชนกันตอนยังไม่มีแถว) — unique key ทำให้ INSERT ที่แพ้ชน ER_DUP_ENTRY
-      // ลองใหม่อีกครั้งเดียว: รอบสองจะเจอแถวที่ชนะแล้วจาก SELECT ... FOR UPDATE และตัดสินใจ updated/locked ตามจริง
-      if ((error as { code?: string } | null)?.code !== "ER_DUP_ENTRY") throw error;
+      // ลองใหม่อีกครั้งเดียวเท่านั้น (ไม่วนลูป) — ดูเหตุผลแต่ละ error code ที่คอมเมนต์ค่าคงที่ด้านบน
+      const code = (error as { code?: string } | null)?.code;
+      if (!code || !RETRYABLE_TRANSACTION_ERROR_CODES.has(code)) throw error;
       return await saveAssessmentFromMapOnce(conn, input);
     }
   } finally {

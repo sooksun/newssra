@@ -39,12 +39,10 @@ export class GisRequestError extends Error {
 }
 
 export interface GisRequestContext {
-  schoolCode: string;
   provinceName: string;
   provinceAvgElev: number | null;
   now: string;
   previousAreaSummary: GisAreaSummary | undefined;
-  previouslyApplied: boolean;
   /** true = ต้องมีเส้นทางศาลากลางจังหวัดที่ใช้ได้อย่างน้อย 1 เส้น (ใช้กับ /from-map); default false (legacy /gis) */
   requireProvinceRoute?: boolean;
 }
@@ -141,7 +139,9 @@ export function buildGisFromMapRequest(input: unknown, context: GisRequestContex
       : null,
     routes,
     autoScore: null,
-    appliedToResponses: context.previouslyApplied,
+    // placeholder — ผู้เรียก (route handler) เป็นเจ้าของฟิลด์นี้เสมอและเขียนทับค่าจริงทันทีหลังเรียกฟังก์ชันนี้
+    // (/gis คำนวณจาก willApply, /from-map คำนวณใน applyMapGisToState) จึงไม่มีประโยชน์ที่จะคำนวณค่าจริงที่นี่
+    appliedToResponses: false,
     savedAt: context.now,
   };
   const incomingArea = cleanAreaSummary(body.areaSummary);

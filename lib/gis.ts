@@ -85,6 +85,11 @@ export const REFERENCE_SPEED_KMH = 60;
 /** จำนวนเส้นทางวิเคราะห์สูงสุดต่อแบบประเมิน (ศาลากลาง + ปลายทางที่ผู้ใช้เพิ่ม) */
 export const MAX_GIS_ROUTES = 5;
 
+/** ระยะห่างสูงสุด (ม.) ระหว่างจุดวิเคราะห์ GIS กับพิกัดโรงเรียนในแบบฟอร์ม — เกินนี้ถือว่าเป็นคนละโรงเรียน
+ *  ปฏิเสธการบันทึกกันข้อมูลโรงเรียนอื่นปนกัน ใช้ร่วมกันทั้ง client (CesiumMap.tsx เตือนก่อนกดบันทึก)
+ *  และ server (POST /api/assessments/[id]/gis, POST /api/assessments/from-map) — จุดเดียวกันค่าเดียวกันเสมอ */
+export const MAX_ASSESSMENT_RELOCATION_M = 10_000;
+
 /** ขอบเขตค่าที่ยอมรับ — ใช้ทั้ง sanitizeGis และ test; ค่านอกช่วงถูก clamp หรือตัดทิ้ง */
 export const GIS_LIMITS = {
   distanceKm: { min: 0, max: 2000 },
@@ -627,8 +632,9 @@ function cleanElevation(value: unknown): GisElevationInfo | null {
 
 const RADIUS_VALUES = [500, 1000, 1500] as const;
 
-/** จำนวนอาคาร/ประชากรโดยประมาณในรัศมี 500/1,000/1,500 ม. — ทิ้งทั้งชุดถ้าตรวจไม่ผ่านแม้แถวเดียว (กันข้อมูลครึ่ง ๆ กลาง ๆ) */
-function cleanRadiusSummaries(value: unknown): GisRadiusSummary[] | undefined {
+/** จำนวนอาคาร/ประชากรโดยประมาณในรัศมี 500/1,000/1,500 ม. — ทิ้งทั้งชุดถ้าตรวจไม่ผ่านแม้แถวเดียว (กันข้อมูลครึ่ง ๆ กลาง ๆ)
+ * export ให้ทดสอบตรง ๆ ได้ (เดียวกับ cleanHighestPoint) */
+export function cleanRadiusSummaries(value: unknown): GisRadiusSummary[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const out: GisRadiusSummary[] = [];
   for (const item of value) {
@@ -650,8 +656,9 @@ function cleanRadiusSummaries(value: unknown): GisRadiusSummary[] | undefined {
 const GIS_BUILDING_SOURCES = ["Microsoft Building Footprints"] as const;
 const GIS_POPULATION_METHODS = ["building-count-x-provincial-household-size"] as const;
 
-/** แหล่งข้อมูลที่ใช้คำนวณผล GIS — metadata ล้วน ไม่มีผลต่อคะแนน แสดงเพื่อความโปร่งใสเท่านั้น */
-function cleanDataSources(value: unknown): GisDataSources | undefined {
+/** แหล่งข้อมูลที่ใช้คำนวณผล GIS — metadata ล้วน ไม่มีผลต่อคะแนน แสดงเพื่อความโปร่งใสเท่านั้น
+ * export ให้ทดสอบตรง ๆ ได้ (เดียวกับ cleanHighestPoint) */
+export function cleanDataSources(value: unknown): GisDataSources | undefined {
   if (!value || typeof value !== "object") return undefined;
   const d = value as Record<string, unknown>;
   if (d.terrain !== "Terrarium DEM" || d.routing !== "OSRM") return undefined;

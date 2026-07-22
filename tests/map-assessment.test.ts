@@ -147,6 +147,39 @@ test("fillBlankUnitFromMaster does not touch responses/gis", () => {
   assert.equal(filled.gis, undefined);
 });
 
+const DATA_SOURCES_A = {
+  terrain: "Terrarium DEM" as const,
+  routing: "OSRM" as const,
+  buildings: "Microsoft Building Footprints" as const,
+  populationMethod: "building-count-x-provincial-household-size" as const,
+  analyzedAt: "2569-01-01T00:00:00.000Z",
+};
+
+const DATA_SOURCES_B = {
+  ...DATA_SOURCES_A,
+  analyzedAt: "2569-02-02T00:00:00.000Z",
+};
+
+test("applyMapGisToState: new dataSources in payload wins over previous", () => {
+  const existing = makeBlankState();
+  existing.gis = { ...gis, dataSources: DATA_SOURCES_A };
+  const next = applyMapGisToState(existing, { ...gis, dataSources: DATA_SOURCES_B }, { syncUnitLocation: false });
+  assert.deepEqual(next.gis?.dataSources, DATA_SOURCES_B);
+});
+
+test("applyMapGisToState: previous dataSources preserved when new payload omits it", () => {
+  const existing = makeBlankState();
+  existing.gis = { ...gis, dataSources: DATA_SOURCES_A };
+  const next = applyMapGisToState(existing, gis, { syncUnitLocation: false });
+  assert.deepEqual(next.gis?.dataSources, DATA_SOURCES_A);
+});
+
+test("applyMapGisToState: dataSources absent on both sides stays absent (v1 rows never grow the key)", () => {
+  const existing = makeBlankState();
+  const next = applyMapGisToState(existing, gis, { syncUnitLocation: false });
+  assert.equal("dataSources" in (next.gis ?? {}), false);
+});
+
 test("applyMapGisToState marks appliedToResponses false when no Dimension 3 route exists", () => {
   const existing = makeBlankState();
   const empty: GisAnalysis = { ...gis, routes: [] };

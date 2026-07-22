@@ -9,12 +9,10 @@ import { buildGisFromMapRequest, GisRequestError } from "../lib/gis-request";
 import type { GisRequestContext } from "../lib/gis-request";
 
 const baseContext: GisRequestContext = {
-  schoolCode: "57000001",
   provinceName: "เชียงราย",
   provinceAvgElev: 544,
   now: "2026-07-22T05:00:00.000Z",
   previousAreaSummary: undefined,
-  previouslyApplied: false,
 };
 
 test("buildGisFromMapRequest recomputes route ratios and keeps validated terrain evidence", () => {

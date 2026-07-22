@@ -54,7 +54,7 @@ export function prefillMapAssessmentState(master: SchoolAssessmentMaster, year: 
 
 /**
  * รวมผล GIS เข้ากับ state ที่มีอยู่ — เติมคำตอบมิติที่ 3 (deriveD3Responses) โดยไม่แตะคำตอบมิติอื่น
- * รักษา areaSummary/radiusSummaries เดิมไว้ถ้า payload ใหม่ไม่ได้ส่งมา (กันข้อมูลหายเมื่อบันทึกแยกจังหวะกัน)
+ * รักษา areaSummary/radiusSummaries/dataSources เดิมไว้ถ้า payload ใหม่ไม่ได้ส่งมา (กันข้อมูลหายเมื่อบันทึกแยกจังหวะกัน)
  */
 export function applyMapGisToState(
   state: AssessmentState,
@@ -74,6 +74,11 @@ export function applyMapGisToState(
       ? { radiusSummaries: gis.radiusSummaries }
       : state.gis?.radiusSummaries
         ? { radiusSummaries: state.gis.radiusSummaries }
+        : {}),
+    ...(gis.dataSources
+      ? { dataSources: gis.dataSources }
+      : state.gis?.dataSources
+        ? { dataSources: state.gis.dataSources }
         : {}),
   };
   return {

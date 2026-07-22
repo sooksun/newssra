@@ -8,6 +8,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { currentBuddhistYear } from "@/lib/assessment-year";
 import { requireApiRole } from "@/lib/api-auth";
+import { MAX_ASSESSMENT_RELOCATION_M } from "@/lib/gis";
 import { buildGisFromMapRequest, GisRequestError } from "@/lib/gis-request";
 import { prefillMapAssessmentState } from "@/lib/map-assessment";
 import { haversineM } from "@/lib/map/morphology";
@@ -21,10 +22,6 @@ import {
 import type { GisAnalysis } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-
-// ต้องตรงกับค่าใน app/api/assessments/[id]/gis/route.ts — กันพิกัดโรงเรียนอื่นปนกับแบบประเมินนี้
-// (ทั้งสอง route ยังคง const แยกกันเพราะไม่มีจุด import กลางที่ปลอดภัยสำหรับ route-level constant นี้)
-const MAX_ASSESSMENT_RELOCATION_M = 10_000;
 
 /** parse body แบบปลอดภัย — JSON ผิดรูปแบบ/ไม่ใช่ object → null (route คืน 400) */
 async function readJsonObject(request: NextRequest): Promise<Record<string, unknown> | null> {
@@ -82,12 +79,10 @@ export async function POST(request: NextRequest) {
     let droppedRoutes: string[];
     try {
       ({ gis, droppedRoutes } = buildGisFromMapRequest(body, {
-        schoolCode: guard.user.schoolCode,
         provinceName: province?.name ?? master.province,
         provinceAvgElev: province && Number.isFinite(province.avgElev) ? province.avgElev : null,
         now: new Date().toISOString(),
         previousAreaSummary: undefined,
-        previouslyApplied: false,
         requireProvinceRoute: true,
       }));
     } catch (err) {

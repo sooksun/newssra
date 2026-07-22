@@ -33,6 +33,9 @@ import {
   finalizeGisAnalysis,
   settlementClass,
   cleanAreaSummary,
+  cleanHighestPoint,
+  cleanRadiusSummaries,
+  cleanDataSources,
   GIS_LIMITS,
   MAX_GIS_ROUTES,
   COMMUNITY_HIGHLAND_MIN_M,
@@ -1149,6 +1152,119 @@ describe("cleanAreaSummary — sanitize ข้อสรุปพื้นที�
     assert.ok(out?.areaSummary);
     assert.equal(out.areaSummary.buildingCount, 120);
     assert.equal(out.areaSummary.settlementLabel, settlementClass(287).label);
+  });
+});
+
+describe("cleanHighestPoint — sanitize จุดสูงสุดตามเส้นทาง", () => {
+  test("ค่าปกติผ่านครบ", () => {
+    const out = cleanHighestPoint({ lat: 19.5, lng: 99.2, elevationM: 1234 });
+    assert.deepEqual(out, { lat: 19.5, lng: 99.2, elevationM: 1234 });
+  });
+  test("lat/lng นอกช่วง → ทั้งจุดถูกตัดเป็น null", () => {
+    assert.equal(cleanHighestPoint({ lat: 999, lng: 99.2, elevationM: 1000 }), null);
+    assert.equal(cleanHighestPoint({ lat: 19.5, lng: 999, elevationM: 1000 }), null);
+  });
+  test("elevationM ไม่ใช่ตัวเลข (ไม่ใช่แค่นอกช่วง — นอกช่วงจะถูก clamp) → null", () => {
+    assert.equal(cleanHighestPoint({ lat: 19.5, lng: 99.2, elevationM: "สูง" }), null);
+  });
+  test("ไม่ใช่ object / ค่าว่าง → null", () => {
+    assert.equal(cleanHighestPoint(null), null);
+    assert.equal(cleanHighestPoint("x"), null);
+    assert.equal(cleanHighestPoint(undefined), null);
+  });
+});
+
+describe("cleanRadiusSummaries — สรุปอาคาร/ประชากรตามรัศมี", () => {
+  test("ค่าปกติผ่านครบ (500/1000/1500)", () => {
+    const out = cleanRadiusSummaries([
+      { radiusM: 500, buildingCount: 5, estPopulation: 10, popDensityPerKm2: 20 },
+      { radiusM: 1000, buildingCount: 20, estPopulation: 40, popDensityPerKm2: 15 },
+      { radiusM: 1500, buildingCount: 50, estPopulation: 100, popDensityPerKm2: 12 },
+    ]);
+    assert.equal(out?.length, 3);
+    assert.deepEqual(out?.[0], { radiusM: 500, buildingCount: 5, estPopulation: 10, popDensityPerKm2: 20 });
+  });
+  test("แถวหนึ่งมี radiusM แปลกปลอม (ไม่ใช่ 500/1000/1500) → ตัดทิ้งทั้งชุด", () => {
+    const out = cleanRadiusSummaries([
+      { radiusM: 500, buildingCount: 5, estPopulation: 10, popDensityPerKm2: 20 },
+      { radiusM: 750, buildingCount: 8, estPopulation: 16, popDensityPerKm2: 20 },
+    ]);
+    assert.equal(out, undefined);
+  });
+  test("แถวหนึ่ง buildingCount ไม่ใช่ตัวเลข → ตัดทิ้งทั้งชุด", () => {
+    const out = cleanRadiusSummaries([
+      { radiusM: 500, buildingCount: "ห้า", estPopulation: 10, popDensityPerKm2: 20 },
+    ]);
+    assert.equal(out, undefined);
+  });
+  test("ไม่ใช่ array → undefined; array ว่าง → undefined (ไม่มีแถวเหลือ)", () => {
+    assert.equal(cleanRadiusSummaries(null), undefined);
+    assert.equal(cleanRadiusSummaries("x"), undefined);
+    assert.equal(cleanRadiusSummaries([]), undefined);
+  });
+});
+
+describe("cleanDataSources — metadata แหล่งข้อมูล GIS", () => {
+  test("ค่าปกติผ่านครบ", () => {
+    const out = cleanDataSources({
+      terrain: "Terrarium DEM",
+      routing: "OSRM",
+      buildings: "Microsoft Building Footprints",
+      populationMethod: "building-count-x-provincial-household-size",
+      analyzedAt: "2569-01-01T00:00:00.000Z",
+    });
+    assert.deepEqual(out, {
+      terrain: "Terrarium DEM",
+      routing: "OSRM",
+      buildings: "Microsoft Building Footprints",
+      populationMethod: "building-count-x-provincial-household-size",
+      analyzedAt: "2569-01-01T00:00:00.000Z",
+    });
+  });
+  test("terrain/routing ผิดค่า (ไม่ใช่ literal ที่รองรับ) → ทั้งก้อนถูกปฏิเสธ", () => {
+    assert.equal(cleanDataSources({ terrain: "SRTM", routing: "OSRM" }), undefined);
+    assert.equal(cleanDataSources({ terrain: "Terrarium DEM", routing: "Google Maps" }), undefined);
+  });
+  test("buildings/populationMethod เป็นค่าที่ไม่รู้จัก → ตัวนั้นกลายเป็น null (ไม่ปฏิเสธทั้งก้อน)", () => {
+    const out = cleanDataSources({
+      terrain: "Terrarium DEM",
+      routing: "OSRM",
+      buildings: "ข้อมูลปลอม",
+      populationMethod: "แต่งขึ้นเอง",
+      analyzedAt: "t",
+    });
+    assert.ok(out);
+    assert.equal(out.buildings, null);
+    assert.equal(out.populationMethod, null);
+  });
+  test("ไม่ใช่ object / ค่าว่าง → undefined", () => {
+    assert.equal(cleanDataSources(null), undefined);
+    assert.equal(cleanDataSources("x"), undefined);
+  });
+});
+
+describe("sanitizeGis — absent optional keys stay absent (v1/แถวไม่มีข้อมูล)", () => {
+  test("gis ที่ไม่มี radiusSummaries/dataSources/areaSummary → ไม่งอก key เหล่านี้", () => {
+    const out = sanitizeGis(makeGis());
+    assert.ok(out);
+    assert.equal("radiusSummaries" in out, false);
+    assert.equal("dataSources" in out, false);
+    assert.equal("areaSummary" in out, false);
+  });
+  test("gis ที่มี radiusSummaries/dataSources ครบ → รอด round-trip", () => {
+    const raw = makeGis({
+      radiusSummaries: [{ radiusM: 500, buildingCount: 5, estPopulation: 10, popDensityPerKm2: 20 }],
+      dataSources: {
+        terrain: "Terrarium DEM",
+        routing: "OSRM",
+        buildings: "Microsoft Building Footprints",
+        populationMethod: "building-count-x-provincial-household-size",
+        analyzedAt: "2569-01-01T00:00:00.000Z",
+      },
+    });
+    const out = sanitizeGis(JSON.parse(JSON.stringify(raw)));
+    assert.equal(out?.radiusSummaries?.length, 1);
+    assert.equal(out?.dataSources?.buildings, "Microsoft Building Footprints");
   });
 });
 

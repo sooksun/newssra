@@ -6,7 +6,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { requireAssessmentAccess } from "@/lib/api-auth";
-import { deriveD3Responses, suggestSettingTypeFromGis } from "@/lib/gis";
+import { deriveD3Responses, MAX_ASSESSMENT_RELOCATION_M, suggestSettingTypeFromGis } from "@/lib/gis";
 import { buildGisFromMapRequest, GisRequestError } from "@/lib/gis-request";
 import { haversineM } from "@/lib/map/morphology";
 import { getAssessment, listProvinces, resolveSchoolProvince, saveAssessment } from "@/lib/repo";
@@ -15,7 +15,6 @@ import type { AssessmentState } from "@/lib/types";
 export const dynamic = "force-dynamic";
 
 const CENTER_SYNC_TOLERANCE_M = 50;
-const MAX_ASSESSMENT_RELOCATION_M = 10_000;
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -102,12 +101,10 @@ export async function POST(request: NextRequest, { params }: Ctx) {
     let droppedRoutes: string[];
     try {
       ({ gis, droppedRoutes } = buildGisFromMapRequest(body, {
-        schoolCode: existing.ownerSchoolCode ?? "",
         provinceName: near?.name ?? "",
         provinceAvgElev: near && Number.isFinite(near.avgElev) ? near.avgElev : null,
         now,
         previousAreaSummary: existing.state.gis?.areaSummary,
-        previouslyApplied: existing.state.scoringVersion === "v2-gis",
       }));
     } catch (err) {
       if (err instanceof GisRequestError) {

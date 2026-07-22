@@ -67,6 +67,7 @@ import {
   computeCommunityClass,
   derive32Severity,
   elevationGainLoss,
+  MAX_ASSESSMENT_RELOCATION_M,
   settlementClass,
   type SettlementTone,
 } from "@/lib/gis";
@@ -90,7 +91,6 @@ const KEYLESS_SAMPLE_LEVEL = 14;
 const VERTICAL_EXAGGERATION = 2.0;
 const ANALYSIS_TIMEOUT_MS = 25_000;
 const CENTER_SYNC_TOLERANCE_M = 50;
-const MAX_ASSESSMENT_RELOCATION_M = 10_000;
 // Esri World Imagery: ระดับภาพจริงต่างกันตามพื้นที่ (เมืองใหญ่ ~L19–20, ชนบท/ภูเขา ~L17–18)
 // เกินระดับที่มีจริง Esri จะตอบ tile เทา "Map data not yet available" เป็น JPEG ปกติ (HTTP 200)
 // จึงต้องใช้ DiscardMissingTileImagePolicy และ probe tilemap รายพิกัดเพื่อไม่ render ภาพขยายเกินจริงโดยไม่บอกผู้ใช้
