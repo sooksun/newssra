@@ -44,11 +44,15 @@ CREATE TABLE IF NOT EXISTS assessments (
   KEY idx_owner (owner_user_id),
   KEY idx_owner_school (owner_school_code),
   KEY idx_community_class (community_class_key),
-  UNIQUE KEY uq_submitted_ref (submitted_ref)
+  UNIQUE KEY uq_submitted_ref (submitted_ref),
+  UNIQUE KEY uq_owner_school_year (owner_school_code, assessment_year)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 `;
 // หมายเหตุ: MySQL อนุญาตหลายแถวเป็น NULL ใน UNIQUE index ได้ → แบบประเมินที่ยังไม่ยื่น (submitted_ref = NULL)
 // ไม่ชนกัน ส่วนเลขที่อ้างอิงจริงหลังยื่นจะไม่ซ้ำกันเด็ดขาด (บังคับโดยฐานข้อมูล)
+// uq_owner_school_year: หนึ่งโรงเรียน (owner_school_code) มีแบบประเมินได้ปีละ 1 ฉบับ (ปี พ.ศ.) — บังคับที่ฐานข้อมูล
+// เพื่อกันคำขอบันทึกจากแผนที่ 3 มิติพร้อมกันสร้างซ้ำ; แถว owner_school_code = NULL (admin สร้างเอง) ไม่ถูกกันชน
+// เพราะ MySQL ถือ NULL แต่ละแถวไม่เท่ากัน (เหมือน submitted_ref)
 
 // ผู้ใช้ระบบ 3 บทบาท (admin / ssra_admin / school) — เก็บเฉพาะบัญชี/บทบาท ไม่มีข้อมูลส่วนบุคคลนักเรียน
 export const USERS_SCHEMA_SQL = `
@@ -114,6 +118,12 @@ async function init(): Promise<Pool> {
   await ensureUniqueIndex(pool, "assessments", "uq_submitted_ref",
     "ALTER TABLE assessments ADD UNIQUE KEY uq_submitted_ref (submitted_ref)");
 
+  // บังคับ 1 โรงเรียน/1 ปี พ.ศ. ต่อแบบประเมิน — ตรวจซ้ำก่อนเสมอ (ต่างจาก uq_submitted_ref ด้านบน):
+  // ถ้าเจอแถวซ้ำจริงในฐานเดิม ต้อง throw ทันที ห้าม auto-fix/ลบ/เลือกผู้ชนะเอง (ต้องให้แอดมินตัดสินใจ)
+  await assertNoDuplicateOwnerSchoolYear(pool);
+  await ensureUniqueIndex(pool, "assessments", "uq_owner_school_year",
+    "ALTER TABLE assessments ADD UNIQUE KEY uq_owner_school_year (owner_school_code, assessment_year)");
+
   // สร้างบัญชีตั้งต้นผู้ดูแล (dynamic import เพื่อเลี่ยง cycle db ↔ users-repo)
   try {
     const { seedDefaultUsers } = await import("./users-repo");
@@ -136,6 +146,36 @@ async function ensureColumn(pool: Pool, table: string, column: string, alterSql:
     await pool.query(alterSql);
     console.log(`[db] migrated: added ${table}.${column}`);
   }
+}
+
+interface DuplicateOwnerSchoolYearRow extends RowDataPacket {
+  owner_school_code: string;
+  assessment_year: string;
+  n: number;
+  ids: string;
+}
+
+/**
+ * ตรวจก่อนเพิ่ม uq_owner_school_year ว่าไม่มีคู่ (owner_school_code, assessment_year) ซ้ำอยู่แล้ว
+ * ต่างจาก ensureUniqueIndex ทั่วไป (best-effort + เตือน) เพราะ index นี้กระทบข้อมูลจริงถ้าเลือกผิด —
+ * ถ้าพบซ้ำ ต้อง throw พร้อมรายชื่อทุกกลุ่มที่ชนกัน ห้ามลบ/รวม/เลือกผู้ชนะเองเด็ดขาด ให้แอดมิน dedupe เอง
+ */
+async function assertNoDuplicateOwnerSchoolYear(pool: Pool): Promise<void> {
+  const [rows] = await pool.query<DuplicateOwnerSchoolYearRow[]>(
+    `SELECT owner_school_code, assessment_year, COUNT(*) AS n,
+            GROUP_CONCAT(id ORDER BY id) AS ids
+       FROM assessments
+      WHERE owner_school_code IS NOT NULL AND owner_school_code <> ''
+      GROUP BY owner_school_code, assessment_year
+     HAVING COUNT(*) > 1`
+  );
+  if (!rows.length) return;
+  const groups = rows
+    .map((r) => `${r.owner_school_code}/${r.assessment_year} (ids: ${r.ids})`)
+    .join("; ");
+  throw new Error(
+    `[db] พบแบบประเมินซ้ำโรงเรียน/ปีเดียวกันก่อนเพิ่ม uq_owner_school_year — ต้องแก้ก่อน (ไม่ลบ/รวมอัตโนมัติ): ${groups}`
+  );
 }
 
 /** เพิ่ม index/unique key ถ้ายังไม่มี — best-effort: ถ้า ALTER ล้ม (เช่นมีค่าซ้ำเดิม) แค่เตือน ไม่ล้มทั้งแอป */

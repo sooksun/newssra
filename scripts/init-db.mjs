@@ -46,7 +46,8 @@ CREATE TABLE IF NOT EXISTS assessments (
   KEY idx_owner (owner_user_id),
   KEY idx_owner_school (owner_school_code),
   KEY idx_community_class (community_class_key),
-  UNIQUE KEY uq_submitted_ref (submitted_ref)
+  UNIQUE KEY uq_submitted_ref (submitted_ref),
+  UNIQUE KEY uq_owner_school_year (owner_school_code, assessment_year)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 `;
 
@@ -119,6 +120,31 @@ async function ensureUniqueIndex(table, indexName, alterSql) {
 
 await ensureUniqueIndex("assessments", "uq_submitted_ref",
   "ALTER TABLE assessments ADD UNIQUE KEY uq_submitted_ref (submitted_ref)");
+
+// ตรวจก่อนเพิ่ม uq_owner_school_year ว่าไม่มีคู่ (owner_school_code, assessment_year) ซ้ำอยู่แล้ว —
+// ต่างจาก ensureUniqueIndex ทั่วไป (best-effort + เตือน) เพราะกระทบข้อมูลจริงถ้าเลือกผิด: พบซ้ำ = หยุดทันที
+// พร้อมรายชื่อทุกกลุ่มที่ชนกัน ห้ามลบ/รวม/เลือกผู้ชนะเองเด็ดขาด ให้แอดมิน dedupe เอง
+async function assertNoDuplicateOwnerSchoolYear() {
+  const [rows] = await conn.query(
+    `SELECT owner_school_code, assessment_year, COUNT(*) AS n,
+            GROUP_CONCAT(id ORDER BY id) AS ids
+       FROM assessments
+      WHERE owner_school_code IS NOT NULL AND owner_school_code <> ''
+      GROUP BY owner_school_code, assessment_year
+     HAVING COUNT(*) > 1`
+  );
+  if (!rows.length) return;
+  const groups = rows
+    .map((r) => `${r.owner_school_code}/${r.assessment_year} (ids: ${r.ids})`)
+    .join("; ");
+  throw new Error(
+    `[db:init] พบแบบประเมินซ้ำโรงเรียน/ปีเดียวกันก่อนเพิ่ม uq_owner_school_year — ต้องแก้ก่อน (ไม่ลบ/รวมอัตโนมัติ): ${groups}`
+  );
+}
+
+await assertNoDuplicateOwnerSchoolYear();
+await ensureUniqueIndex("assessments", "uq_owner_school_year",
+  "ALTER TABLE assessments ADD UNIQUE KEY uq_owner_school_year (owner_school_code, assessment_year)");
 
 const [rows] = await conn.query("SELECT COUNT(*) AS n FROM assessments");
 console.log(`[db:init] database "${dbName}" ready — assessments rows: ${rows[0].n}`);

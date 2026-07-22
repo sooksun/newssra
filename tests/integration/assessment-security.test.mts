@@ -46,6 +46,9 @@ function draftState(): AssessmentState {
 
 function submittedState(): AssessmentState {
   const s = draftState();
+  // ปีต่างจาก draftState() (2569) โดยตั้งใจ — ตั้งแต่มี uq_owner_school_year แถวเดียวกัน
+  // (owner_school_code, assessment_year) จะซ้ำกันไม่ได้ และทั้งสองแถวนี้ใช้ schoolCode TESTAAAA เดียวกัน
+  s.unit.year = "2568";
   s.evidence["1.2"] = { ready: true, note: "", files: [SEED_FILE] };
   s.submitted = { at: "2026-02-02T00:00:00.000Z", ref: SEED_REF, total: 98, level: "ระดับ 3 ยุ่งยากมากที่สุด" };
   return s;
@@ -164,4 +167,19 @@ test("POST /gis: พิกัดศูนย์กลางไม่ถูกต
   const body = { center: { lat: 999, lng: 98.9 }, routes: [] };
   const res = await gisRoute.POST(jsonRequest(NextRequest, `${BASE}/${draftAId}/gis`, { method: "POST", body }), ctx(draftAId));
   assert.equal(res.status, 400);
+});
+
+// ─────────────── 4) uq_owner_school_year — 1 โรงเรียน/1 ปี ต่อแบบประเมิน ───────────────
+
+test("database rejects a second assessment for the same school and year", { skip: !DB }, async () => {
+  const first = draftState();
+  first.unit.year = "2599";
+  const second = draftState();
+  second.unit.year = "2599";
+  const id = await repo.createAssessment(first, { userId: null, schoolCode: "TESTAAAA" });
+  created.push(id);
+  await assert.rejects(
+    repo.createAssessment(second, { userId: null, schoolCode: "TESTAAAA" }),
+    (error: unknown) => (error as { code?: string }).code === "ER_DUP_ENTRY",
+  );
 });

@@ -1,7 +1,7 @@
 // Repository ของแบบประเมิน — จุดเดียวที่แตะตาราง assessments
 // หลักการ: state JSON คือ source of truth, summary columns คำนวณโดย server ทุกครั้งที่บันทึก
 
-import type { ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import type { PoolConnection, ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { getPool } from "./db";
 import { levelFor, totalScore } from "./scoring";
 import type {
@@ -17,6 +17,8 @@ import {
   isCommunityCompositeKey,
 } from "./community-class";
 import { computeCommunityClass } from "./gis";
+import { applyMapGisToState } from "./map-assessment";
+import type { MapAssessmentSaveResult, SaveAssessmentFromMapInput } from "./map-assessment";
 import { sanitizeState } from "./state";
 
 interface AssessmentRow extends RowDataPacket {
@@ -230,6 +232,22 @@ export async function latestOwnerAssessmentForMap(schoolCode: string): Promise<A
   return rows.length ? rowToRecord(rows[0]) : null;
 }
 
+/** แบบประเมินของโรงเรียนสำหรับปี พ.ศ. ที่ระบุเจาะจง (unique ต่อคู่โรงเรียน-ปี)
+ *  ใช้แทน latestOwnerAssessmentForMap เมื่อต้องผูกกับปีปัจจุบันเท่านั้น — ไม่ดึงฉบับปีอื่นข้ามมาแทน
+ *  (การเลือกฉบับร่างก่อนแบบเดิมใช้ไม่ได้อีกต่อไปเมื่อบังคับ 1 โรงเรียน/1 ปี ด้วย unique key) */
+export async function assessmentForSchoolYear(schoolCode: string, year: string): Promise<AssessmentRecord | null> {
+  if (!schoolCode) return null;
+  const pool = await getPool();
+  const [rows] = await pool.query<AssessmentRow[]>(
+    `SELECT id, state, owner_user_id, owner_school_code, created_at, updated_at
+       FROM assessments
+      WHERE owner_school_code = ? AND assessment_year = ?
+      LIMIT 1`,
+    [schoolCode, year]
+  );
+  return rows.length ? rowToRecord(rows[0]) : null;
+}
+
 /** ดึงรหัสโรงเรียนเจ้าของแบบประเมิน เพื่อตรวจสิทธิ์ในชั้น route
  *  - undefined = ไม่พบแบบประเมิน
  *  - null = มีอยู่แต่ไม่มีเจ้าของโรงเรียน (แถวที่ admin/ssra สร้าง หรือแถวเดิมก่อนมีระบบ auth)
@@ -320,6 +338,124 @@ export async function saveAssessment(id: number, state: AssessmentState): Promis
     [id]
   );
   return rows.length ? rowToSummary(rows[0]) : null;
+}
+
+/**
+ * บันทึกผล GIS จากแผนที่ 3 มิติลงแบบประเมินของปีปัจจุบัน แบบ atomic ทั้งก้อน (สร้าง/ปรับปรุง/ล็อก + คำตอบมิติ 3
+ * ต้องอยู่ transaction เดียวกัน) ใช้แถวเดียวต่อ (owner_school_code, assessment_year) คุ้มครองด้วย
+ * SELECT ... FOR UPDATE + unique key `uq_owner_school_year` กันแข่งกันสร้างซ้ำตอนมีคำขอพร้อมกัน
+ */
+async function saveAssessmentFromMapOnce(
+  conn: PoolConnection,
+  input: SaveAssessmentFromMapInput
+): Promise<MapAssessmentSaveResult> {
+  await conn.beginTransaction();
+  try {
+    const [rows] = await conn.query<AssessmentRow[]>(
+      `SELECT id, state, owner_user_id, owner_school_code, created_at, updated_at
+         FROM assessments
+        WHERE owner_school_code = ? AND assessment_year = ?
+        LIMIT 1
+        FOR UPDATE`,
+      [input.schoolCode, input.year]
+    );
+
+    if (rows.length) {
+      const existing = rowToRecord(rows[0]);
+      if (existing.state.submitted) {
+        // ยื่นแล้ว — ห้ามแตะ GIS/คะแนน คืนสถานะเดิมทั้งหมด (ล็อก)
+        await conn.commit();
+        return { assessmentId: existing.id, action: "locked", state: existing.state };
+      }
+      const nextState = reindexCommunityOnState(
+        applyMapGisToState(existing.state, input.gis, { syncUnitLocation: input.syncUnitLocation })
+      );
+      const s = summaryValues(nextState);
+      await conn.query<ResultSetHeader>(
+        `UPDATE assessments SET
+           state = ?, unit_name = ?, unit_code = ?, assessment_year = ?, province = ?, unit_type = ?,
+           total_score = ?, level_key = ?, level_label = ?,
+           community_class_key = ?, community_class_label = ?, setting_type = ?,
+           signed = ?, submitted_ref = ?, submitted_at = ?
+         WHERE id = ?`,
+        [
+          JSON.stringify(nextState),
+          s.unitName,
+          s.unitCode,
+          s.year,
+          s.province,
+          s.unitType,
+          s.totalScore,
+          s.levelKey,
+          s.levelLabel,
+          s.communityClassKey,
+          s.communityClassLabel,
+          s.settingType,
+          s.signed,
+          s.submittedRef,
+          s.submittedAt,
+          existing.id,
+        ]
+      );
+      await conn.commit();
+      return { assessmentId: existing.id, action: "updated", state: nextState };
+    }
+
+    const nextState = reindexCommunityOnState(
+      applyMapGisToState(input.initialState, input.gis, { syncUnitLocation: input.syncUnitLocation })
+    );
+    const s = summaryValues(nextState);
+    const [result] = await conn.query<ResultSetHeader>(
+      `INSERT INTO assessments
+        (state, unit_name, unit_code, assessment_year, province, unit_type,
+         total_score, level_key, level_label, community_class_key, community_class_label, setting_type,
+         signed, submitted_ref, submitted_at, owner_user_id, owner_school_code)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        JSON.stringify(nextState),
+        s.unitName,
+        s.unitCode,
+        s.year,
+        s.province,
+        s.unitType,
+        s.totalScore,
+        s.levelKey,
+        s.levelLabel,
+        s.communityClassKey,
+        s.communityClassLabel,
+        s.settingType,
+        s.signed,
+        s.submittedRef,
+        s.submittedAt,
+        input.ownerUserId,
+        input.schoolCode,
+      ]
+    );
+    await conn.commit();
+    return { assessmentId: result.insertId, action: "created", state: nextState };
+  } catch (error) {
+    await conn.rollback();
+    throw error;
+  }
+}
+
+export async function saveAssessmentFromMapAtomic(
+  input: SaveAssessmentFromMapInput
+): Promise<MapAssessmentSaveResult> {
+  const pool = await getPool();
+  const conn = await pool.getConnection();
+  try {
+    try {
+      return await saveAssessmentFromMapOnce(conn, input);
+    } catch (error) {
+      // แข่งกันสร้างพร้อมกัน (สอง request ชนกันตอนยังไม่มีแถว) — unique key ทำให้ INSERT ที่แพ้ชน ER_DUP_ENTRY
+      // ลองใหม่อีกครั้งเดียว: รอบสองจะเจอแถวที่ชนะแล้วจาก SELECT ... FOR UPDATE และตัดสินใจ updated/locked ตามจริง
+      if ((error as { code?: string } | null)?.code !== "ER_DUP_ENTRY") throw error;
+      return await saveAssessmentFromMapOnce(conn, input);
+    }
+  } finally {
+    conn.release();
+  }
 }
 
 export async function deleteAssessment(id: number): Promise<boolean> {
