@@ -2045,7 +2045,10 @@ export default function CesiumMap({
                   {pickedCoord.lat.toFixed(5)}, {pickedCoord.lng.toFixed(5)}
                 </em>
               </div>
-              {assessment && !national && !assessment.submitted ? (
+              {/* ปุ่ม/แถบ "เพิ่มเป็นจุดหมายวิเคราะห์" นี้ป้อนข้อมูลที่บันทึกลงฉบับ "ปีปัจจุบัน" เสมอ (ผ่านปุ่มบันทึกใน
+                  GisAssessmentPanel → POST /api/assessments/from-map) จึงต้องเช็ค currentYearAssessment.submitted
+                  ไม่ใช่ assessment.submitted ของฉบับที่กำลังเปิดดู (อาจเป็นปีอื่น) */}
+              {assessment && !national && !currentYearAssessment?.submitted ? (
                 <>
                   <p className="map-note map-confirm-coord-warning">
                     ถ้าจุดนี้คือสำนักงานเขต/สกร.อำเภอ/โรงพยาบาล ให้ใช้ปุ่ม “เพิ่มเป็นจุดหมายวิเคราะห์” ด้านล่าง
@@ -2346,10 +2349,13 @@ export default function CesiumMap({
                                   ความหนาแน่นการตั้งถิ่นฐาน (แกน C): <strong>{cls.label}</strong> — {cls.hint}
                                 </p>
                               ) : null}
+                              {/* "จะถูกบันทึกพร้อมกัน" อธิบายผลของปุ่มบันทึกใน GisAssessmentPanel ซึ่งเขียนลงฉบับ
+                                  ปีปัจจุบันเสมอ (POST /api/assessments/from-map) — ต้องเช็ค currentYearAssessment.submitted
+                                  ไม่ใช่ assessment.submitted ของฉบับที่กำลังเปิดดู (อาจเป็นปีอื่น) */}
                               <p className="map-note map-area-summary-note">
                                 ข้อสรุปเป็นค่าประมาณจากผังอาคาร ML และขนาดครัวเรือนเฉลี่ยของจังหวัด ใช้ประกอบดุลยพินิจ
                                 ไม่ใช่ข้อมูลทางการ · แกน C ไม่ใช่ระดับความทุรกันดาร/พื้นที่สูง (ดูกล่องวิเคราะห์ GIS)
-                                {assessment && !assessment.submitted && canSaveAssessment
+                                {assessment && !currentYearAssessment?.submitted && canSaveAssessment
                                   ? " · ข้อสรุปพื้นที่นี้จะถูกบันทึกพร้อมกันเมื่อกดปุ่มบันทึกในกล่องวิเคราะห์ GIS"
                                   : ""}
                               </p>
