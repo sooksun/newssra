@@ -174,11 +174,50 @@ export interface GisRouteAnalysis {
   /** เส้นที่ผู้ใช้เลือกจากทางเลือก OSRM (ใช้คิดคะแนน) */
   selected: boolean;
   calculatedAt: string;
+  /** จุดสูงสุดที่สุ่มได้ตามเส้นทางนี้ (พิกัด + ความสูง) — ชุดเดียวกับธงจุดสูงสุดบนแผนที่; null = ยังไม่ได้สุ่ม */
+  highestPoint?: GisRouteHighestPoint | null;
+}
+
+/** จุดสูงสุดที่สุ่มได้ตามเส้นทาง — ใช้ทั้งธงแดงบนแผนที่และค่าที่บันทึกลงแบบประเมิน (ต้องเป็นชุดตัวอย่างเดียวกัน) */
+export interface GisRouteHighestPoint {
+  lat: number;
+  lng: number;
+  elevationM: number;
+}
+
+/** สรุปอาคาร/ประชากรโดยประมาณในรัศมีรอบจุดวิเคราะห์ (500/1,000/1,500 ม.) */
+export interface GisRadiusSummary {
+  radiusM: 500 | 1000 | 1500;
+  buildingCount: number;
+  estPopulation: number | null;
+  popDensityPerKm2: number | null;
+}
+
+/** แหล่งข้อมูลที่ใช้คำนวณผล GIS — แสดงประกอบเพื่อความโปร่งใส ไม่ใช่ข้อมูลที่มีผลต่อคะแนน */
+export interface GisDataSources {
+  terrain: "Terrarium DEM";
+  routing: "OSRM";
+  buildings: "Microsoft Building Footprints" | null;
+  populationMethod: "building-count-x-provincial-household-size" | null;
+  analyzedAt: string;
 }
 
 export interface GisElevationInfo {
-  schoolElevationM: number | null;
+  /** ความสูงที่จุดตั้งหมุดโรงเรียนจริง (ม.) — มาจากจุดปลายทางใน route elevation profile เท่านั้น ห้ามใช้ค่าเฉลี่ยพื้นที่แทน */
+  schoolMarkerElevationM: number | null;
+  /** ความสูงเฉลี่ยของกริดพื้นที่วิเคราะห์ (ม.) */
+  meanElevationM: number | null;
+  /** ความสูงต่ำสุดของกริดพื้นที่วิเคราะห์ (ม.) */
+  minElevationM: number | null;
+  /** ความสูงสูงสุดของกริดพื้นที่วิเคราะห์ (ม.) */
+  maxElevationM: number | null;
+  /** ผลต่างความสูงสูงสุด−ต่ำสุดของกริด (ม.) */
+  reliefM: number | null;
   meanSlopePct: number | null;
+  /** ความลาดชันสูงสุดของกริด (%) */
+  maxSlopePct: number | null;
+  /** ความสูงสุดในรัศมี 1 กม. รอบจุดตั้ง (ม.); null = ไม่ได้คำนวณ */
+  localMaxElevation1KmM: number | null;
   slopeClass: string;
   landformTh: string;
   /** ความสูงสุ่มได้เฉพาะฝั่ง browser (Terrarium DEM) — ระบุที่มาอย่างโปร่งใส */
@@ -308,6 +347,10 @@ export interface GisAnalysis {
    * undefined บนแถวเก่าที่ยังไม่เคย sanitize หลังเพิ่มฟีเจอร์; หลังอ่านผ่าน sanitizeGis จะถูกเติม
    */
   communityClass?: GisCommunityClass;
+  /** จำนวนอาคาร/ประชากรโดยประมาณในรัศมี 500/1,000/1,500 ม. — ไม่บังคับ (undefined = ยังไม่ได้ส่งมา) */
+  radiusSummaries?: GisRadiusSummary[];
+  /** แหล่งข้อมูลที่ใช้คำนวณผล GIS ชุดนี้ — ไม่บังคับ (undefined = แถวเก่าก่อนมีฟิลด์นี้) */
+  dataSources?: GisDataSources;
   /** true = derive ค่าลง responses ด้านที่ 3 แล้ว (scoring v2) */
   appliedToResponses: boolean;
   savedAt: string;

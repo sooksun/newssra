@@ -58,6 +58,12 @@ test("buildRouteElevationProfile selects the highest finite route point and exac
   assert.deepEqual(profile.highestPoint, { lng: 102, lat: 12, elevationM: 375 });
 });
 
+test("route profile keeps school marker and highest point from the same samples", () => {
+  const profile = buildRouteElevationProfile([[99, 20], [99.1, 20.1]], [1070, 1062]);
+  assert.deepEqual(profile.highestPoint, { lng: 99, lat: 20, elevationM: 1070 });
+  assert.equal(profile.schoolElevationM, 1062);
+});
+
 test("buildRouteElevationProfile never converts missing terrain to zero", () => {
   const profile = buildRouteElevationProfile(
     [

@@ -57,7 +57,7 @@ import {
 import { flags, scoreIndicator } from "../lib/scoring";
 import { makeBlankState, sanitizeState } from "../lib/state";
 import { estimateWscClass, wscProxySuggestsFlat, wscProxySuggestsUpland } from "../lib/wsc-proxy";
-import type { AssessmentState, GisAnalysis, GisRouteAnalysis } from "../lib/types";
+import type { AssessmentState, GisAnalysis, GisElevationInfo, GisRouteAnalysis } from "../lib/types";
 
 // ───────────────────────── fixtures ─────────────────────────
 
@@ -100,6 +100,27 @@ function makeNormalRoute(over: Partial<GisRouteAnalysis> = {}): GisRouteAnalysis
   });
 }
 
+/** ค่าเริ่มต้น GisElevationInfo — schoolMarkerElevationM 1200 ม. สอดคล้องกับเส้นทาง "กันดารหนัก" ของ makeRoute() */
+function makeElevation(over: Partial<GisElevationInfo> = {}): GisElevationInfo {
+  return {
+    schoolMarkerElevationM: 1200,
+    meanElevationM: 1200,
+    minElevationM: 1100,
+    maxElevationM: 1300,
+    reliefM: 200,
+    meanSlopePct: 25,
+    maxSlopePct: 30,
+    localMaxElevation1KmM: 1250,
+    slopeClass: "E: เนินเขา/ลาดชันสูง (20–35%)",
+    landformTh: "ชุมชนบนภูเขา",
+    terrainConfidence: "client",
+    provinceAvgElev: null,
+    routeFullMaxElev: null,
+    routeTailMaxElev: null,
+    ...over,
+  };
+}
+
 function makeGis(over: Partial<GisAnalysis> = {}): GisAnalysis {
   return {
     center: {
@@ -109,16 +130,7 @@ function makeGis(over: Partial<GisAnalysis> = {}): GisAnalysis {
       confirmedAt: "2569-01-01T00:00:00.000Z",
       nearestProvinceName: "เชียงใหม่",
     },
-    elevation: {
-      schoolElevationM: 1200,
-      meanSlopePct: 25,
-      slopeClass: "E: เนินเขา/ลาดชันสูง (20–35%)",
-      landformTh: "ชุมชนบนภูเขา",
-      terrainConfidence: "client",
-      provinceAvgElev: null,
-      routeFullMaxElev: null,
-      routeTailMaxElev: null,
-    },
+    elevation: makeElevation(),
     routes: [makeRoute()],
     autoScore: null,
     appliedToResponses: false,
@@ -476,15 +488,14 @@ describe("ธงชุด GIS ใน flags()", () => {
   test("V21: flat_normal แต่เลือก 3.2 ≥ 3", () => {
     const s = stateWithGis(
       makeGis({
-        elevation: {
-          schoolElevationM: 80,
+        elevation: makeElevation({
+          schoolMarkerElevationM: 80,
           meanSlopePct: 2,
           slopeClass: "B",
           landformTh: "ชุมชนบนพื้นราบ",
-          terrainConfidence: "client",
           provinceAvgElev: 100,
           routeFullMaxElev: 90,
-        },
+        }),
         routes: [makeNormalRoute()],
       }),
     );
@@ -497,15 +508,14 @@ describe("ธงชุด GIS ใน flags()", () => {
   test("V22: พื้นที่สูงแต่ severity เข้าถึง = 0", () => {
     const s = stateWithGis(
       makeGis({
-        elevation: {
-          schoolElevationM: 900,
+        elevation: makeElevation({
+          schoolMarkerElevationM: 900,
           meanSlopePct: 10,
           slopeClass: "C",
           landformTh: "ชุมชนบนภูเขา",
-          terrainConfidence: "client",
           provinceAvgElev: 400,
           routeFullMaxElev: 920,
-        },
+        }),
         routes: [makeNormalRoute()],
       }),
     );
@@ -534,6 +544,22 @@ describe("ธงชุด GIS ใน flags()", () => {
 // ───────────────────────── 8) sanitize round-trip ─────────────────────────
 
 describe("sanitizeGis + sanitizeState — allowlist และ round-trip", () => {
+  test("sanitizeGis maps legacy schoolElevationM to the exact marker field", () => {
+    const raw = {
+      ...makeGis(),
+      elevation: {
+        schoolElevationM: 1062,
+        meanSlopePct: 10,
+        slopeClass: "B",
+        landformTh: "ชุมชนบนพื้นราบ",
+        terrainConfidence: "client",
+      },
+    };
+    const gis = sanitizeGis(raw);
+    assert.equal(gis?.elevation?.schoolMarkerElevationM, 1062);
+    assert.equal("schoolElevationM" in (gis?.elevation ?? {}), false);
+  });
+
   test("แถว v1 (ไม่มี gis) → ไม่งอก key gis/scoringVersion", () => {
     const out = sanitizeState(JSON.parse(JSON.stringify(makeBlankState())));
     assert.ok(!("gis" in out), "ต้องไม่มี key gis");
@@ -727,15 +753,14 @@ describe("classifyCommunity / computeCommunityClass — พื้นที่ส
 
   test("sanitizeGis เขียน communityClass ใหม่ — ไม่เชื่อ client ปลอม", () => {
     const gis = makeGis({
-      elevation: {
-        schoolElevationM: 80,
+      elevation: makeElevation({
+        schoolMarkerElevationM: 80,
         meanSlopePct: 2,
         slopeClass: "B",
         landformTh: "ชุมชนบนพื้นราบ",
-        terrainConfidence: "client",
         provinceAvgElev: 100,
         routeFullMaxElev: 90,
-      },
+      }),
       routes: [makeNormalRoute()],
     });
     (gis as { communityClass?: unknown }).communityClass = {
@@ -856,15 +881,14 @@ describe("classifyCommunity / computeCommunityClass — พื้นที่ส
   test("V24: highland + WSC 5 · V25: not highland + WSC 1–2 · V26: เกาะ", () => {
     const plateau = stateWithGis(
       makeGis({
-        elevation: {
-          schoolElevationM: 900,
+        elevation: makeElevation({
+          schoolMarkerElevationM: 900,
           meanSlopePct: 3,
           slopeClass: "A",
           landformTh: "ชุมชนบนภูเขา",
-          terrainConfidence: "client",
           provinceAvgElev: 400,
           routeFullMaxElev: 920,
-        },
+        }),
         routes: [makeNormalRoute()],
       }),
     );
@@ -873,15 +897,14 @@ describe("classifyCommunity / computeCommunityClass — พื้นที่ส
 
     const steepLow = stateWithGis(
       makeGis({
-        elevation: {
-          schoolElevationM: 200,
+        elevation: makeElevation({
+          schoolMarkerElevationM: 200,
           meanSlopePct: 55,
           slopeClass: "E",
           landformTh: "ชุมชนบนเนินเขา",
-          terrainConfidence: "client",
           provinceAvgElev: 250,
           routeFullMaxElev: 220,
-        },
+        }),
         routes: [makeNormalRoute()],
       }),
     );
@@ -961,16 +984,12 @@ describe("finalizeGisAnalysis / clampGisPayload (PR B)", () => {
 
   test("finalize เติม provinceAvgElev แล้ว highland เปลี่ยนตามเกตจังหวัด", () => {
     const gis = makeGis({
-      elevation: {
-        schoolElevationM: 400,
+      elevation: makeElevation({
+        schoolMarkerElevationM: 400,
         meanSlopePct: 5,
         slopeClass: "C",
         landformTh: "ชุมชนบนเนินเขา",
-        terrainConfidence: "client",
-        provinceAvgElev: null,
-        routeFullMaxElev: null,
-        routeTailMaxElev: null,
-      },
+      }),
       routes: [makeNormalRoute()],
     });
     const without = finalizeGisAnalysis(gis, { calculatedAt: "t" });
@@ -1010,16 +1029,15 @@ describe("maxFiniteElev / route elev (Phase 4)", () => {
 
   test("sanitize เก็บ routeTailMaxElev แยกจาก routeFullMaxElev", () => {
     const gis = makeGis({
-      elevation: {
-        schoolElevationM: 400,
+      elevation: makeElevation({
+        schoolMarkerElevationM: 400,
         meanSlopePct: 10,
         slopeClass: "C",
         landformTh: "ชุมชนในหุบเขา",
-        terrainConfidence: "client",
         provinceAvgElev: 300,
         routeFullMaxElev: 950,
         routeTailMaxElev: 720,
-      },
+      }),
     });
     const out = sanitizeGis(JSON.parse(JSON.stringify(gis)));
     assert.equal(out?.elevation?.routeFullMaxElev, 950);
@@ -1032,15 +1050,14 @@ describe("suggestSettingTypeFromGis — ลักษณะที่ตั้ง�
     assert.equal(
       suggestSettingTypeFromGis(
         makeGis({
-          elevation: {
-            schoolElevationM: 1200,
+          elevation: makeElevation({
+            schoolMarkerElevationM: 1200,
             meanSlopePct: 20,
             slopeClass: "E",
             landformTh: "ชุมชนบนภูเขาสูง",
-            terrainConfidence: "client",
             provinceAvgElev: 400,
             routeFullMaxElev: 1300,
-          },
+          }),
         }),
       ),
       "ภูเขาสูง",
@@ -1048,15 +1065,14 @@ describe("suggestSettingTypeFromGis — ลักษณะที่ตั้ง�
     assert.equal(
       suggestSettingTypeFromGis(
         makeGis({
-          elevation: {
-            schoolElevationM: 400,
+          elevation: makeElevation({
+            schoolMarkerElevationM: 400,
             meanSlopePct: 8,
             slopeClass: "C",
             landformTh: "ชุมชนในหุบเขา",
-            terrainConfidence: "client",
             provinceAvgElev: 500,
             routeFullMaxElev: 900,
-          },
+          }),
         }),
       ),
       "หุบเขา",
@@ -1064,15 +1080,14 @@ describe("suggestSettingTypeFromGis — ลักษณะที่ตั้ง�
     assert.equal(
       suggestSettingTypeFromGis(
         makeGis({
-          elevation: {
-            schoolElevationM: 700,
+          elevation: makeElevation({
+            schoolMarkerElevationM: 700,
             meanSlopePct: 12,
             slopeClass: "D",
             landformTh: "ชุมชนเชิงเขา/ที่ลาดเชิงเขา",
-            terrainConfidence: "client",
             provinceAvgElev: 300,
             routeFullMaxElev: 350,
-          },
+          }),
         }),
       ),
       "เชิงเขา",
@@ -1080,15 +1095,14 @@ describe("suggestSettingTypeFromGis — ลักษณะที่ตั้ง�
     assert.equal(
       suggestSettingTypeFromGis(
         makeGis({
-          elevation: {
-            schoolElevationM: 50,
+          elevation: makeElevation({
+            schoolMarkerElevationM: 50,
             meanSlopePct: 1,
             slopeClass: "A",
             landformTh: "ชุมชนบนพื้นราบ",
-            terrainConfidence: "client",
             provinceAvgElev: 80,
             routeFullMaxElev: 60,
-          },
+          }),
           routes: [makeRoute()], // hard access → flat_remote
         }),
       ),

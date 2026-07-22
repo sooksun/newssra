@@ -120,7 +120,9 @@ export default function GisSummary({ state, assessmentId }: Props) {
         <div className="gis-elevation">
           <span>
             ความสูงโดยประมาณ:{" "}
-            {gis.elevation.schoolElevationM !== null ? `${gis.elevation.schoolElevationM.toLocaleString("th-TH")} ม.` : "—"}
+            {gis.elevation.schoolMarkerElevationM !== null
+              ? `${gis.elevation.schoolMarkerElevationM.toLocaleString("th-TH")} ม.`
+              : "—"}
           </span>
           {gis.elevation.landformTh ? (
             <span className="gis-landform-line">
@@ -132,8 +134,8 @@ export default function GisSummary({ state, assessmentId }: Props) {
             </span>
           )}
           {gis.elevation.meanSlopePct !== null ? <span>ความลาดชันเฉลี่ย: {gis.elevation.meanSlopePct.toFixed(1)}%</span> : null}
-          {officialElevBandTh(gis.elevation.schoolElevationM) ? (
-            <span className="gis-elev-band">{officialElevBandTh(gis.elevation.schoolElevationM)}</span>
+          {officialElevBandTh(gis.elevation.schoolMarkerElevationM) ? (
+            <span className="gis-elev-band">{officialElevBandTh(gis.elevation.schoolMarkerElevationM)}</span>
           ) : null}
           {gis.elevation.routeFullMaxElev != null ? (
             <span className="gis-elev-band">

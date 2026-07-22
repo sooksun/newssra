@@ -1794,8 +1794,14 @@ export default function CesiumMap({
       },
       elevation: analysis
         ? {
-            schoolElevationM: Math.round(analysis.meanElev),
+            schoolMarkerElevationM: Math.round(analysis.meanElev),
+            meanElevationM: Math.round(analysis.meanElev),
+            minElevationM: Math.round(analysis.minElev),
+            maxElevationM: Math.round(analysis.maxElev),
+            reliefM: Math.round(analysis.relief),
             meanSlopePct: Math.round(analysis.meanSlopePct * 10) / 10,
+            maxSlopePct: Math.round(analysis.maxSlopePct * 10) / 10,
+            localMaxElevation1KmM: analysis.local1000Elev === null ? null : Math.round(analysis.local1000Elev),
             slopeClass: analysis.lddClass,
             landformTh: analysis.landformTh,
             terrainConfidence: "client" as const,

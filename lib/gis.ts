@@ -17,9 +17,12 @@ import type {
   GisAreaSummary,
   GisAutoScore,
   GisCommunityClass,
+  GisDataSources,
   GisDestinationType,
   GisElevationInfo,
+  GisRadiusSummary,
   GisRouteAnalysis,
+  GisRouteHighestPoint,
   IndicatorId,
   ResponseData,
   ScoringVersion,
@@ -405,7 +408,7 @@ export function computeAutoGisScore(gis: GisAnalysis, calculatedAt: string): Gis
   const slopeGain = slope !== null || gain !== null ? Math.max(slope ?? 0, gain ?? 0) : null;
 
   const components: GisAutoScore["components"] = {
-    elevation: elevationPoints(gis.elevation?.schoolElevationM ?? null),
+    elevation: elevationPoints(gis.elevation?.schoolMarkerElevationM ?? null),
     slopeGain,
     rcr: rcrSev !== null ? SEVERITY_TO_10[rcrSev] : null,
     ttr: ttrSev !== null ? SEVERITY_TO_10[ttrSev] : null,
@@ -550,6 +553,16 @@ function cleanStr(value: unknown, max: number): string {
   return typeof value === "string" ? value.slice(0, max) : "";
 }
 
+/** จุดสูงสุดตามเส้นทาง — ต้องเป็นชุดตัวอย่างเดียวกับธงแดงบนแผนที่; พิกัด/ความสูงใช้ไม่ได้ → ตัดทิ้ง (null) */
+function cleanHighestPoint(value: unknown): GisRouteHighestPoint | null {
+  if (!value || typeof value !== "object") return null;
+  const p = value as Record<string, unknown>;
+  if (!isValidLat(p.lat) || !isValidLng(p.lng)) return null;
+  const elevationM = cleanNullableNum(p.elevationM, GIS_LIMITS.elevationM, 0);
+  if (elevationM === null) return null;
+  return { lat: p.lat, lng: p.lng, elevationM };
+}
+
 function cleanRoute(item: unknown): GisRouteAnalysis | null {
   if (!item || typeof item !== "object") return null;
   const r = item as Record<string, unknown>;
@@ -557,7 +570,7 @@ function cleanRoute(item: unknown): GisRouteAnalysis | null {
   const destinationType = (GIS_DESTINATION_TYPES as readonly string[]).includes(r.destinationType as string)
     ? (r.destinationType as GisDestinationType)
     : "other";
-  return {
+  const route: GisRouteAnalysis = {
     destinationType,
     destinationName: cleanStr(r.destinationName, 200),
     destLat: r.destLat,
@@ -575,14 +588,28 @@ function cleanRoute(item: unknown): GisRouteAnalysis | null {
     selected: r.selected === true,
     calculatedAt: cleanStr(r.calculatedAt, 40),
   };
+  const highestPoint = cleanHighestPoint(r.highestPoint);
+  if (highestPoint) route.highestPoint = highestPoint;
+  return route;
 }
 
 function cleanElevation(value: unknown): GisElevationInfo | null {
   if (!value || typeof value !== "object") return null;
   const e = value as Record<string, unknown>;
   return {
-    schoolElevationM: cleanNullableNum(e.schoolElevationM, GIS_LIMITS.elevationM, 0),
+    // ยอมรับ legacy key เดิม schoolElevationM (ก่อน rename) แต่ round-trip ออกมาเป็น schoolMarkerElevationM เท่านั้น
+    schoolMarkerElevationM: cleanNullableNum(
+      e.schoolMarkerElevationM !== undefined ? e.schoolMarkerElevationM : e.schoolElevationM,
+      GIS_LIMITS.elevationM,
+      0,
+    ),
+    meanElevationM: cleanNullableNum(e.meanElevationM, GIS_LIMITS.elevationM, 0),
+    minElevationM: cleanNullableNum(e.minElevationM, GIS_LIMITS.elevationM, 0),
+    maxElevationM: cleanNullableNum(e.maxElevationM, GIS_LIMITS.elevationM, 0),
+    reliefM: cleanNullableNum(e.reliefM, GIS_LIMITS.elevationM, 0),
     meanSlopePct: cleanNullableNum(e.meanSlopePct, GIS_LIMITS.slopePct, 1),
+    maxSlopePct: cleanNullableNum(e.maxSlopePct, GIS_LIMITS.slopePct, 1),
+    localMaxElevation1KmM: cleanNullableNum(e.localMaxElevation1KmM, GIS_LIMITS.elevationM, 0),
     slopeClass: cleanStr(e.slopeClass, 200),
     landformTh: cleanStr(e.landformTh, 200),
     terrainConfidence: "client",
@@ -594,6 +621,51 @@ function cleanElevation(value: unknown): GisElevationInfo | null {
       0,
     ),
     routeTailMaxElev: cleanNullableNum(e.routeTailMaxElev, GIS_LIMITS.elevationM, 0),
+  };
+}
+
+const RADIUS_VALUES = [500, 1000, 1500] as const;
+
+/** จำนวนอาคาร/ประชากรโดยประมาณในรัศมี 500/1,000/1,500 ม. — ทิ้งทั้งชุดถ้าตรวจไม่ผ่านแม้แถวเดียว (กันข้อมูลครึ่ง ๆ กลาง ๆ) */
+function cleanRadiusSummaries(value: unknown): GisRadiusSummary[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const out: GisRadiusSummary[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") return undefined;
+    const r = item as Record<string, unknown>;
+    if (!(RADIUS_VALUES as readonly number[]).includes(r.radiusM as number)) return undefined;
+    const buildingCount = cleanNullableNum(r.buildingCount, { min: 0, max: 10_000_000 }, 0);
+    if (buildingCount === null) return undefined;
+    out.push({
+      radiusM: r.radiusM as 500 | 1000 | 1500,
+      buildingCount,
+      estPopulation: cleanNullableNum(r.estPopulation, { min: 0, max: 100_000_000 }, 0),
+      popDensityPerKm2: cleanNullableNum(r.popDensityPerKm2, { min: 0, max: 10_000_000 }, 0),
+    });
+  }
+  return out.length > 0 ? out : undefined;
+}
+
+const GIS_BUILDING_SOURCES = ["Microsoft Building Footprints"] as const;
+const GIS_POPULATION_METHODS = ["building-count-x-provincial-household-size"] as const;
+
+/** แหล่งข้อมูลที่ใช้คำนวณผล GIS — metadata ล้วน ไม่มีผลต่อคะแนน แสดงเพื่อความโปร่งใสเท่านั้น */
+function cleanDataSources(value: unknown): GisDataSources | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const d = value as Record<string, unknown>;
+  if (d.terrain !== "Terrarium DEM" || d.routing !== "OSRM") return undefined;
+  const buildings = (GIS_BUILDING_SOURCES as readonly string[]).includes(d.buildings as string)
+    ? (d.buildings as GisDataSources["buildings"])
+    : null;
+  const populationMethod = (GIS_POPULATION_METHODS as readonly string[]).includes(d.populationMethod as string)
+    ? (d.populationMethod as GisDataSources["populationMethod"])
+    : null;
+  return {
+    terrain: "Terrarium DEM",
+    routing: "OSRM",
+    buildings,
+    populationMethod,
+    analyzedAt: cleanStr(d.analyzedAt, 40),
   };
 }
 
@@ -672,6 +744,10 @@ export function clampGisPayload(input: unknown): GisAnalysis | undefined {
   };
   const areaSummary = cleanAreaSummary(raw.areaSummary);
   if (areaSummary) result.areaSummary = areaSummary;
+  const radiusSummaries = cleanRadiusSummaries(raw.radiusSummaries);
+  if (radiusSummaries) result.radiusSummaries = radiusSummaries;
+  const dataSources = cleanDataSources(raw.dataSources);
+  if (dataSources) result.dataSources = dataSources;
   return result;
 }
 

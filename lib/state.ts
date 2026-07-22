@@ -1,5 +1,6 @@
 // State factories + sanitizer — ใช้ทั้งฝั่ง client (ฟอร์ม) และ server (ตรวจ payload ก่อนบันทึก)
 
+import { currentBuddhistYear } from "./assessment-year";
 import { sanitizeGis } from "./gis";
 import { MAX_FILES_PER_INDICATOR } from "./upload-constants";
 import { FEEDBACK_OPINIONS, INDICATOR_IDS, SETTING_TYPES, UNIT_TYPES } from "./types";
@@ -21,7 +22,7 @@ const MAX_TEXT = 500;
 const MAX_NOTE = 2000;
 const MAX_FILE_META_TEXT = 255;
 
-export function makeBlankState(): AssessmentState {
+export function makeBlankState(year: string = currentBuddhistYear()): AssessmentState {
   const responses = {} as Record<IndicatorId, ResponseData>;
   const evidence = {} as Record<IndicatorId, EvidenceInfo>;
   const feedback = {} as Record<IndicatorId, IndicatorFeedback>;
@@ -35,7 +36,7 @@ export function makeBlankState(): AssessmentState {
     unit: {
       name: "",
       code: "",
-      year: "2569",
+      year,
       totalStudents: "",
       areaOffice: "",
       province: "",

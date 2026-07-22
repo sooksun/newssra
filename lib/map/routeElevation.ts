@@ -1,10 +1,9 @@
+import type { GisRouteHighestPoint } from "../types";
+
 export type RouteCoordinate = [number, number];
 
-export interface RouteElevationPoint {
-  lng: number;
-  lat: number;
-  elevationM: number;
-}
+/** จุดสูงสุดบนเส้นทาง — ใช้ type เดียวกับ GisRouteAnalysis.highestPoint เพื่อให้บันทึกลงแบบประเมินได้ตรงกันเป๊ะ */
+export type RouteElevationPoint = GisRouteHighestPoint;
 
 export interface RouteElevationProfile {
   schoolElevationM: number | null;

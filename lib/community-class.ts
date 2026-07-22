@@ -253,7 +253,7 @@ export function computeCommunityClass(
 ): GisCommunityClass {
   const elev = gis.elevation;
   return classifyCommunity({
-    schoolElevationM: elev?.schoolElevationM ?? null,
+    schoolElevationM: elev?.schoolMarkerElevationM ?? null,
     provinceAvgElev: elev?.provinceAvgElev ?? null,
     routeFullMaxElev: elev?.routeFullMaxElev ?? null,
     landformTh: elev?.landformTh ?? "",
