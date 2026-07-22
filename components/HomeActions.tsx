@@ -11,6 +11,16 @@ export function CreateAssessmentButton() {
     setBusy(true);
     try {
       const res = await fetch("/api/assessments", { method: "POST" });
+      if (res.status === 409) {
+        const data = (await res.json().catch(() => null)) as { error?: string; assessmentId?: number | null } | null;
+        if (data?.assessmentId) {
+          router.push(`/assessment/${data.assessmentId}`);
+          return;
+        }
+        alert(data?.error || "โรงเรียนนี้มีแบบประเมินของปีนี้อยู่แล้ว");
+        setBusy(false);
+        return;
+      }
       if (!res.ok) throw new Error(await res.text());
       const data = (await res.json()) as { id: number };
       router.push(`/assessment/${data.id}`);

@@ -65,7 +65,15 @@ export default function AssessmentForm({ id, initial, user }: Props) {
       body: `{"state":${json}}`,
       signal: controller.signal,
     })
-      .then((res) => {
+      .then(async (res) => {
+        if (res.status === 409) {
+          // ปีการประเมินชนกับแบบประเมินอื่นของโรงเรียนเดียวกัน — ไม่ใช่ปัญหาชั่วคราว จึงไม่ retry
+          if (seq !== saveSeqRef.current) return;
+          const data = (await res.json().catch(() => null)) as { error?: string } | null;
+          setSaveStatus("error");
+          showToast(data?.error || "บันทึกไม่สำเร็จ — ปีการประเมินนี้ซ้ำกับแบบประเมินอื่นของโรงเรียนนี้");
+          return;
+        }
         if (!res.ok) throw new Error(`save failed: ${res.status}`);
         if (seq !== saveSeqRef.current) return; // มีคำขอใหม่กว่าแซงแล้ว — ไม่แตะสถานะ
         lastSavedRef.current = json;
