@@ -4,7 +4,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { applyMapGisToState, prefillMapAssessmentState } from "../lib/map-assessment";
+import { applyMapGisToState, fillBlankUnitFromMaster, prefillMapAssessmentState } from "../lib/map-assessment";
 import { makeBlankState } from "../lib/state";
 import type { GisAnalysis } from "../lib/types";
 
@@ -106,6 +106,45 @@ test("applyMapGisToState keeps existing areaSummary/radiusSummaries when the new
   const next = applyMapGisToState(existing, gis, { syncUnitLocation: false });
   assert.equal(next.gis?.areaSummary?.settlementLabel, "ชุมชนชนบท");
   assert.equal(next.gis?.radiusSummaries?.length, 1);
+});
+
+const MASTER = { code: "57000001", name: "บ้านพญาไพร", province: "เชียงราย", lat: 20.32174, lng: 99.61929 };
+
+test("fillBlankUnitFromMaster fills blank name/code/province/year/lat/lng from master data", () => {
+  const state = makeBlankState();
+  const filled = fillBlankUnitFromMaster(state, MASTER, "2569");
+  assert.equal(filled.unit.name, "บ้านพญาไพร");
+  assert.equal(filled.unit.code, "57000001");
+  assert.equal(filled.unit.province, "เชียงราย");
+  assert.equal(filled.unit.year, "2569");
+  assert.equal(filled.unit.lat, "20.321740");
+  assert.equal(filled.unit.lng, "99.619290");
+});
+
+test("fillBlankUnitFromMaster does not overwrite user-typed values", () => {
+  const state = makeBlankState();
+  state.unit.name = "ชื่อที่ครูพิมพ์เอง";
+  state.unit.province = "เชียงใหม่";
+  const filled = fillBlankUnitFromMaster(state, MASTER, "2569");
+  assert.equal(filled.unit.name, "ชื่อที่ครูพิมพ์เอง");
+  assert.equal(filled.unit.province, "เชียงใหม่");
+  // ฟิลด์ที่ยังว่างอยู่ต้องเติมตามปกติ
+  assert.equal(filled.unit.code, "57000001");
+});
+
+test("fillBlankUnitFromMaster never fills totalStudents/areaOffice (no real source)", () => {
+  const state = makeBlankState();
+  const filled = fillBlankUnitFromMaster(state, MASTER, "2569");
+  assert.equal(filled.unit.totalStudents, "");
+  assert.equal(filled.unit.areaOffice, "");
+});
+
+test("fillBlankUnitFromMaster does not touch responses/gis", () => {
+  const state = makeBlankState();
+  state.responses["1.1"] = { count: "9" };
+  const filled = fillBlankUnitFromMaster(state, MASTER, "2569");
+  assert.deepEqual(filled.responses["1.1"], { count: "9" });
+  assert.equal(filled.gis, undefined);
 });
 
 test("applyMapGisToState marks appliedToResponses false when no Dimension 3 route exists", () => {

@@ -17,7 +17,7 @@ import {
   isCommunityCompositeKey,
 } from "./community-class";
 import { computeCommunityClass } from "./gis";
-import { applyMapGisToState } from "./map-assessment";
+import { applyMapGisToState, fillBlankUnitFromMaster } from "./map-assessment";
 import type { MapAssessmentSaveResult, SaveAssessmentFromMapInput, SchoolAssessmentMaster } from "./map-assessment";
 import { sanitizeState } from "./state";
 
@@ -350,8 +350,11 @@ async function saveAssessmentFromMapOnce(
         await conn.commit();
         return { assessmentId: existing.id, action: "locked", state: existing.state };
       }
+      const stateWithMasterFields = input.master
+        ? fillBlankUnitFromMaster(existing.state, input.master, input.year)
+        : existing.state;
       const nextState = reindexCommunityOnState(
-        applyMapGisToState(existing.state, input.gis, { syncUnitLocation: input.syncUnitLocation })
+        applyMapGisToState(stateWithMasterFields, input.gis, { syncUnitLocation: input.syncUnitLocation })
       );
       const s = summaryValues(nextState);
       await conn.query<ResultSetHeader>(

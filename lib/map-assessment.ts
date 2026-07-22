@@ -17,23 +17,39 @@ export interface SchoolAssessmentMaster {
 }
 
 /**
- * สร้าง state เปล่าแล้วเติมเฉพาะฟิลด์ที่มีแหล่งข้อมูลจริงจากทะเบียนโรงเรียน (master data)
+ * เติมเฉพาะฟิลด์ unit ที่มีแหล่งข้อมูลจริงจากทะเบียนโรงเรียน (master data) — "name"/"code"/"province"/"year"/"lat"/"lng"
+ * เติมเฉพาะเมื่อค่าปัจจุบัน "ว่าง" (trim แล้วเป็นสตริงว่าง) เท่านั้น ไม่เคยทับค่าที่ผู้ใช้กรอกไว้แล้ว
+ * totalStudents / areaOffice ไม่แตะเลย — ไม่มีแหล่งข้อมูลจริงให้เดา (ผู้ใช้ต้องกรอกเอง)
+ * ใช้ได้ทั้งตอนสร้างแบบประเมินใหม่ (state เปล่า → ทุกฟิลด์ว่าง → เติมครบ) และตอนปรับปรุงฉบับร่างเดิมที่มีอยู่แล้ว
+ * (state บางส่วนอาจกรอกแล้วบางส่วนว่าง → เติมเฉพาะส่วนที่ว่าง)
+ */
+export function fillBlankUnitFromMaster(
+  state: AssessmentState,
+  master: SchoolAssessmentMaster,
+  year: string,
+): AssessmentState {
+  const isBlank = (value: string) => value.trim() === "";
+  return {
+    ...state,
+    unit: {
+      ...state.unit,
+      name: isBlank(state.unit.name) ? master.name : state.unit.name,
+      code: isBlank(state.unit.code) ? master.code : state.unit.code,
+      province: isBlank(state.unit.province) ? master.province : state.unit.province,
+      year: isBlank(state.unit.year) ? year : state.unit.year,
+      lat: isBlank(state.unit.lat) ? master.lat.toFixed(6) : state.unit.lat,
+      lng: isBlank(state.unit.lng) ? master.lng.toFixed(6) : state.unit.lng,
+    },
+  };
+}
+
+/**
+ * สร้าง state เปล่าแล้วเติมฟิลด์ unit ที่มีแหล่งข้อมูลจริงจากทะเบียนโรงเรียน (master data)
  * totalStudents / areaOffice คงว่างเสมอ — ไม่มีแหล่งข้อมูลจริงให้เดา
+ * (state เปล่าทุกฟิลด์ว่างอยู่แล้ว จึง fillBlankUnitFromMaster เติมครบทุกฟิลด์เสมอ — กติกาเดียวกับตอนปรับปรุงฉบับร่างเดิม)
  */
 export function prefillMapAssessmentState(master: SchoolAssessmentMaster, year: string): AssessmentState {
-  const state = makeBlankState();
-  state.unit = {
-    ...state.unit,
-    name: master.name,
-    code: master.code,
-    year,
-    province: master.province,
-    lat: master.lat.toFixed(6),
-    lng: master.lng.toFixed(6),
-    totalStudents: "",
-    areaOffice: "",
-  };
-  return state;
+  return fillBlankUnitFromMaster(makeBlankState(), master, year);
 }
 
 /**
@@ -100,4 +116,7 @@ export interface SaveAssessmentFromMapInput {
   initialState: AssessmentState;
   gis: GisAnalysis;
   syncUnitLocation: boolean;
+  /** ข้อมูลโรงเรียนจากทะเบียน — เมื่อระบุ ใช้เติมฟิลด์ unit ที่ว่างของ "ฉบับร่างเดิม" ด้วย fillBlankUnitFromMaster
+   *  (สาขา INSERT ใช้ initialState ที่เติมมาแล้วจาก prefillMapAssessmentState อยู่แล้ว ไม่ต้องใช้ค่านี้) */
+  master?: SchoolAssessmentMaster;
 }

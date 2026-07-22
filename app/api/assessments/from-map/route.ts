@@ -131,6 +131,9 @@ export async function POST(request: NextRequest) {
       initialState,
       gis,
       syncUnitLocation,
+      // จังหวัดที่ใช้เติมฟิลด์ว่างของฉบับร่างเดิมต้องตรงกับที่ route resolve ไว้แล้ว (ชนะเมื่อพบ) — เหมือนที่แบบใหม่
+      // (initialState จาก prefillMapAssessmentState) ได้ province มาจาก master.province เป็นค่าเริ่มต้นอยู่แล้ว
+      master: { ...master, province: province?.name ?? master.province },
     });
 
     return NextResponse.json(

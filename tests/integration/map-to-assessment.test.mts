@@ -6,7 +6,7 @@
 
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { actAs, dbAvailable, jsonRequest, rawExec, SESSIONS } from "./_setup.mts";
+import { actAs, dbAvailable, jsonRequest, rawExec, rawQuery, SESSIONS } from "./_setup.mts";
 import { currentBuddhistYear } from "../../lib/assessment-year.ts";
 import { makeBlankState } from "../../lib/state.ts";
 import type { AssessmentState } from "../../lib/types.ts";
@@ -26,16 +26,22 @@ const SCHOOL_A = "TESTMAPA"; // มี master data — ใช้ทดสอบ 
 const SCHOOL_B = "TESTMAPB"; // มี master data + แบบประเมินปีนี้ยื่นแล้ว — ใช้ทดสอบ locked
 const SCHOOL_C = "TESTMAPC"; // ไม่มี master data เลย — ใช้ทดสอบ 422 ไม่พบพิกัดโรงเรียน
 const SCHOOL_D = "TESTMAPD"; // มี master data + แบบร่างปีนี้ที่มี unit.lat/lng อยู่แล้ว — ใช้ทดสอบการ์ด relocation
+const SCHOOL_E = "TESTMAPE"; // มี master data + แบบร่างปีนี้ที่ unit.name/code/province ว่างเปล่า — ใช้ทดสอบเติมข้อมูลจากทะเบียนตอน update
+const SCHOOL_F = "TESTMAPF"; // มี master data + แบบร่างปีนี้ที่ unit.name เป็นชื่อที่ครูพิมพ์เอง — ใช้ทดสอบว่าไม่ถูกทับ
 
 const SESSION_A: SessionUser = { uid: 910001, role: "school", name: "รร.ทดสอบแผนที่ A", source: "local", schoolCode: SCHOOL_A };
 const SESSION_B: SessionUser = { uid: 910002, role: "school", name: "รร.ทดสอบแผนที่ B", source: "local", schoolCode: SCHOOL_B };
 const SESSION_C: SessionUser = { uid: 910003, role: "school", name: "รร.ทดสอบแผนที่ C", source: "local", schoolCode: SCHOOL_C };
 const SESSION_NO_SCHOOL: SessionUser = { uid: 910004, role: "school", name: "บัญชียังไม่ผูกโรงเรียน", source: "local", schoolCode: "" };
 const SESSION_D: SessionUser = { uid: 910005, role: "school", name: "รร.ทดสอบแผนที่ D", source: "local", schoolCode: SCHOOL_D };
+const SESSION_E: SessionUser = { uid: 910006, role: "school", name: "รร.ทดสอบแผนที่ E", source: "local", schoolCode: SCHOOL_E };
+const SESSION_F: SessionUser = { uid: 910007, role: "school", name: "รร.ทดสอบแผนที่ F", source: "local", schoolCode: SCHOOL_F };
 
 const LOC_ID_A = 999999201;
 const LOC_ID_B = 999999202;
 const LOC_ID_D = 999999204;
+const LOC_ID_E = 999999205;
+const LOC_ID_F = 999999206;
 // หมายเหตุ: ต้อง "ไม่" ขึ้นต้นด้วย "พสศ-TEST-" เพราะ assessment-security.test.mts มี cleanup แบบ
 // LIKE 'พสศ-TEST-%' อยู่ — ไฟล์ integration test คนละไฟล์รันแข่งกัน (Node test runner กระจาย process)
 // ถ้าใช้พรีฟิกซ์เดียวกันจะโดนลบข้ามไฟล์กลางคัน (ต้นเหตุ flake ที่เจอตอนรันทั้งชุดพร้อมกัน)
@@ -97,17 +103,38 @@ function submittedState(schoolCode: string): AssessmentState {
   return s;
 }
 
+// แบบร่างปีนี้ที่ unit.name/code/province ยังว่างอยู่ (เช่น ผู้ใช้กด "+ สร้างแบบประเมินใหม่" แล้วยังไม่กรอกอะไรเลย)
+// ใช้ทดสอบว่า saveAssessmentFromMapOnce สาขา UPDATE เติมฟิลด์จากทะเบียนโรงเรียนให้ (bug เดิม: ฟิลด์เหล่านี้ค้างว่าง)
+function blankDraftState(): AssessmentState {
+  const s = makeBlankState();
+  s.unit.year = YEAR;
+  return s;
+}
+
+// แบบร่างปีนี้ที่ unit.name เป็นชื่อที่ครูพิมพ์เอง (code/province ยังว่าง) — ใช้ยืนยันว่าการเติมจากทะเบียนไม่ทับชื่อที่พิมพ์ไว้แล้ว
+function typedNameDraftState(): AssessmentState {
+  const s = makeBlankState();
+  s.unit.year = YEAR;
+  s.unit.name = "ชื่อที่ครูพิมพ์เอง";
+  return s;
+}
+
 async function cleanupTestRows() {
   await rawExec(
-    "DELETE FROM assessments WHERE owner_school_code IN (?, ?, ?, ?) OR submitted_ref = ?",
-    [SCHOOL_A, SCHOOL_B, SCHOOL_C, SCHOOL_D, SUBMITTED_REF_B],
+    "DELETE FROM assessments WHERE owner_school_code IN (?, ?, ?, ?, ?, ?) OR submitted_ref = ?",
+    [SCHOOL_A, SCHOOL_B, SCHOOL_C, SCHOOL_D, SCHOOL_E, SCHOOL_F, SUBMITTED_REF_B],
   );
-  await rawExec("DELETE FROM master_school WHERE sc_smis IN (?, ?, ?, ?)", [SCHOOL_A, SCHOOL_B, SCHOOL_C, SCHOOL_D]);
-  await rawExec("DELETE FROM school_location WHERE id IN (?, ?, ?)", [LOC_ID_A, LOC_ID_B, LOC_ID_D]);
+  await rawExec(
+    "DELETE FROM master_school WHERE sc_smis IN (?, ?, ?, ?, ?, ?)",
+    [SCHOOL_A, SCHOOL_B, SCHOOL_C, SCHOOL_D, SCHOOL_E, SCHOOL_F],
+  );
+  await rawExec("DELETE FROM school_location WHERE id IN (?, ?, ?, ?, ?)", [LOC_ID_A, LOC_ID_B, LOC_ID_D, LOC_ID_E, LOC_ID_F]);
 }
 
 let submittedBId = 0;
 let draftDId = 0;
+let draftEId = 0;
+let draftFId = 0;
 
 before(async () => {
   if (!DB) return;
@@ -118,6 +145,8 @@ before(async () => {
   await seedMasterSchool(SCHOOL_A, LOC_ID_A, `โรงเรียนทดสอบแผนที่ ${SCHOOL_A}`);
   await seedMasterSchool(SCHOOL_B, LOC_ID_B, `โรงเรียนทดสอบแผนที่ ${SCHOOL_B}`);
   await seedMasterSchool(SCHOOL_D, LOC_ID_D, `โรงเรียนทดสอบแผนที่ ${SCHOOL_D}`);
+  await seedMasterSchool(SCHOOL_E, LOC_ID_E, `โรงเรียนทดสอบแผนที่ ${SCHOOL_E}`);
+  await seedMasterSchool(SCHOOL_F, LOC_ID_F, `โรงเรียนทดสอบแผนที่ ${SCHOOL_F}`);
   // SCHOOL_C ไม่มี master data เลย (จงใจ) — ใช้ทดสอบ 422 ไม่พบพิกัดโรงเรียน
 
   const submitted = submittedState(SCHOOL_B);
@@ -130,6 +159,12 @@ before(async () => {
   draftD.unit.year = YEAR;
   draftDId = await repo.createAssessment(draftD, { userId: null, schoolCode: SCHOOL_D });
   createdAssessmentIds.push(draftDId);
+
+  draftEId = await repo.createAssessment(blankDraftState(), { userId: null, schoolCode: SCHOOL_E });
+  createdAssessmentIds.push(draftEId);
+
+  draftFId = await repo.createAssessment(typedNameDraftState(), { userId: null, schoolCode: SCHOOL_F });
+  createdAssessmentIds.push(draftFId);
 });
 
 after(async () => {
@@ -239,6 +274,56 @@ test("POST from-map: schoolCode ปลอมใน body ไม่มีผล �
   const bRec = await repo.getAssessment(submittedBId);
   assert.equal(bRec!.state.submitted?.ref, SUBMITTED_REF_B);
 });
+
+// ────────── update ฉบับร่างเดิมที่ unit.name/code/province ว่าง → ต้องเติมจากทะเบียนโรงเรียน (bug fix) ──────────
+
+test(
+  "POST from-map: ฉบับร่างเดิมมี unit.name/code/province ว่าง → updated และเติมข้อมูลจากทะเบียนโรงเรียน",
+  { skip: !DB },
+  async () => {
+    await actAs(SESSION_E);
+    const res = await route.POST(jsonRequest(NextRequest, BASE, { method: "POST", body: validPayload() }));
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.action, "updated");
+    assert.equal(body.assessmentId, draftEId, "ต้องปรับปรุงฉบับร่างเดิม ไม่สร้างแถวใหม่");
+
+    const rec = await repo.getAssessment(draftEId);
+    assert.ok(rec);
+    assert.equal(rec!.state.unit.name, `โรงเรียนทดสอบแผนที่ ${SCHOOL_E}`, "ชื่อโรงเรียนต้องถูกเติมจากทะเบียน");
+    assert.equal(rec!.state.unit.code, SCHOOL_E, "รหัสโรงเรียนต้องถูกเติมจากทะเบียน");
+    assert.equal(rec!.state.unit.province, "เชียงราย", "จังหวัดต้องถูกเติมจากทะเบียน");
+
+    // คอลัมน์สรุป unit_name ในตาราง assessments (ที่หน้ารายการใช้แสดงผล) ต้องถูกเติมด้วยเช่นกัน ไม่ใช่แค่ state JSON
+    const [row] = await rawQuery<{ unit_name: string; unit_code: string; province: string }>(
+      "SELECT unit_name, unit_code, province FROM assessments WHERE id = ?",
+      [draftEId],
+    );
+    assert.equal(row.unit_name, `โรงเรียนทดสอบแผนที่ ${SCHOOL_E}`);
+    assert.equal(row.unit_code, SCHOOL_E);
+    assert.equal(row.province, "เชียงราย");
+  },
+);
+
+test(
+  "POST from-map: ฉบับร่างเดิมมีชื่อที่ครูพิมพ์เอง → updated แต่ต้องไม่ทับชื่อเดิม (เติมเฉพาะฟิลด์ที่ว่าง)",
+  { skip: !DB },
+  async () => {
+    await actAs(SESSION_F);
+    const res = await route.POST(jsonRequest(NextRequest, BASE, { method: "POST", body: validPayload() }));
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.action, "updated");
+    assert.equal(body.assessmentId, draftFId);
+
+    const rec = await repo.getAssessment(draftFId);
+    assert.ok(rec);
+    assert.equal(rec!.state.unit.name, "ชื่อที่ครูพิมพ์เอง", "ชื่อที่ครูพิมพ์เองต้องไม่ถูกทับ");
+    // code/province ยังว่างอยู่เดิม → ต้องยังถูกเติมจากทะเบียนตามปกติ
+    assert.equal(rec!.state.unit.code, SCHOOL_F);
+    assert.equal(rec!.state.unit.province, "เชียงราย");
+  },
+);
 
 // ─────────────────────── locked (แถวปีนี้ยื่นแล้ว) ───────────────────────
 
