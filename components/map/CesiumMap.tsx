@@ -221,6 +221,15 @@ export interface MapAssessment {
   /** ยื่นแล้ว → ห้ามบันทึกผล GIS ทับ (server ก็กันซ้ำอีกชั้นด้วย 409) */
   submitted: boolean;
   existingGis: GisAnalysis | null;
+  /** ปีของแบบประเมินฉบับที่กำลังเปิดดูอยู่ (unit.year) — อาจไม่ใช่ปีปัจจุบันถ้าเปิดด้วย ?assessment=ID ของปีอื่น */
+  year: string;
+}
+
+/** ฉบับ "ปีปัจจุบัน" ของโรงเรียน — คำนวณแยกจาก assessment ที่เปิดดูเสมอ (แม้ ?assessment=ID จะชี้ไปปีอื่น)
+ *  ใช้กำหนดว่าปุ่มบันทึกใน GisAssessmentPanel ล็อกหรือไม่ เพราะปุ่มบันทึกเขียนลงฉบับปีปัจจุบันเสมอ */
+export interface MapCurrentYearAssessment {
+  year: string;
+  submitted: boolean;
 }
 
 /** จุดหมายวิเคราะห์เส้นทางที่ผู้ใช้เพิ่มเอง (จากช่องค้นหา) — เส้นทาง center→จุดหมาย */
@@ -247,6 +256,8 @@ interface Props {
   assessment: MapAssessment | null;
   /** เฉพาะบัญชีโรงเรียนที่มีรหัสจึงบันทึกลงแบบประเมินปีปัจจุบันได้ (ปุ่มบันทึกครั้งเดียว) */
   canSaveAssessment: boolean;
+  /** ฉบับปีปัจจุบันของโรงเรียน แยกจาก assessment ที่เปิดดู — null = ยังไม่มีฉบับปีปัจจุบัน (ปุ่มบันทึกจะ "สร้าง" ให้) */
+  currentYearAssessment: MapCurrentYearAssessment | null;
 }
 
 const fmt = (v: number) => Math.round(v).toLocaleString("th-TH");
@@ -360,6 +371,7 @@ export default function CesiumMap({
   householdSize: householdSizeProp,
   assessment,
   canSaveAssessment,
+  currentYearAssessment,
 }: Props) {
   // center/national/province/householdSize เริ่มจาก props แต่เก็บเป็น state เพื่อให้ "ยืนยันใช้พิกัดใหม่"
   // ย้ายจุดวิเคราะห์ได้ (recompute ทุกอย่างที่ผูกกับ center รวมถึงหาจังหวัด/ศาลากลางต้นทางใหม่)
@@ -2197,7 +2209,10 @@ export default function CesiumMap({
 
               {!national && (canSaveAssessment || assessment) ? (
                 <GisAssessmentPanel
-                  assessment={assessment ? { id: assessment.id, submitted: assessment.submitted } : null}
+                  assessment={
+                    assessment ? { id: assessment.id, submitted: assessment.submitted, year: assessment.year } : null
+                  }
+                  currentYear={currentYearAssessment}
                   canSaveAssessment={canSaveAssessment}
                   previewGis={previewGis}
                   previewAuto={previewAuto}

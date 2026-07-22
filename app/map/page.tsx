@@ -14,7 +14,7 @@ import type { ProvinceInfo } from "@/lib/repo";
 import { ROLE_LABELS } from "@/lib/types";
 import UserMenu from "@/components/UserMenu";
 import CesiumMapLoader from "@/components/map/CesiumMapLoader";
-import type { MapAssessment, MapCenter } from "@/components/map/CesiumMap";
+import type { MapAssessment, MapCenter, MapCurrentYearAssessment } from "@/components/map/CesiumMap";
 
 export const dynamic = "force-dynamic";
 
@@ -30,11 +30,18 @@ export default async function MapPage({
   const canSeeAll = user.role === "admin" || user.role === "ssra_admin";
   const sp = await searchParams;
 
+  // ปีปัจจุบัน — ปุ่มบันทึกในแผนที่เขียนลงฉบับปีนี้ของโรงเรียนเสมอ ไม่ว่าจะเปิดดูฉบับปีไหนอยู่ก็ตาม
+  const currentYear = currentBuddhistYear();
+
   // โหมดวิเคราะห์แบบประเมิน (?assessment=ID) — โหลดแบบประเมิน + ตรวจสิทธิ์; ไม่ผ่าน → แผนที่ปกติ (ไม่ leak ว่ามี id นี้)
   let assessment: MapAssessment | null = null;
   let assessmentCoords: MapCenter | null = null;
   let assessmentOwnerCode: string | null = null; // รหัสโรงเรียนเจ้าของแบบประเมิน (ใช้หาจังหวัดจริงจากทะเบียน)
   let assessmentEnteredProvince = ""; // จังหวัดที่ผู้ใช้กรอกในแบบประเมิน (fallback ก่อนศาลากลางใกล้สุด)
+  // ฉบับ "ปีปัจจุบัน" ของโรงเรียน — คำนวณแยกจาก assessment ที่เปิดดูเสมอ เพราะ ?assessment=ID อาจชี้ไปฉบับปีอื่น
+  // และปุ่มบันทึกในแผนที่เขียนลงฉบับปีปัจจุบันเสมอ (ดู POST /api/assessments/from-map) — ใช้ตัวนี้กำหนดว่าปุ่มล็อกหรือไม่
+  let currentYearAssessment: MapCurrentYearAssessment | null = null;
+  let currentYearChecked = false;
   const assessmentId = Number.parseInt(sp.assessment ?? "", 10);
   if (Number.isInteger(assessmentId) && assessmentId > 0) {
     try {
@@ -49,6 +56,7 @@ export default async function MapPage({
           unitCenter: null,
           submitted: Boolean(record.state.submitted),
           existingGis: record.state.gis ?? null,
+          year: record.state.unit.year || currentYear,
         };
         // จุดเริ่มต้น: พิกัดในแบบประเมิน → พิกัด GIS ที่เคยวิเคราะห์ → พิกัดโรงเรียนจากฐานระบบเดิม
         const lat = Number.parseFloat(record.state.unit.lat);
@@ -72,7 +80,9 @@ export default async function MapPage({
   // ถ้ายังไม่มีฉบับปีนี้ assessment คง null ได้ — ปุ่มบันทึกครั้งเดียวจะสร้างให้เอง (canSaveAssessment ไม่ผูกกับการมีฉบับ)
   if (!assessment && user.role === "school") {
     try {
-      const record = await assessmentForSchoolYear(user.schoolCode, currentBuddhistYear());
+      const record = await assessmentForSchoolYear(user.schoolCode, currentYear);
+      currentYearChecked = true;
+      if (record) currentYearAssessment = { year: currentYear, submitted: Boolean(record.state.submitted) };
       if (record && canAccessAssessment(user, record.ownerSchoolCode)) {
         const unitName = record.state.unit.name || `แบบประเมิน #${record.id}`;
         assessmentOwnerCode = record.ownerSchoolCode;
@@ -83,6 +93,7 @@ export default async function MapPage({
           unitCenter: null,
           submitted: Boolean(record.state.submitted),
           existingGis: record.state.gis ?? null,
+          year: record.state.unit.year || currentYear,
         };
         const lat = Number.parseFloat(record.state.unit.lat);
         const lng = Number.parseFloat(record.state.unit.lng);
@@ -98,6 +109,17 @@ export default async function MapPage({
       }
     } catch (error) {
       console.error("[map] latest assessment lookup failed:", error);
+    }
+  }
+
+  // ฉบับ "ปีปัจจุบัน" ของโรงเรียน แยกต่างหากจาก assessment ที่เปิดดู (ครอบคลุมกรณี ?assessment=ID ชี้ไปฉบับปีอื่น
+  // หรือไม่มี ?assessment=ID เลยแต่โรงเรียนยังไม่มีฉบับปีปัจจุบัน) — ยังไม่เคยเช็คในสาขาข้างบนเท่านั้นจึงเช็คซ้ำ
+  if (!currentYearChecked && user.role === "school" && user.schoolCode) {
+    try {
+      const record = await assessmentForSchoolYear(user.schoolCode, currentYear);
+      if (record) currentYearAssessment = { year: currentYear, submitted: Boolean(record.state.submitted) };
+    } catch (error) {
+      console.error("[map] current-year assessment lookup failed:", error);
     }
   }
 
@@ -181,6 +203,7 @@ export default async function MapPage({
         householdSize={householdSize}
         assessment={assessment}
         canSaveAssessment={canSaveAssessment}
+        currentYearAssessment={currentYearAssessment}
       />
     </div>
   );

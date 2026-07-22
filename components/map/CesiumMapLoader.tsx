@@ -2,7 +2,7 @@
 
 // โหลด CesiumMap แบบ client-only (ssr:false) — cesium ใช้ WebGL/window จึงรันบน server ไม่ได้
 import dynamic from "next/dynamic";
-import type { MapAssessment, MapCenter, MapProvince } from "./CesiumMap";
+import type { MapAssessment, MapCenter, MapCurrentYearAssessment, MapProvince } from "./CesiumMap";
 
 const CesiumMap = dynamic(() => import("./CesiumMap"), {
   ssr: false,
@@ -16,6 +16,7 @@ export default function CesiumMapLoader({
   householdSize,
   assessment = null,
   canSaveAssessment = false,
+  currentYearAssessment = null,
 }: {
   center: MapCenter;
   national: boolean;
@@ -25,6 +26,8 @@ export default function CesiumMapLoader({
   assessment?: MapAssessment | null;
   /** เฉพาะบัญชีโรงเรียนที่มีรหัสจึงบันทึกลงแบบประเมินปีปัจจุบันได้ (ปุ่มบันทึกครั้งเดียว) */
   canSaveAssessment?: boolean;
+  /** ฉบับปีปัจจุบันของโรงเรียน แยกจาก assessment ที่เปิดดู — null = ยังไม่มีฉบับปีปัจจุบัน */
+  currentYearAssessment?: MapCurrentYearAssessment | null;
 }) {
   return (
     <CesiumMap
@@ -34,6 +37,7 @@ export default function CesiumMapLoader({
       householdSize={householdSize}
       assessment={assessment}
       canSaveAssessment={canSaveAssessment}
+      currentYearAssessment={currentYearAssessment}
     />
   );
 }

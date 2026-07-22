@@ -89,9 +89,19 @@ export function GisDestAddBar({
   );
 }
 
-/** เป้าหมายแบบประเมินที่แผงนี้ผูกอยู่ — โครงสร้างย่อยของ MapAssessment (เลี่ยง import วนกับ CesiumMap) */
+/** เป้าหมายแบบประเมินที่แผงนี้ผูกอยู่ — โครงสร้างย่อยของ MapAssessment (เลี่ยง import วนกับ CesiumMap)
+ *  นี่คือฉบับที่ "กำลังเปิดดู" (อาจเป็นปีอื่นถ้าเปิดด้วย ?assessment=ID) — ไม่ใช่ตัวกำหนดว่าปุ่มบันทึกล็อกหรือไม่ */
 export interface GisAssessmentTarget {
   id: number;
+  submitted: boolean;
+  /** ปีของฉบับที่กำลังเปิดดู (unit.year) — ใช้เทียบกับ currentYear เพื่อโชว์ข้อความข้ามปี */
+  year?: string;
+}
+
+/** ฉบับ "ปีปัจจุบัน" ของโรงเรียน — โครงสร้างย่อยของ MapCurrentYearAssessment
+ *  ปุ่มบันทึกเขียนลงฉบับนี้เสมอ (ไม่ใช่ฉบับที่เปิดดูใน assessment) จึงต้องใช้ค่านี้กำหนดว่าล็อกหรือไม่ */
+export interface GisCurrentYearTarget {
+  year: string;
   submitted: boolean;
 }
 
@@ -103,8 +113,11 @@ const SAVE_ACTION_MESSAGES: Record<MapAssessmentSaveAction, string> = {
 };
 
 interface Props {
-  /** null = ยังไม่มีแบบประเมินปีปัจจุบัน (ปุ่มบันทึกจะ"สร้าง"ให้) — ไม่ block การแสดงผล preview */
+  /** ฉบับที่กำลังเปิดดูอยู่ — null = เปิด /map ปกติโดยยังไม่มีฉบับปีปัจจุบัน (ไม่ block การแสดงผล preview) */
   assessment: GisAssessmentTarget | null;
+  /** ฉบับปีปัจจุบันของโรงเรียน (แยกจาก assessment ที่เปิดดู) — null = ยังไม่มีฉบับปีปัจจุบัน (ปุ่มบันทึกจะ "สร้าง" ให้)
+   *  ใช้ตัวนี้กำหนดว่าปุ่มบันทึกล็อกหรือไม่ เพราะปุ่มบันทึกเขียนลงฉบับปีปัจจุบันเสมอ ไม่ใช่ฉบับที่เปิดดู */
+  currentYear?: GisCurrentYearTarget | null;
   /** เฉพาะบัญชีโรงเรียนที่มีรหัสเท่านั้นจึงบันทึกได้ — false = ดูผลอย่างเดียว (เช่น admin เปิด ?assessment=ID) */
   canSaveAssessment: boolean;
   previewGis: GisAnalysis | null;
@@ -124,6 +137,7 @@ interface Props {
 
 export default function GisAssessmentPanel({
   assessment,
+  currentYear = null,
   canSaveAssessment,
   previewGis,
   previewAuto = null,
@@ -140,15 +154,20 @@ export default function GisAssessmentPanel({
 }: Props) {
   const routes = previewGis?.routes ?? [];
   const primary = routes[0];
-  const submitted = assessment?.submitted ?? false;
+  // ปุ่มบันทึกเขียนลงฉบับ "ปีปัจจุบัน" เสมอ (POST /api/assessments/from-map resolves ที่ server) —
+  // จึงต้องใช้สถานะ submitted ของฉบับปีปัจจุบัน ไม่ใช่ของฉบับที่เปิดดูอยู่ (assessment อาจเป็นปีอื่น)
+  const currentSubmitted = currentYear?.submitted ?? false;
   const saving = saveState === "saving";
   const hasProvinceRoute = routes.some((r) => r.destinationType === "province_hall");
+  const crossYear = Boolean(
+    canSaveAssessment && assessment?.year && currentYear?.year && assessment.year !== currentYear.year,
+  );
 
   // ข้อมูลที่ยังขาดก่อนบันทึกได้ — แจ้งผู้ใช้เป็นรายการชัดเจน (ตรงกับ disabled ของปุ่ม)
   const missingData: string[] = [];
   if (!hasProvinceRoute) missingData.push("เส้นทางจากศาลากลางจังหวัด");
   if (!routeElevationReady) missingData.push("ระดับความสูงจุดโรงเรียน");
-  const saveDisabled = submitted || !hasProvinceRoute || !routeElevationReady || saving;
+  const saveDisabled = currentSubmitted || !hasProvinceRoute || !routeElevationReady || saving;
 
   return (
     <div className="map-gis">
@@ -265,7 +284,13 @@ export default function GisAssessmentPanel({
 
       {canSaveAssessment ? (
         <div className="map-gis-save">
-          {submitted ? (
+          {crossYear ? (
+            <p className="map-note map-gis-cross-year">
+              กำลังดูแบบประเมินปี {assessment!.year} — บันทึกจะสร้าง/ปรับปรุงแบบประเมินปีปัจจุบัน ({currentYear!.year}
+              ) แทน
+            </p>
+          ) : null}
+          {currentSubmitted ? (
             <p className="map-note map-note-error">แบบประเมินปีปัจจุบันส่งแล้ว จึงเปิดดูได้อย่างเดียว</p>
           ) : missingData.length > 0 ? (
             <p className="map-note">ยังบันทึกไม่ได้ — รอข้อมูล: {missingData.join(" • ")}</p>
