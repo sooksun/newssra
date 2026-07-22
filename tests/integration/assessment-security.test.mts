@@ -3,6 +3,7 @@
 //   1) canAccessAssessment scoping — school อื่นเข้าถึง/แก้ของโรงเรียนอื่นไม่ได้ (403), admin/ssra ได้
 //   2) PUT ต้อง preserve ฟิลด์ที่ server เป็นเจ้าของ — client ปลอม submitted / evidence.files ไม่สำเร็จ
 //   3) POST /gis หลังยื่นแล้ว → 409 (submit-lock)
+//   4) POST /site-snapshots หลังยื่นแล้ว → 409 (submit-lock)
 
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -16,6 +17,7 @@ const BASE = "http://localhost/api/assessments";
 const { NextRequest } = await import("next/server");
 let assessmentRoute: typeof import("../../app/api/assessments/[id]/route.ts");
 let gisRoute: typeof import("../../app/api/assessments/[id]/gis/route.ts");
+let siteSnapshotsRoute: typeof import("../../app/api/assessments/[id]/site-snapshots/route.ts");
 let repo: typeof import("../../lib/repo.ts");
 
 const created: number[] = [];
@@ -62,6 +64,7 @@ before(async () => {
   );
   assessmentRoute = await import("../../app/api/assessments/[id]/route.ts");
   gisRoute = await import("../../app/api/assessments/[id]/gis/route.ts");
+  siteSnapshotsRoute = await import("../../app/api/assessments/[id]/site-snapshots/route.ts");
   repo = await import("../../lib/repo.ts");
 
   draftAId = await repo.createAssessment(draftState(), { userId: null, schoolCode: "TESTAAAA" });
@@ -185,7 +188,23 @@ test("POST /gis: พิกัดศูนย์กลางไม่ถูกต
   assert.equal(res.status, 400);
 });
 
-// ─────────────── 4) uq_owner_school_year — 1 โรงเรียน/1 ปี ต่อแบบประเมิน ───────────────
+// ─────────────── 4) POST /site-snapshots submit-lock ───────────────
+
+test("POST /site-snapshots: แบบประเมินที่ยื่นแล้ว → 409 (ห้ามแก้ภาพ)", { skip: !DB }, async () => {
+  await actAs(SESSIONS.schoolA);
+  const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
+  const formData = new FormData();
+  formData.append("files", new Blob([jpegBytes], { type: "image/jpeg" }), "top.jpg");
+  formData.append("viewKeys", JSON.stringify(["top"]));
+
+  const res = await siteSnapshotsRoute.POST(
+    new NextRequest(`${BASE}/${submittedAId}/site-snapshots`, { method: "POST", body: formData }),
+    ctx(submittedAId),
+  );
+  assert.equal(res.status, 409);
+});
+
+// ─────────────── 5) uq_owner_school_year — 1 โรงเรียน/1 ปี ต่อแบบประเมิน ───────────────
 
 test("database rejects a second assessment for the same school and year", { skip: !DB }, async () => {
   const first = draftState();
