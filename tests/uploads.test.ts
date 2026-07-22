@@ -7,6 +7,9 @@ import {
   readEvidenceFile,
   saveEvidenceFile,
   sniffMimeType,
+  saveSiteSnapshot,
+  readSiteSnapshot,
+  deleteAllSiteSnapshots,
 } from "../lib/uploads";
 
 test("FILE_ID_PATTERN — ยอมรับ UUID, ปฏิเสธ path traversal/รูปแบบผิด", () => {
@@ -54,5 +57,21 @@ test("บันทึก → อ่าน → ลบ ไฟล์หลักฐ
     await assert.rejects(() => readEvidenceFile(id, indicatorId, meta.id), "ลบแล้วต้องอ่านไม่ได้");
   } finally {
     await deleteAllEvidenceFiles(id); // ล้างโฟลเดอร์ทดสอบเสมอ
+  }
+});
+
+test("snapshot — บันทึก → อ่าน → ลบทั้งชุด (round-trip, โฟลเดอร์ __site)", async () => {
+  const id = 990002;
+  const data = Buffer.from([0xff, 0xd8, 0xff, 9, 8, 7]);
+  try {
+    const meta = await saveSiteSnapshot(id, "top.jpg", "image/jpeg", data);
+    assert.ok(FILE_ID_PATTERN.test(meta.id), "id ที่คืนต้องเป็น UUID");
+    assert.equal(meta.mimeType, "image/jpeg");
+    const read = await readSiteSnapshot(id, meta.id);
+    assert.deepEqual(read, data);
+    await deleteAllSiteSnapshots(id);
+    await assert.rejects(() => readSiteSnapshot(id, meta.id), "ลบทั้งชุดแล้วต้องอ่านไม่ได้");
+  } finally {
+    await deleteAllSiteSnapshots(id);
   }
 });

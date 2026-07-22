@@ -89,3 +89,37 @@ export async function deleteEvidenceFile(assessmentId: number, indicatorId: stri
 export async function deleteAllEvidenceFiles(assessmentId: number): Promise<void> {
   await rm(path.join(UPLOAD_ROOT, String(assessmentId)), { recursive: true, force: true });
 }
+
+/** โฟลเดอร์ snapshot ยืนยันที่ตั้ง — ชื่อขึ้นต้น "__" จึงไม่ชนกับ indicatorId ("1.1".."5.2") */
+function siteSnapshotDir(assessmentId: number): string {
+  return path.join(UPLOAD_ROOT, String(assessmentId), "__site");
+}
+
+export async function saveSiteSnapshot(
+  assessmentId: number,
+  originalName: string,
+  mimeType: string,
+  buffer: Buffer,
+): Promise<SavedFileMeta> {
+  const id = randomUUID();
+  const dir = siteSnapshotDir(assessmentId);
+  await mkdir(dir, { recursive: true });
+  await writeFile(path.join(dir, id), buffer);
+  return {
+    id,
+    originalName: originalName.slice(0, 255),
+    mimeType,
+    size: buffer.length,
+    sha256: createHash("sha256").update(buffer).digest("hex"),
+    uploadedAt: new Date().toISOString(),
+  };
+}
+
+export async function readSiteSnapshot(assessmentId: number, fileId: string): Promise<Buffer> {
+  return readFile(path.join(siteSnapshotDir(assessmentId), fileId));
+}
+
+/** ลบภาพ snapshot ทั้งชุดของแบบประเมิน — ใช้ตอนจับใหม่ (แทนที่) หรือก่อนเขียนชุดใหม่ */
+export async function deleteAllSiteSnapshots(assessmentId: number): Promise<void> {
+  await rm(siteSnapshotDir(assessmentId), { recursive: true, force: true });
+}
