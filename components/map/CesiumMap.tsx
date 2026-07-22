@@ -1998,10 +1998,12 @@ export default function CesiumMap({
     } catch (e) {
       setCaptureErr(e instanceof Error ? e.message : "จับภาพไม่สำเร็จ");
     } finally {
-      viewer.camera.setView({
-        destination: prevPos,
-        orientation: { heading: prevHeading, pitch: prevPitch, roll: prevRoll },
-      });
+      if (!viewer.isDestroyed()) {
+        viewer.camera.setView({
+          destination: prevPos,
+          orientation: { heading: prevHeading, pitch: prevPitch, roll: prevRoll },
+        });
+      }
       setCapturing(false);
     }
   }, [capturing, national, center, assessment]);

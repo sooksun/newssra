@@ -9,6 +9,12 @@ import type { SnapshotFile } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
+const EXT_BY_MIME: Record<string, string> = {
+  "image/jpeg": ".jpg",
+  "image/png": ".png",
+  "image/webp": ".webp",
+};
+
 type Ctx = { params: Promise<{ id: string }> };
 
 function parseAssessmentId(raw: string): number | null {
@@ -69,7 +75,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
     buffers.push({
       buffer,
       mime: detected,
-      name: `${viewKey || "view"}.jpg`,
+      name: `${viewKey || "view"}${EXT_BY_MIME[detected] ?? ".jpg"}`,
       viewKey: view?.key ?? "",
       viewLabel: view?.label ?? "",
     });

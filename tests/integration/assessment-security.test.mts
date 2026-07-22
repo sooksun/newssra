@@ -74,6 +74,8 @@ before(async () => {
 
 after(async () => {
   if (!DB) return;
+  const { deleteAllSiteSnapshots } = await import("../../lib/uploads.ts");
+  await deleteAllSiteSnapshots(draftAId).catch(() => {}); // ล้างไฟล์ snapshot จริงที่เทสตัวนี้เขียนลงดิสก์
   for (const id of created) await repo.deleteAssessment(id).catch(() => {});
   await rawExec(
     "DELETE FROM assessments WHERE owner_school_code IN ('TESTAAAA','TESTBBBB') OR submitted_ref LIKE 'พสศ-TEST-%'",
@@ -204,7 +206,46 @@ test("POST /site-snapshots: แบบประเมินที่ยื่น�
   assert.equal(res.status, 409);
 });
 
-// ─────────────── 5) uq_owner_school_year — 1 โรงเรียน/1 ปี ต่อแบบประเมิน ───────────────
+// ─── 5) POST /site-snapshots: ตรวจไฟล์ทุกภาพก่อนค่อยลบชุดเดิม (validate-before-delete) ───
+
+test("POST /site-snapshots: แบทช์มีไฟล์ที่ไม่ใช่ภาพ → 400 และชุด snapshots เดิมไม่ถูกลบ", { skip: !DB }, async () => {
+  await actAs(SESSIONS.schoolA);
+  const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]);
+
+  // ก. สร้างชุด snapshots ที่มีอยู่แล้วบนแบบประเมินที่ยังไม่ยื่น (draftAId) ด้วยการ POST ภาพถูกต้อง 2 ภาพ
+  const seedForm = new FormData();
+  seedForm.append("files", new Blob([jpegBytes], { type: "image/jpeg" }), "top.jpg");
+  seedForm.append("files", new Blob([jpegBytes], { type: "image/jpeg" }), "north.jpg");
+  seedForm.append("viewKeys", JSON.stringify(["top", "north"]));
+  const seedRes = await siteSnapshotsRoute.POST(
+    new NextRequest(`${BASE}/${draftAId}/site-snapshots`, { method: "POST", body: seedForm }),
+    ctx(draftAId),
+  );
+  assert.equal(seedRes.status, 201);
+  const seedBody = (await seedRes.json()) as { files: { id: string }[] };
+  assert.equal(seedBody.files.length, 2);
+  const seedIds = seedBody.files.map((f) => f.id).sort();
+
+  // ข. ส่งแบทช์ใหม่ที่มีไฟล์หนึ่งไม่ใช่ภาพจริง (sniffMimeType คืน null) — ต้องถูกปฏิเสธทั้งแบทช์
+  const badBytes = new TextEncoder().encode("not an image, just plain text bytes for testing purposes");
+  const badForm = new FormData();
+  badForm.append("files", new Blob([jpegBytes], { type: "image/jpeg" }), "east.jpg");
+  badForm.append("files", new Blob([badBytes], { type: "image/jpeg" }), "south.jpg"); // Content-Type ปลอม
+  badForm.append("viewKeys", JSON.stringify(["east", "south"]));
+  const badRes = await siteSnapshotsRoute.POST(
+    new NextRequest(`${BASE}/${draftAId}/site-snapshots`, { method: "POST", body: badForm }),
+    ctx(draftAId),
+  );
+  assert.equal(badRes.status, 400);
+
+  // ค. ชุดเดิม (จาก ก.) ต้องยังอยู่ครบ ไม่ถูกลบทิ้งก่อนเจอไฟล์เสียใน ข.
+  const rec = await repo.getAssessment(draftAId);
+  assert.ok(rec, "ต้องอ่านแถวกลับได้");
+  const afterIds = (rec!.state.unit.siteSnapshots ?? []).map((f) => f.id).sort();
+  assert.deepEqual(afterIds, seedIds, "siteSnapshots เดิมต้องไม่เปลี่ยนเมื่อแบทช์ใหม่มีไฟล์ที่ไม่ผ่านตรวจ");
+});
+
+// ─────────────── 6) uq_owner_school_year — 1 โรงเรียน/1 ปี ต่อแบบประเมิน ───────────────
 
 test("database rejects a second assessment for the same school and year", { skip: !DB }, async () => {
   const first = draftState();
