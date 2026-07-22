@@ -131,6 +131,12 @@ export function computeEffectiveDistance(roadKm: number, ttr: number): number | 
   return roundTo(roadKm * ttr, 2);
 }
 
+/** อัตราส่วนการกระจัดต่อระยะทางจริง = เส้นตรง ÷ ถนน (0–1; ยิ่งต่ำ = ถนนอ้อมมาก) — ส่วนกลับของ RCR */
+export function displacementRatio(straightKm: number, roadKm: number): number | null {
+  if (!Number.isFinite(straightKm) || !Number.isFinite(roadKm) || straightKm <= 0.05 || roadKm <= 0) return null;
+  return roundTo(straightKm / roadKm, 2);
+}
+
 // ── ตารางเกณฑ์ความรุนแรง (severity 0–4) ────────────────────────────────────────
 // RCR และความเร็วเฉลี่ยตาม PRD ตรงตัว; TTR และความสูงสะสมตั้งช่วงล้อกัน (tunable — GIS_CRITERIA_VERSION)
 // severity 0–4 จงใจให้ตรงกับ index ตัวเลือกของตัวชี้วัด 3.2 (0/4/6/8/10 คะแนน) พอดี
@@ -439,6 +445,63 @@ export function explainTtrTh(ttr: number | null): string {
   if (ttr === null) return "";
   if (ttr < 1.3) return `เวลาเดินทางใกล้เคียงพื้นที่ปกติ (${ttr.toFixed(2)} เท่า)`;
   return `ใช้เวลาเดินทางมากกว่าพื้นที่ปกติ ${ttr.toFixed(2)} เท่า (เทียบความเร็วอ้างอิง ${REFERENCE_SPEED_KMH} กม./ชม.)`;
+}
+
+// ── เกณฑ์เสนอเพิ่ม (อนาคต) — ไม่นับรวมในคะแนน 100 ─────────────────────────────
+// F1 Displacement Ratio (มุมมองกลับของ RCR — severity ใช้ตาราง rcrSeverity เดิม กัน band drift)
+// F2 Travel Time Ratio (severity ใช้ตาราง ttrSeverity เดิม)
+
+export const FUTURE_INDICATOR_IDS = ["F1", "F2"] as const;
+export type FutureIndicatorId = (typeof FUTURE_INDICATOR_IDS)[number];
+
+export interface FutureIndicatorResult {
+  id: FutureIndicatorId;
+  title: string;
+  valueLabel: string;
+  severity: number;
+  score: number;
+  maxScore: number;
+  explain: string;
+}
+
+/** คำนวณเกณฑ์เสนอเพิ่มจากเส้นทางหลัก (ที่ว่าการอำเภอ/ศาลากลาง) — คืน list ว่างเมื่อไม่มีข้อมูลพอ */
+export function futureIndicators(gis: GisAnalysis): FutureIndicatorResult[] {
+  const route = primaryRoute(gis);
+  if (!route) return [];
+  const out: FutureIndicatorResult[] = [];
+
+  const dr = displacementRatio(route.straightDistanceKm, route.roadDistanceKm);
+  const drSev = rcrSeverity(route.roadCircuityRatio);
+  if (dr !== null && drSev !== null) {
+    const detourPct = Math.max(0, Math.round((route.roadCircuityRatio - 1) * 100));
+    out.push({
+      id: "F1",
+      title: "อัตราส่วนการกระจัดต่อระยะทางจริง (Displacement Ratio)",
+      valueLabel: `${dr.toFixed(2)} (เส้นตรง ${route.straightDistanceKm.toFixed(1)} กม. / ถนนจริง ${route.roadDistanceKm.toFixed(1)} กม.)`,
+      severity: drSev,
+      score: drSev,
+      maxScore: 4,
+      explain:
+        drSev === 0
+          ? "เส้นทางถนนใกล้เคียงเส้นตรง — โครงข่ายถนนเข้าถึงได้ตามปกติ"
+          : `ระยะเส้นตรงเพียง ${route.straightDistanceKm.toFixed(1)} กม. แต่ต้องเดินทางจริง ${route.roadDistanceKm.toFixed(1)} กม. (อ้อมกว่าเส้นตรง ${detourPct}%)`,
+    });
+  }
+
+  const ttrSev = ttrSeverity(route.travelTimeRatio);
+  if (ttrSev !== null) {
+    out.push({
+      id: "F2",
+      title: "อัตราส่วนเวลาเดินทางเทียบพื้นที่ปกติ (Travel Time Ratio)",
+      valueLabel: `${route.travelTimeRatio.toFixed(2)} เท่า`,
+      severity: ttrSev,
+      score: ttrSev,
+      maxScore: 4,
+      explain: explainTtrTh(route.travelTimeRatio),
+    });
+  }
+
+  return out;
 }
 
 export function explainSpeedTh(speedKmh: number | null): string {
