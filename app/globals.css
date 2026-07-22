@@ -2638,14 +2638,6 @@ textarea:focus {
   font-size: 11px;
 }
 
-.map-area-send-btn {
-  margin-top: 10px;
-  background: #059669;
-}
-
-.map-area-send-btn:hover:not(:disabled) {
-  background: #047857;
-}
 
 /* จำแนกชุมชน 3 แกน (A ภูมิประเทศ / B เข้าถึง / C ความหนาแน่น) */
 .gis-community-class {
@@ -2897,18 +2889,10 @@ textarea:focus {
   color: var(--ink);
 }
 
-.map-gis-apply {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--ink);
-  margin: 8px 0;
-  cursor: pointer;
-}
-
-.map-gis-apply input {
-  margin-top: 3px;
+.map-gis-save {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e3e9f2;
 }
 
 .map-gis-save-btn {

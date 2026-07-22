@@ -16,6 +16,7 @@ import {
 import MapCommunityClassPreview from "@/components/map/MapCommunityClassPreview";
 import { GIS_DESTINATION_LABELS } from "@/lib/types";
 import type { GisAnalysis, GisAutoScore, GisCommunityClass, GisDestinationType } from "@/lib/types";
+import type { MapAssessmentSaveAction } from "@/lib/map-assessment";
 
 /** จุดหมายเพิ่มที่ผู้ใช้เลือกเองได้สูงสุด (ไม่รวมศาลากลาง) — ต้องตรงกับ logic ใน CesiumMap */
 export const MAX_GIS_DESTINATIONS = 3;
@@ -88,86 +89,70 @@ export function GisDestAddBar({
   );
 }
 
-/** ปุ่มส่งข้อสรุปพื้นที่ (ผังอาคาร) ไปยังแบบประเมิน — อยู่ใต้กล่องข้อสรุปของพื้นที่ */
-export function GisAreaSendControls({
-  assessmentId,
-  saving,
-  saved,
-  err,
-  disabled,
-  onSend,
-}: {
-  assessmentId: number;
-  saving: boolean;
-  saved: boolean;
-  err: string;
-  disabled: boolean;
-  onSend: () => void;
-}) {
-  return (
-    <>
-      <button
-        type="button"
-        className="map-gis-save-btn map-area-send-btn"
-        onClick={onSend}
-        disabled={disabled || saving}
-      >
-        {saving ? "กำลังส่ง…" : "ส่งข้อสรุปพื้นที่ไปยังแบบประเมิน"}
-      </button>
-      {saved ? (
-        <p className="map-note map-gis-saved">
-          ✓ ส่งแล้ว — <a href={`/assessment/${assessmentId}`}>ดูในแบบประเมิน</a>
-        </p>
-      ) : null}
-      {err ? <p className="map-note map-note-error">{err}</p> : null}
-    </>
-  );
+/** เป้าหมายแบบประเมินที่แผงนี้ผูกอยู่ — โครงสร้างย่อยของ MapAssessment (เลี่ยง import วนกับ CesiumMap) */
+export interface GisAssessmentTarget {
+  id: number;
+  submitted: boolean;
 }
 
+/** ข้อความยืนยันผลบันทึกตามชนิดการบันทึก (สร้าง/ปรับปรุง/ล็อก) — ต้องตรงกับ action จาก /api/assessments/from-map */
+const SAVE_ACTION_MESSAGES: Record<MapAssessmentSaveAction, string> = {
+  created: "สร้างแบบประเมินปีปัจจุบันและกรอกข้อมูลแล้ว",
+  updated: "ปรับปรุงแบบร่างปีปัจจุบันแล้ว",
+  locked: "แบบประเมินปีปัจจุบันส่งแล้ว จึงเปิดดูได้อย่างเดียว",
+};
+
 interface Props {
-  assessmentId: number;
-  submitted: boolean;
+  /** null = ยังไม่มีแบบประเมินปีปัจจุบัน (ปุ่มบันทึกจะ"สร้าง"ให้) — ไม่ block การแสดงผล preview */
+  assessment: GisAssessmentTarget | null;
+  /** เฉพาะบัญชีโรงเรียนที่มีรหัสเท่านั้นจึงบันทึกได้ — false = ดูผลอย่างเดียว (เช่น admin เปิด ?assessment=ID) */
+  canSaveAssessment: boolean;
   previewGis: GisAnalysis | null;
-  previewAuto: GisAutoScore | null;
-  previewSeverity: number | null;
-  previewCommunity: GisCommunityClass | null;
-  destErrors: GisDestError[];
-  destCount: number;
-  applyToScores: boolean;
-  onApplyToScoresChange: (v: boolean) => void;
-  savingGis: boolean;
-  gisSaved: boolean;
-  gisSaveErr: string;
+  previewAuto?: GisAutoScore | null;
+  previewSeverity?: number | null;
+  previewCommunity?: GisCommunityClass | null;
+  destErrors?: GisDestError[];
+  destCount?: number;
+  /** สุ่มความสูงตามเส้นทางหลักเสร็จแล้ว — จำเป็นก่อนบันทึก (ความสูงจุดโรงเรียน + จุดสูงสุดเส้นทาง) */
+  routeElevationReady?: boolean;
+  saveState?: "idle" | "saving";
+  saveAction?: MapAssessmentSaveAction | null;
+  saveErr?: string;
   onSave: () => void;
-  onRemoveDestination: (key: string) => void;
+  onRemoveDestination?: (key: string) => void;
 }
 
 export default function GisAssessmentPanel({
-  assessmentId,
-  submitted,
+  assessment,
+  canSaveAssessment,
   previewGis,
-  previewAuto,
-  previewSeverity,
-  previewCommunity,
-  destErrors,
-  destCount,
-  applyToScores,
-  onApplyToScoresChange,
-  savingGis,
-  gisSaved,
-  gisSaveErr,
+  previewAuto = null,
+  previewSeverity = null,
+  previewCommunity = null,
+  destErrors = [],
+  destCount = 0,
+  routeElevationReady = false,
+  saveState = "idle",
+  saveAction = null,
+  saveErr = "",
   onSave,
-  onRemoveDestination,
+  onRemoveDestination = () => {},
 }: Props) {
   const routes = previewGis?.routes ?? [];
   const primary = routes[0];
+  const submitted = assessment?.submitted ?? false;
+  const saving = saveState === "saving";
+  const hasProvinceRoute = routes.some((r) => r.destinationType === "province_hall");
+
+  // ข้อมูลที่ยังขาดก่อนบันทึกได้ — แจ้งผู้ใช้เป็นรายการชัดเจน (ตรงกับ disabled ของปุ่ม)
+  const missingData: string[] = [];
+  if (!hasProvinceRoute) missingData.push("เส้นทางจากศาลากลางจังหวัด");
+  if (!routeElevationReady) missingData.push("ระดับความสูงจุดโรงเรียน");
+  const saveDisabled = submitted || !hasProvinceRoute || !routeElevationReady || saving;
 
   return (
     <div className="map-gis">
       <h3 className="map-gis-title">วิเคราะห์เพื่อแบบประเมิน (GIS)</h3>
-      {submitted ? (
-        <p className="map-note map-note-error">แบบประเมินนี้ยื่นแล้ว — ดูผลได้แต่บันทึกผล GIS เพิ่มไม่ได้</p>
-      ) : null}
 
       {routes.length > 0 ? (
         routes.map((r) => (
@@ -278,33 +263,31 @@ export default function GisAssessmentPanel({
         {destCount}/{MAX_GIS_DESTINATIONS})
       </p>
 
-      <label className="map-gis-apply">
-        <input
-          type="checkbox"
-          checked={applyToScores}
-          onChange={(e) => onApplyToScoresChange(e.target.checked)}
-          disabled={submitted}
-        />
-        <span>นำผลไปคำนวณคะแนนด้านที่ 3 (คมนาคม) อัตโนมัติ — scoring v2</span>
-      </label>
-      <button
-        type="button"
-        className="map-gis-save-btn"
-        onClick={onSave}
-        disabled={submitted || savingGis || routes.length === 0}
-      >
-        {savingGis ? "กำลังบันทึก…" : "บันทึกลงแบบฟอร์ม"}
-      </button>
-      {gisSaved ? (
-        <p className="map-note map-gis-saved">
-          ✓ บันทึกแล้ว — <a href={`/assessment/${assessmentId}`}>กลับไปที่แบบประเมิน</a>
+      {canSaveAssessment ? (
+        <div className="map-gis-save">
+          {submitted ? (
+            <p className="map-note map-note-error">แบบประเมินปีปัจจุบันส่งแล้ว จึงเปิดดูได้อย่างเดียว</p>
+          ) : missingData.length > 0 ? (
+            <p className="map-note">ยังบันทึกไม่ได้ — รอข้อมูล: {missingData.join(" • ")}</p>
+          ) : null}
+          <button type="button" className="map-gis-save-btn" onClick={onSave} disabled={saveDisabled}>
+            {saving ? "กำลังบันทึก…" : "บันทึกข้อมูลประกอบเกณฑ์และกรอกแบบประเมิน"}
+          </button>
+          {saveAction ? <p className="map-note map-gis-saved">✓ {SAVE_ACTION_MESSAGES[saveAction]}</p> : null}
+          {saveErr ? <p className="map-note map-note-error">{saveErr}</p> : null}
+          <p className="map-note map-gis-disclaimer">
+            บันทึกครั้งเดียวจะสร้าง/ปรับปรุงแบบประเมินปีปัจจุบันของโรงเรียน กรอกข้อมูลประกอบ
+            และคำนวณคะแนนด้านที่ 3 (คมนาคม) ให้อัตโนมัติ — ความสูงสุ่มจากเบราว์เซอร์ (Terrarium DEM)
+            เป็นค่าโดยประมาณ ระยะทาง/เวลา/อัตราส่วนทุกตัว ระบบคำนวณยืนยันฝั่งเซิร์ฟเวอร์อีกครั้งตอนบันทึก
+          </p>
+        </div>
+      ) : (
+        <p className="map-note">
+          {assessment
+            ? "เปิดดูผลวิเคราะห์อย่างเดียว — บันทึกลงแบบประเมินได้เฉพาะบัญชีโรงเรียนเจ้าของ"
+            : "เปิดดูผลวิเคราะห์อย่างเดียว"}
         </p>
-      ) : null}
-      {gisSaveErr ? <p className="map-note map-note-error">{gisSaveErr}</p> : null}
-      <p className="map-note map-gis-disclaimer">
-        ความสูงสุ่มจากเบราว์เซอร์ (Terrarium DEM) เป็นค่าโดยประมาณ — ระยะทาง/เวลา/อัตราส่วนทุกตัว
-        ระบบคำนวณยืนยันฝั่งเซิร์ฟเวอร์อีกครั้งตอนบันทึก
-      </p>
+      )}
     </div>
   );
 }

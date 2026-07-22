@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { canAccessAssessment, requireUser } from "@/lib/auth";
+import { currentBuddhistYear } from "@/lib/assessment-year";
 import {
+  assessmentForSchoolYear,
   getAssessment,
-  latestOwnerAssessmentForMap,
   latestOwnerCoords,
   listProvinces,
   provinceHouseholdSize,
@@ -67,10 +68,11 @@ export default async function MapPage({
     }
   }
 
-  // ถ้าโรงเรียนเปิด /map ปกติ ให้ผูกแบบประเมินล่าสุดที่ยังแก้ไขได้เป็นปลายทางของปุ่ม "บันทึกลงแบบฟอร์ม"
+  // โรงเรียนเปิด /map ปกติ → ผูกกับแบบประเมิน "ปีปัจจุบัน" ของโรงเรียนตน (1 โรงเรียน/1 ปี)
+  // ถ้ายังไม่มีฉบับปีนี้ assessment คง null ได้ — ปุ่มบันทึกครั้งเดียวจะสร้างให้เอง (canSaveAssessment ไม่ผูกกับการมีฉบับ)
   if (!assessment && user.role === "school") {
     try {
-      const record = await latestOwnerAssessmentForMap(user.schoolCode);
+      const record = await assessmentForSchoolYear(user.schoolCode, currentBuddhistYear());
       if (record && canAccessAssessment(user, record.ownerSchoolCode)) {
         const unitName = record.state.unit.name || `แบบประเมิน #${record.id}`;
         assessmentOwnerCode = record.ownerSchoolCode;
@@ -141,6 +143,9 @@ export default async function MapPage({
   // ขนาดครัวเรือนเฉลี่ยของจังหวัด — ใช้ประมาณจำนวนประชากรจากจำนวนอาคารในแต่ละรัศมี (ดูตารางในแผนที่)
   const householdSize = !national && province ? await provinceHouseholdSize(province.name) : null;
 
+  // เฉพาะบัญชีโรงเรียนที่มีรหัสจึงบันทึกลงแบบประเมินปีปัจจุบันได้ — แยกจากการมีฉบับอยู่แล้วหรือไม่
+  const canSaveAssessment = user.role === "school" && Boolean(user.schoolCode);
+
   return (
     <div className="app-shell map-shell">
       <header className="topbar">
@@ -175,6 +180,7 @@ export default async function MapPage({
         province={province}
         householdSize={householdSize}
         assessment={assessment}
+        canSaveAssessment={canSaveAssessment}
       />
     </div>
   );

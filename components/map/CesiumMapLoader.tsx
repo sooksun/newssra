@@ -15,6 +15,7 @@ export default function CesiumMapLoader({
   province,
   householdSize,
   assessment = null,
+  canSaveAssessment = false,
 }: {
   center: MapCenter;
   national: boolean;
@@ -22,6 +23,8 @@ export default function CesiumMapLoader({
   householdSize: number | null;
   /** โหมดวิเคราะห์แบบประเมิน (?assessment=ID) — null = แผนที่ standalone แบบเดิมทุกประการ */
   assessment?: MapAssessment | null;
+  /** เฉพาะบัญชีโรงเรียนที่มีรหัสจึงบันทึกลงแบบประเมินปีปัจจุบันได้ (ปุ่มบันทึกครั้งเดียว) */
+  canSaveAssessment?: boolean;
 }) {
   return (
     <CesiumMap
@@ -30,6 +33,7 @@ export default function CesiumMapLoader({
       province={province}
       householdSize={householdSize}
       assessment={assessment}
+      canSaveAssessment={canSaveAssessment}
     />
   );
 }

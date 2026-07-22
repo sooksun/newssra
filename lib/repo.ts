@@ -216,25 +216,8 @@ export async function getAssessment(id: number): Promise<AssessmentRecord | null
   return rowToRecord(rows[0]);
 }
 
-/** แบบประเมินล่าสุดของโรงเรียนสำหรับหน้าแผนที่ 3 มิติ
- *  เลือกฉบับที่ยังไม่ยื่นก่อน เพื่อให้ปุ่ม "บันทึกลงแบบฟอร์ม" มีปลายทางที่แก้ไขได้จาก /map ปกติ */
-export async function latestOwnerAssessmentForMap(schoolCode: string): Promise<AssessmentRecord | null> {
-  if (!schoolCode) return null;
-  const pool = await getPool();
-  const [rows] = await pool.query<AssessmentRow[]>(
-    `SELECT id, state, owner_user_id, owner_school_code, created_at, updated_at
-       FROM assessments
-      WHERE owner_school_code = ?
-      ORDER BY CASE WHEN submitted_ref IS NULL THEN 0 ELSE 1 END, updated_at DESC
-      LIMIT 1`,
-    [schoolCode]
-  );
-  return rows.length ? rowToRecord(rows[0]) : null;
-}
-
 /** แบบประเมินของโรงเรียนสำหรับปี พ.ศ. ที่ระบุเจาะจง (unique ต่อคู่โรงเรียน-ปี)
- *  ใช้แทน latestOwnerAssessmentForMap เมื่อต้องผูกกับปีปัจจุบันเท่านั้น — ไม่ดึงฉบับปีอื่นข้ามมาแทน
- *  (การเลือกฉบับร่างก่อนแบบเดิมใช้ไม่ได้อีกต่อไปเมื่อบังคับ 1 โรงเรียน/1 ปี ด้วย unique key) */
+ *  ผูกกับปีปัจจุบันเท่านั้น — ไม่ดึงฉบับปีอื่นข้ามมาแทน (บังคับ 1 โรงเรียน/1 ปี ด้วย unique key) */
 export async function assessmentForSchoolYear(schoolCode: string, year: string): Promise<AssessmentRecord | null> {
   if (!schoolCode) return null;
   const pool = await getPool();

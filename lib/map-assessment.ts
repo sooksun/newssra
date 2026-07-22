@@ -84,6 +84,14 @@ export interface MapAssessmentSaveResult {
   state: AssessmentState;
 }
 
+/** รูปแบบ JSON ที่ POST /api/assessments/from-map ตอบกลับ client (แผนที่ใช้ตอนบันทึกครั้งเดียว) */
+export interface MapAssessmentSaveResponse {
+  assessmentId: number;
+  action: MapAssessmentSaveAction;
+  gis: GisAnalysis | null;
+  droppedRoutes: string[];
+}
+
 export interface SaveAssessmentFromMapInput {
   ownerUserId: number | null;
   schoolCode: string;

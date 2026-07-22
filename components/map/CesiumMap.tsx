@@ -72,12 +72,9 @@ import {
 } from "@/lib/gis";
 import { landformAppLabelNoteTh, officialElevBandTh } from "@/lib/landform-legend";
 import LandformLegendTip from "@/components/LandformLegendTip";
-import GisAssessmentPanel, {
-  GisAreaSendControls,
-  GisDestAddBar,
-  MAX_GIS_DESTINATIONS,
-} from "@/components/map/GisAssessmentPanel";
+import GisAssessmentPanel, { GisDestAddBar, MAX_GIS_DESTINATIONS } from "@/components/map/GisAssessmentPanel";
 import MapPanelToggle from "@/components/map/MapPanelToggle";
+import type { MapAssessmentSaveAction, MapAssessmentSaveResponse } from "@/lib/map-assessment";
 import { GIS_DESTINATION_LABELS } from "@/lib/types";
 import type { GisAnalysis, GisAreaSummary, GisDestinationType, GisRouteAnalysis } from "@/lib/types";
 
@@ -248,6 +245,8 @@ interface Props {
   householdSize: number | null;
   /** โหมดวิเคราะห์แบบประเมิน — null = แผนที่ standalone แบบเดิมทุกประการ */
   assessment: MapAssessment | null;
+  /** เฉพาะบัญชีโรงเรียนที่มีรหัสจึงบันทึกลงแบบประเมินปีปัจจุบันได้ (ปุ่มบันทึกครั้งเดียว) */
+  canSaveAssessment: boolean;
 }
 
 const fmt = (v: number) => Math.round(v).toLocaleString("th-TH");
@@ -360,6 +359,7 @@ export default function CesiumMap({
   province: provinceProp,
   householdSize: householdSizeProp,
   assessment,
+  canSaveAssessment,
 }: Props) {
   // center/national/province/householdSize เริ่มจาก props แต่เก็บเป็น state เพื่อให้ "ยืนยันใช้พิกัดใหม่"
   // ย้ายจุดวิเคราะห์ได้ (recompute ทุกอย่างที่ผูกกับ center รวมถึงหาจังหวัด/ศาลากลางต้นทางใหม่)
@@ -460,14 +460,10 @@ export default function CesiumMap({
   const [mainRouteGain, setMainRouteGain] = useState<{ gainM: number; lossM: number } | null>(null);
   const [routeElevationProfile, setRouteElevationProfile] = useState<RouteElevationProfile | null>(null);
   const [routeElevationStatus, setRouteElevationStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
-  const [applyToScores, setApplyToScores] = useState(true);
   const [savingGis, setSavingGis] = useState(false);
-  const [gisSaved, setGisSaved] = useState(false);
   const [gisSaveErr, setGisSaveErr] = useState("");
-  // ส่งข้อสรุปพื้นที่ (จากผังอาคาร) ไปยังแบบประเมิน — สถานะแยกจากปุ่มบันทึกผลวิเคราะห์เส้นทาง
-  const [savingArea, setSavingArea] = useState(false);
-  const [areaSaved, setAreaSaved] = useState(false);
-  const [areaSaveErr, setAreaSaveErr] = useState("");
+  // ผลบันทึกครั้งล่าสุด (created/updated/locked) — ใช้แสดงข้อความยืนยันก่อน redirect ไปหน้าแบบประเมิน
+  const [saveAction, setSaveAction] = useState<MapAssessmentSaveAction | null>(null);
   const assessmentUnitCenter = assessment?.unitCenter ?? null;
   const distanceFromFormCenterM = useMemo(() => {
     if (!assessmentUnitCenter) return null;
@@ -1016,7 +1012,7 @@ export default function CesiumMap({
     // ผลวิเคราะห์แบบประเมินผูกกับจุดเดิม (เส้นทาง center→จุดหมาย) — ล้างให้คำนวณใหม่ที่จุดใหม่
     setGisDestinations([]);
     setMainRouteGain(null);
-    setGisSaved(false);
+    setSaveAction(null);
     setGisSaveErr("");
     gisDsRef.current?.entities.removeAll();
     setProvince(nextProvince);
@@ -1283,8 +1279,8 @@ export default function CesiumMap({
     buildingsDs.entities.removeAll();
     setBuildingsErr("");
     setPolygonPopulation(null);
-    setAreaSaved(false); // พื้นที่เปลี่ยน → ข้อสรุปที่เคยส่งไม่ตรงกับที่แสดงแล้ว
-    setAreaSaveErr("");
+    // พื้นที่เปลี่ยน → ข้อสรุปที่บันทึกไว้ไม่ตรงกับที่แสดงแล้ว (การบันทึกรวมอยู่ในปุ่มเดียวของกล่อง GIS)
+    setSaveAction(null);
 
     if (national || !polygonClosed || polygonVertices.length < 3) return;
 
@@ -1548,7 +1544,7 @@ export default function CesiumMap({
       setSelectedRouteIdx(idx);
       routeCoordsRef.current = alt.coords;
       setRoute({ distanceM: alt.distanceM, durationS: alt.durationS });
-      setGisSaved(false); // เปลี่ยนเส้น → ตัวเลข GIS เปลี่ยน → ผลที่บันทึกไว้ไม่ตรงกับที่แสดงแล้ว
+      setSaveAction(null); // เปลี่ยนเส้น → ตัวเลข GIS เปลี่ยน → ผลที่บันทึกไว้ไม่ตรงกับที่แสดงแล้ว
       if (autoRunRef.current) void runAnalysis(); // วิเคราะห์รอบแรกผ่านแล้ว → คำนวณใหม่ตามเส้นที่เลือก
     },
     [routeAlternatives, selectedRouteIdx, runAnalysis],
@@ -1656,7 +1652,7 @@ export default function CesiumMap({
           ? prev
           : [...prev.filter((d) => d.key !== key), { key, destinationType: type, name, lat, lng, route, gain, error }],
       );
-      setGisSaved(false);
+      setSaveAction(null);
       // จุดหมายถูกปักถาวรใน gisDs แล้ว — เก็บหมุดค้นหาชั่วคราว + กล่องยืนยันได้
       searchDsRef.current?.entities.removeAll();
       setPickedCoord(null);
@@ -1667,7 +1663,7 @@ export default function CesiumMap({
 
   const removeGisDestination = useCallback((key: string) => {
     setGisDestinations((prev) => prev.filter((d) => d.key !== key));
-    setGisSaved(false);
+    setSaveAction(null);
   }, []);
 
   // ── เปิดแผนที่ซ้ำหลังเคยบันทึกผลไว้: กู้จุดหมายเดิมกลับมา (ดึงเส้นทาง/ความสูงใหม่ให้สด) ──
@@ -1741,7 +1737,7 @@ export default function CesiumMap({
   // ── ประกอบผลวิเคราะห์ทั้งชุด (preview ฝั่ง client) — ใช้ buildRouteAnalysis เส้นทางเดียวกับ server
   //    เพื่อให้ตัวเลขที่โชว์ตรงกับที่ server จะคำนวณตอนบันทึกเป๊ะ (server คิดใหม่เองเสมอ ไม่เชื่อค่านี้) ──
   const previewGis = useMemo<GisAnalysis | null>(() => {
-    if (!assessment || national) return null;
+    if (national) return null;
     const routes: GisRouteAnalysis[] = [];
     const sel = routeAlternatives[selectedRouteIdx];
     if (sel && province) {
@@ -1794,7 +1790,7 @@ export default function CesiumMap({
       },
       elevation: analysis
         ? {
-            schoolMarkerElevationM: Math.round(analysis.meanElev),
+            schoolMarkerElevationM: routeElevationProfile?.schoolElevationM ?? null,
             meanElevationM: Math.round(analysis.meanElev),
             minElevationM: Math.round(analysis.minElev),
             maxElevationM: Math.round(analysis.maxElev),
@@ -1804,18 +1800,12 @@ export default function CesiumMap({
             localMaxElevation1KmM: analysis.local1000Elev === null ? null : Math.round(analysis.local1000Elev),
             slopeClass: analysis.lddClass,
             landformTh: analysis.landformTh,
-            terrainConfidence: "client" as const,
+            terrainConfidence: "client",
             provinceAvgElev: Number.isFinite(analysis.provinceAvgElev) ? Math.round(analysis.provinceAvgElev) : null,
-            routeFullMaxElev:
-              analysis.routeFullMaxElev !== null && Number.isFinite(analysis.routeFullMaxElev)
-                ? Math.round(analysis.routeFullMaxElev)
-                : analysis.routeTailMaxElev !== null && Number.isFinite(analysis.routeTailMaxElev)
-                  ? Math.round(analysis.routeTailMaxElev)
-                  : null,
-            routeTailMaxElev:
-              analysis.routeTailMaxElev !== null && Number.isFinite(analysis.routeTailMaxElev)
-                ? Math.round(analysis.routeTailMaxElev)
-                : null,
+            routeFullMaxElev: routeElevationProfile?.highestPoint
+              ? Math.round(routeElevationProfile.highestPoint.elevationM)
+              : null,
+            routeTailMaxElev: analysis.routeTailMaxElev === null ? null : Math.round(analysis.routeTailMaxElev),
           }
         : null,
       routes,
@@ -1824,7 +1814,6 @@ export default function CesiumMap({
       savedAt: "",
     };
   }, [
-    assessment,
     national,
     routeAlternatives,
     selectedRouteIdx,
@@ -1834,6 +1823,7 @@ export default function CesiumMap({
     mainRouteGain,
     gisDestinations,
     analysis,
+    routeElevationProfile,
   ]);
 
   const previewAuto = useMemo(() => (previewGis ? computeAutoGisScore(previewGis, "") : null), [previewGis]);
@@ -1855,7 +1845,7 @@ export default function CesiumMap({
     };
   }, [polygonPopulation]);
 
-  // ประกอบ payload เส้นทาง (ใช้ร่วมกันทั้งปุ่มบันทึกผลวิเคราะห์และปุ่มส่งข้อสรุปพื้นที่)
+  // ประกอบ payload เส้นทาง สำหรับปุ่มบันทึกครั้งเดียว (POST /api/assessments/from-map)
   const buildRoutesPayload = useCallback((): Record<string, unknown>[] => {
     const sel = routeAlternatives[selectedRouteIdx];
     const routes: Record<string, unknown>[] = [];
@@ -1870,6 +1860,8 @@ export default function CesiumMap({
         elevationGainM: mainRouteGain?.gainM ?? null,
         elevationLossM: mainRouteGain?.lossM ?? null,
         selected: true,
+        // จุดสูงสุดของเส้นทางหลัก = ชุดตัวอย่างเดียวกับธงแดงบนแผนที่ → ค่า max ที่บันทึกตรงกับที่ผู้ใช้เห็น
+        highestPoint: routeElevationProfile?.highestPoint ?? null,
       });
     }
     for (const d of gisDestinations) {
@@ -1884,80 +1876,63 @@ export default function CesiumMap({
         elevationGainM: d.gain?.gainM ?? null,
         elevationLossM: d.gain?.lossM ?? null,
         selected: true,
+        highestPoint: null,
       });
     }
     return routes;
-  }, [routeAlternatives, selectedRouteIdx, province, mainRouteGain, gisDestinations]);
+  }, [routeAlternatives, selectedRouteIdx, province, mainRouteGain, gisDestinations, routeElevationProfile]);
 
-  // ── POST ผลลง /gis: ส่ง "วัตถุดิบดิบ" ให้ server คำนวณ/ตรวจใหม่เองทั้งหมด (routes + optional areaSummary) ──
-  const postGis = useCallback(
-    async (extra: { apply: boolean; areaSummary?: GisAreaSummary }) => {
-      const res = await fetch(`/api/assessments/${assessment!.id}/gis`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          apply: extra.apply,
-          syncUnitLocation: centerDiffersFromForm,
-          center: { lat: center.lat, lng: center.lng, source: centerSourceRef.current },
-          elevation: previewGis?.elevation ?? null,
-          routes: buildRoutesPayload(),
-          ...(extra.areaSummary ? { areaSummary: extra.areaSummary } : {}),
-        }),
-      });
-      const data = (await res.json()) as { error?: string; applied?: boolean; droppedRoutes?: string[] };
-      return { ok: res.ok, data };
-    },
-    [assessment, center.lat, center.lng, centerDiffersFromForm, previewGis, buildRoutesPayload],
-  );
-
-  // ปุ่ม 1: บันทึกผลวิเคราะห์เส้นทาง (+ apply เข้าคะแนน v2)
-  const saveGis = useCallback(async () => {
-    if (!assessment || savingGis) return;
-    if (centerMoveTooFar) {
-      setGisSaveErr(centerMoveTooFarMessage);
-      return;
-    }
+  // ── บันทึกครั้งเดียว: POST /api/assessments/from-map — server ผูกกับ (โรงเรียน, ปีปัจจุบัน) จาก session
+  //    สร้าง/ปรับปรุงแบบประเมิน + กรอกข้อมูลประกอบ + คำนวณคะแนนด้านที่ 3 ให้เสมอ แล้วพาไปหน้าแบบประเมิน ──
+  const saveAssessmentFromMap = useCallback(async () => {
+    if (!canSaveAssessment || savingGis || !previewGis) return;
     setSavingGis(true);
     setGisSaveErr("");
     try {
-      const { ok, data } = await postGis({ apply: applyToScores });
-      if (!ok) {
-        setGisSaveErr(data.error ?? "บันทึกผลวิเคราะห์ไม่สำเร็จ");
-        return;
-      }
-      setGisSaved(true);
-      if (data.droppedRoutes?.length) {
-        setGisSaveErr(`บันทึกแล้ว แต่บางเส้นทางถูกตัดทิ้ง: ${data.droppedRoutes.join(" • ")}`);
-      }
-    } catch {
-      setGisSaveErr("บันทึกผลวิเคราะห์ไม่สำเร็จ — ตรวจสอบการเชื่อมต่อเครือข่าย");
+      const response = await fetch("/api/assessments/from-map", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          syncUnitLocation: centerDiffersFromForm,
+          center: { lat: center.lat, lng: center.lng, source: centerSourceRef.current },
+          elevation: previewGis.elevation,
+          routes: buildRoutesPayload(),
+          radiusSummaries: ringStats?.map((ring) => ({
+            radiusM: ring.radiusM,
+            buildingCount: ring.buildingCount,
+            estPopulation: ring.population,
+            popDensityPerKm2: ring.densityPerKm2,
+          })),
+          areaSummary: currentAreaSummary ?? undefined,
+          dataSources: {
+            terrain: "Terrarium DEM",
+            routing: "OSRM",
+            buildings: ringStats ? "Microsoft Building Footprints" : null,
+            populationMethod: householdSize !== null ? "building-count-x-provincial-household-size" : null,
+            analyzedAt: new Date().toISOString(),
+          },
+        }),
+      });
+      const data = (await response.json()) as MapAssessmentSaveResponse & { error?: string };
+      if (!response.ok) throw new Error(data.error || "บันทึกข้อมูลไม่สำเร็จ");
+      setSaveAction(data.action);
+      window.location.assign(`/assessment/${data.assessmentId}`);
+    } catch (error) {
+      setGisSaveErr(error instanceof Error ? error.message : "บันทึกข้อมูลไม่สำเร็จ");
     } finally {
       setSavingGis(false);
     }
-  }, [assessment, savingGis, centerMoveTooFar, centerMoveTooFarMessage, postGis, applyToScores]);
-
-  // ปุ่ม 2: ส่งข้อสรุปพื้นที่ (จากผังอาคาร) ไปยังแบบประเมิน — ไม่แตะคะแนน (apply:false)
-  const saveAreaSummary = useCallback(async () => {
-    if (!assessment || savingArea || !currentAreaSummary) return;
-    if (centerMoveTooFar) {
-      setAreaSaveErr(centerMoveTooFarMessage);
-      return;
-    }
-    setSavingArea(true);
-    setAreaSaveErr("");
-    try {
-      const { ok, data } = await postGis({ apply: false, areaSummary: currentAreaSummary });
-      if (!ok) {
-        setAreaSaveErr(data.error ?? "ส่งข้อสรุปพื้นที่ไม่สำเร็จ");
-        return;
-      }
-      setAreaSaved(true);
-    } catch {
-      setAreaSaveErr("ส่งข้อสรุปพื้นที่ไม่สำเร็จ — ตรวจสอบการเชื่อมต่อเครือข่าย");
-    } finally {
-      setSavingArea(false);
-    }
-  }, [assessment, savingArea, currentAreaSummary, centerMoveTooFar, centerMoveTooFarMessage, postGis]);
+  }, [
+    canSaveAssessment,
+    savingGis,
+    previewGis,
+    center,
+    centerDiffersFromForm,
+    ringStats,
+    currentAreaSummary,
+    householdSize,
+    buildRoutesPayload,
+  ]);
 
   return (
     <div
@@ -2220,10 +2195,10 @@ export default function CesiumMap({
                 </p>
               ) : null}
 
-              {assessment ? (
+              {!national && (canSaveAssessment || assessment) ? (
                 <GisAssessmentPanel
-                  assessmentId={assessment.id}
-                  submitted={assessment.submitted}
+                  assessment={assessment ? { id: assessment.id, submitted: assessment.submitted } : null}
+                  canSaveAssessment={canSaveAssessment}
                   previewGis={previewGis}
                   previewAuto={previewAuto}
                   previewSeverity={previewSeverity}
@@ -2237,12 +2212,11 @@ export default function CesiumMap({
                       error: d.error,
                     }))}
                   destCount={gisDestinations.length}
-                  applyToScores={applyToScores}
-                  onApplyToScoresChange={setApplyToScores}
-                  savingGis={savingGis}
-                  gisSaved={gisSaved}
-                  gisSaveErr={gisSaveErr}
-                  onSave={() => void saveGis()}
+                  routeElevationReady={routeElevationStatus === "ready"}
+                  saveState={savingGis ? "saving" : "idle"}
+                  saveAction={saveAction}
+                  saveErr={gisSaveErr}
+                  onSave={() => void saveAssessmentFromMap()}
                   onRemoveDestination={removeGisDestination}
                 />
               ) : null}
@@ -2360,18 +2334,10 @@ export default function CesiumMap({
                               <p className="map-note map-area-summary-note">
                                 ข้อสรุปเป็นค่าประมาณจากผังอาคาร ML และขนาดครัวเรือนเฉลี่ยของจังหวัด ใช้ประกอบดุลยพินิจ
                                 ไม่ใช่ข้อมูลทางการ · แกน C ไม่ใช่ระดับความทุรกันดาร/พื้นที่สูง (ดูกล่องวิเคราะห์ GIS)
+                                {assessment && !assessment.submitted && canSaveAssessment
+                                  ? " · ข้อสรุปพื้นที่นี้จะถูกบันทึกพร้อมกันเมื่อกดปุ่มบันทึกในกล่องวิเคราะห์ GIS"
+                                  : ""}
                               </p>
-                              {/* ปุ่มส่งข้อสรุปพื้นที่ไปยังแบบประเมิน (เฉพาะโหมดวิเคราะห์แบบประเมินที่ยังไม่ยื่น) */}
-                              {assessment && !assessment.submitted ? (
-                                <GisAreaSendControls
-                                  assessmentId={assessment.id}
-                                  saving={savingArea}
-                                  saved={areaSaved}
-                                  err={areaSaveErr}
-                                  disabled={!currentAreaSummary}
-                                  onSend={() => void saveAreaSummary()}
-                                />
-                              ) : null}
                             </div>
                           );
                         })()

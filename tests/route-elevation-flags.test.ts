@@ -21,3 +21,8 @@ test("both flag labels expose elevation and analysis reuses the flag's route sam
   assert.equal(component.match(/routeElevationSampleCoordinates\(/g)?.length, 2);
   assert.match(component, /buildRouteElevationProfile\(sampledCoords, heights\)/);
 });
+
+test("school marker payload uses the route profile endpoint height", () => {
+  assert.match(component, /schoolMarkerElevationM:\s*routeElevationProfile\?\.schoolElevationM/);
+  assert.doesNotMatch(component, /schoolElevationM:\s*Math\.round\(analysis\.meanElev\)/);
+});
