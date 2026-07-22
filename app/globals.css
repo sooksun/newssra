@@ -13,7 +13,7 @@
   --red: #b42318;
   --red-soft: #ffeceb;
   --violet: #6f45c2;
-  --shadow: 0 12px 32px rgba(24, 36, 64, 0.10);
+  --shadow: 0 12px 32px rgba(24, 36, 64, 0.1);
 }
 
 * {
@@ -1332,7 +1332,9 @@ textarea:focus {
   border-radius: 8px;
   padding: 12px 14px;
   box-shadow: var(--shadow);
-  transition: opacity 180ms ease, transform 180ms ease;
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
   z-index: 50;
 }
 
@@ -2095,6 +2097,57 @@ textarea:focus {
   z-index: 5;
 }
 
+.map-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.map-panel-heading > div {
+  min-width: 0;
+}
+
+.map-panel-toggle {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid #c7d7f0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--blue);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  font-size: 28px;
+  line-height: 1;
+  z-index: 6;
+}
+
+.map-panel-toggle:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+
+.map-panel-toggle:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.35);
+  outline-offset: 2px;
+}
+
+.map-panel-toggle-collapse {
+  flex: 0 0 auto;
+  margin-top: -6px;
+  box-shadow: none;
+}
+
+.map-panel-toggle-expand {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+}
+
 .map-panel-error {
   border-color: #ffc7c2;
   background: rgba(255, 236, 235, 0.97);
@@ -2322,7 +2375,9 @@ textarea:focus {
   border-radius: 8px;
   background: #fff;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
 }
 
 .map-route-btn strong {
@@ -2480,6 +2535,13 @@ textarea:focus {
 
 .map-note-sync {
   color: #0f766e;
+}
+
+/* เครดิตแหล่งข้อมูลแนวชายแดน — สัญญาอนุญาต ODbL บังคับให้แสดง */
+.map-note-credit {
+  font-size: 11px;
+  margin-top: -6px;
+  opacity: 0.85;
 }
 
 .map-stats {

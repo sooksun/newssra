@@ -3,9 +3,23 @@ import test from "node:test";
 import {
   buildRouteElevationProfile,
   formatElevationMeters,
+  formatRouteHighestLabel,
+  routeElevationSampleCoordinates,
   sampleRouteCoordinates,
   type RouteCoordinate,
 } from "./routeElevation";
+
+test("formatRouteHighestLabel keeps the numeric elevation on a Thai-led second line", () => {
+  assert.equal(formatRouteHighestLabel(1_069.6), "จุดสูงสุดบนเส้นทาง\nระดับความสูง 1,070 ม.");
+});
+
+test("routeElevationSampleCoordinates uses one capped route sample and the exact school endpoint", () => {
+  const coords = Array.from({ length: 11 }, (_, i) => [100 + i, 10 + i] as RouteCoordinate);
+
+  const sampled = routeElevationSampleCoordinates(coords, [120.5, 20.5], 4);
+
+  assert.deepEqual(sampled, [coords[0], coords[3], coords[7], [120.5, 20.5]]);
+});
 
 test("sampleRouteCoordinates spreads samples and preserves both endpoints", () => {
   const coords = Array.from({ length: 11 }, (_, i) => [100 + i, 10 + i] as RouteCoordinate);

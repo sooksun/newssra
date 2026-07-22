@@ -51,13 +51,14 @@ import {
   type Morphology,
 } from "@/lib/map/morphology";
 import { pointInPolygon, polygonAreaM2, polygonCentroid, polygonBoundingRadiusM } from "@/lib/map/geometry";
-import { deriveThaiSharedBorders, type BorderCountry } from "@/lib/map/borders";
+import { parseSharedBorders, type SharedBordersDoc } from "@/lib/map/borders";
 import { fetchBuildings, fetchNearestProvince, fetchOsrmRoutes } from "@/lib/map/mapApi";
 import { searchPlaces, resolvePlaceHit, reverseProvince, type PlaceHit } from "@/lib/map/placeSearch";
 import {
   buildRouteElevationProfile,
   formatElevationMeters,
-  sampleRouteCoordinates,
+  formatRouteHighestLabel,
+  routeElevationSampleCoordinates,
   type RouteElevationProfile,
 } from "@/lib/map/routeElevation";
 import {
@@ -76,6 +77,7 @@ import GisAssessmentPanel, {
   GisDestAddBar,
   MAX_GIS_DESTINATIONS,
 } from "@/components/map/GisAssessmentPanel";
+import MapPanelToggle from "@/components/map/MapPanelToggle";
 import { GIS_DESTINATION_LABELS } from "@/lib/types";
 import type { GisAnalysis, GisAreaSummary, GisDestinationType, GisRouteAnalysis } from "@/lib/types";
 
@@ -96,8 +98,7 @@ const MAX_ASSESSMENT_RELOCATION_M = 10_000;
 // เกินระดับที่มีจริง Esri จะตอบ tile เทา "Map data not yet available" เป็น JPEG ปกติ (HTTP 200)
 // จึงต้องใช้ DiscardMissingTileImagePolicy และ probe tilemap รายพิกัดเพื่อไม่ render ภาพขยายเกินจริงโดยไม่บอกผู้ใช้
 // tile ชนบทลึก (L21 แถวบ้านจะตี เชียงราย) ที่ทราบแน่ว่าเป็น placeholder — ใช้เป็นภาพอ้างอิงของ discard policy
-const ESRI_MISSING_TILE_URL =
-  `${ESRI_WORLD_IMAGERY_BASE_URL}/tile/21/927815/1629415`;
+const ESRI_MISSING_TILE_URL = `${ESRI_WORLD_IMAGERY_BASE_URL}/tile/21/927815/1629415`;
 // ความคลาดเคลื่อนระดับพิกเซลของ globe: ค่าน้อย = ขอ tile ละเอียดขึ้น = ภาพคมเมื่อ zoom เข้าใกล้ (ค่า default 2)
 const GLOBE_SSE = 1.0;
 const IMAGERY_LAYER_OPTIONS = {
@@ -152,10 +153,10 @@ function circleCoords(lat: number, lng: number, radiusM: number, segments = 96):
   return pts;
 }
 
-// ── แนวชายแดนไทยกับประเทศเพื่อนบ้าน (ดึงเฉพาะ shared border จาก public/geo/sea-borders.json) ──
-let bordersCache: BorderCountry[] | null = null;
-let bordersPromise: Promise<BorderCountry[]> | null = null;
-async function loadBorders(): Promise<BorderCountry[]> {
+// ── แนวชายแดนไทยกับประเทศเพื่อนบ้าน (คำนวณไว้ล่วงหน้าใน public/geo/sea-borders.json) ──
+let bordersCache: SharedBordersDoc | null = null;
+let bordersPromise: Promise<SharedBordersDoc> | null = null;
+async function loadBorders(): Promise<SharedBordersDoc> {
   if (bordersCache) return bordersCache;
   if (!bordersPromise) {
     bordersPromise = fetch("/geo/sea-borders.json")
@@ -163,8 +164,8 @@ async function loadBorders(): Promise<BorderCountry[]> {
         if (!r.ok) throw new Error(`โหลดแนวชายแดนไม่สำเร็จ (HTTP ${r.status})`);
         return r.json();
       })
-      .then((doc: { countries: BorderCountry[] }) => {
-        bordersCache = doc.countries ?? [];
+      .then((doc: unknown) => {
+        bordersCache = parseSharedBorders(doc);
         return bordersCache;
       })
       .catch((e) => {
@@ -339,10 +340,7 @@ function createBaseImageryLayer(source: MapImagerySource, esriMaxLevel = ESRI_MA
         language: "th-TH",
         region: "TH",
       }) as Promise<unknown> as Promise<ImageryProvider>;
-      return ImageryLayer.fromProviderAsync(
-        provider,
-        IMAGERY_LAYER_OPTIONS,
-      );
+      return ImageryLayer.fromProviderAsync(provider, IMAGERY_LAYER_OPTIONS);
     }
   }
 
@@ -392,6 +390,7 @@ export default function CesiumMap({
   const autoRunRef = useRef(false); // วิเคราะห์อัตโนมัติครั้งเดียวต่อจุด — รีเซ็ตเป็น false เมื่อยืนยันพิกัดใหม่
 
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [panelExpanded, setPanelExpanded] = useState(true);
   const [errMsg, setErrMsg] = useState("");
   const [terrainReady, setTerrainReady] = useState(false);
   const [analysis, setAnalysis] = useState<Morphology | null>(null);
@@ -427,13 +426,17 @@ export default function CesiumMap({
   const [ringStats, setRingStats] = useState<
     { radiusM: number; buildingCount: number; population: number | null; densityPerKm2: number | null }[] | null
   >(null);
-  const [ringSettlement, setRingSettlement] = useState<
-    { label: string; tone: SettlementTone; hint: string; densityPerKm2: number } | null
-  >(null);
+  const [ringSettlement, setRingSettlement] = useState<{
+    label: string;
+    tone: SettlementTone;
+    hint: string;
+    densityPerKm2: number;
+  } | null>(null);
   const [ringsLoading, setRingsLoading] = useState(false);
   const [ringsErr, setRingsErr] = useState("");
   const [showBorders, setShowBorders] = useState(true); // แสดงแนวชายแดน + ชื่อประเทศ
   const [bordersErr, setBordersErr] = useState("");
+  const [bordersCredit, setBordersCredit] = useState(""); // เครดิตแหล่งข้อมูล (ODbL บังคับให้แสดง)
   // ค้นหาชื่อสถานที่: Google Places Autocomplete → เลือกผลลัพธ์ → บินกล้องไปจุดนั้น + ปักหมุดชั่วคราว (ไม่ผูกกับ state โรงเรียน/polygon)
   const [placeQuery, setPlaceQuery] = useState("");
   const [placeSearchErr, setPlaceSearchErr] = useState("");
@@ -472,8 +475,7 @@ export default function CesiumMap({
   }, [assessmentUnitCenter, center.lat, center.lng]);
   const centerDiffersFromForm =
     Boolean(assessment) &&
-    (!assessmentUnitCenter ||
-      (distanceFromFormCenterM !== null && distanceFromFormCenterM > CENTER_SYNC_TOLERANCE_M));
+    (!assessmentUnitCenter || (distanceFromFormCenterM !== null && distanceFromFormCenterM > CENTER_SYNC_TOLERANCE_M));
   const centerMoveTooFar =
     Boolean(assessmentUnitCenter) &&
     distanceFromFormCenterM !== null &&
@@ -482,20 +484,23 @@ export default function CesiumMap({
     ? `พิกัดที่เลือกอยู่ห่างจากพิกัดในแบบฟอร์มประมาณ ${(distanceFromFormCenterM! / 1000).toFixed(1)} กม. ระบบไม่บันทึกเพื่อกันข้อมูลโรงเรียนอื่นปนกับแบบประเมินนี้`
     : "";
 
-  const replaceEsriImageryLayer = useCallback((maximumLevel: number) => {
-    const viewer = viewerRef.current;
-    if (!viewer || viewer.isDestroyed() || esriMaxLevelRef.current === maximumLevel) return;
+  const replaceEsriImageryLayer = useCallback(
+    (maximumLevel: number) => {
+      const viewer = viewerRef.current;
+      if (!viewer || viewer.isDestroyed() || esriMaxLevelRef.current === maximumLevel) return;
 
-    const previousLayer = imageryLayerRef.current;
-    const nextLayer = createEsriImageryLayer(maximumLevel);
-    if (previousLayer && viewer.imageryLayers.contains(previousLayer)) {
-      viewer.imageryLayers.remove(previousLayer, true);
-    }
-    viewer.imageryLayers.add(nextLayer, 0);
-    imageryLayerRef.current = nextLayer;
-    esriMaxLevelRef.current = maximumLevel;
-    viewer.scene.requestRender();
-  }, [assessment?.id]);
+      const previousLayer = imageryLayerRef.current;
+      const nextLayer = createEsriImageryLayer(maximumLevel);
+      if (previousLayer && viewer.imageryLayers.contains(previousLayer)) {
+        viewer.imageryLayers.remove(previousLayer, true);
+      }
+      viewer.imageryLayers.add(nextLayer, 0);
+      imageryLayerRef.current = nextLayer;
+      esriMaxLevelRef.current = maximumLevel;
+      viewer.scene.requestRender();
+    },
+    [assessment?.id],
+  );
 
   // ── สร้าง Viewer ครั้งเดียว ─────────────────────────────────────────────────
   useEffect(() => {
@@ -741,7 +746,6 @@ export default function CesiumMap({
         },
       });
     }
-
   }, [center.lat, center.lng, center.name, national, status, routeElevationProfile, routeElevationStatus]);
 
   // แยกกล้องจาก effect ของหมุด เพื่อไม่ให้กล้องบินซ้ำตอน terrain ส่งค่าความสูงกลับมา
@@ -880,7 +884,7 @@ export default function CesiumMap({
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
         label: {
-          text: `จุดสูงสุดบนเส้นทาง\n${formatElevationMeters(highestPoint.elevationM)}`,
+          text: formatRouteHighestLabel(highestPoint.elevationM),
           font: "600 13px 'Sarabun', sans-serif",
           fillColor: Color.WHITE,
           style: LabelStyle.FILL_AND_OUTLINE,
@@ -1294,40 +1298,39 @@ export default function CesiumMap({
     setBuildingsLoading(true);
     fetchBuildings(centroid[0], centroid[1], boundingRadius, controller.signal, [], polygonVertices)
       .then((data) => {
-          if (controller.signal.aborted) return;
-          // วาดเฉพาะอาคารที่อยู่ในรูปที่วาดจริง (point-in-polygon จากจุดศูนย์กลางอาคาร) — ไม่ render อาคารนอกรูปที่ดึงมาด้วย
-          let renderedEnclosed = 0;
-          for (const feature of data.features) {
-            if (!pointInPolygon([feature.lat, feature.lng], polygonVertices)) continue;
-            renderedEnclosed += 1;
-            const positions = feature.ring.map(([lng, lat]) => Cartesian3.fromDegrees(lng, lat));
-            buildingsDs.entities.add({
-              polygon: {
-                hierarchy: positions,
-                material: Color.fromCssColorString("#0ea5e9").withAlpha(0.35),
-                outline: true,
-                outlineColor: Color.fromCssColorString("#0369a1"),
-                heightReference: HeightReference.CLAMP_TO_GROUND,
-              },
-            });
-          }
-          // นับจำนวนจริงจากค่าที่ server นับจากชุดเต็ม (data.features ถูกจำกัดจำนวนเพื่อ render จึงนับเองต่ำกว่าจริง
-          // ในพื้นที่เมืองหนาแน่น → เคยตันที่ 3000 แล้วจำแนกเป็นชนบทผิด) — ใช้ค่าที่ render ได้เป็น fallback เท่านั้น
-          const enclosedCount = data.polygonCount ?? renderedEnclosed;
-          const estPopulation = householdSize !== null ? Math.round(enclosedCount * householdSize) : null;
-          // ข้อสรุปพื้นที่: พื้นที่จริงของ polygon ที่วาด → ความหนาแน่นอาคาร/ประชากร (กัน ÷0 เมื่อพื้นที่เล็กมาก)
-          const areaKm2 = polygonAreaM2(polygonVertices) / 1_000_000;
-          const safeArea = areaKm2 > 0.0001 ? areaKm2 : null;
-          setPolygonPopulation({
-            buildingCount: enclosedCount,
-            estPopulation,
-            truncated: Boolean(data.truncated),
-            areaKm2,
-            buildingDensityPerKm2: safeArea !== null ? Math.round(enclosedCount / safeArea) : 0,
-            popDensityPerKm2: safeArea !== null && estPopulation !== null ? Math.round(estPopulation / safeArea) : null,
+        if (controller.signal.aborted) return;
+        // วาดเฉพาะอาคารที่อยู่ในรูปที่วาดจริง (point-in-polygon จากจุดศูนย์กลางอาคาร) — ไม่ render อาคารนอกรูปที่ดึงมาด้วย
+        let renderedEnclosed = 0;
+        for (const feature of data.features) {
+          if (!pointInPolygon([feature.lat, feature.lng], polygonVertices)) continue;
+          renderedEnclosed += 1;
+          const positions = feature.ring.map(([lng, lat]) => Cartesian3.fromDegrees(lng, lat));
+          buildingsDs.entities.add({
+            polygon: {
+              hierarchy: positions,
+              material: Color.fromCssColorString("#0ea5e9").withAlpha(0.35),
+              outline: true,
+              outlineColor: Color.fromCssColorString("#0369a1"),
+              heightReference: HeightReference.CLAMP_TO_GROUND,
+            },
           });
-        },
-      )
+        }
+        // นับจำนวนจริงจากค่าที่ server นับจากชุดเต็ม (data.features ถูกจำกัดจำนวนเพื่อ render จึงนับเองต่ำกว่าจริง
+        // ในพื้นที่เมืองหนาแน่น → เคยตันที่ 3000 แล้วจำแนกเป็นชนบทผิด) — ใช้ค่าที่ render ได้เป็น fallback เท่านั้น
+        const enclosedCount = data.polygonCount ?? renderedEnclosed;
+        const estPopulation = householdSize !== null ? Math.round(enclosedCount * householdSize) : null;
+        // ข้อสรุปพื้นที่: พื้นที่จริงของ polygon ที่วาด → ความหนาแน่นอาคาร/ประชากร (กัน ÷0 เมื่อพื้นที่เล็กมาก)
+        const areaKm2 = polygonAreaM2(polygonVertices) / 1_000_000;
+        const safeArea = areaKm2 > 0.0001 ? areaKm2 : null;
+        setPolygonPopulation({
+          buildingCount: enclosedCount,
+          estPopulation,
+          truncated: Boolean(data.truncated),
+          areaKm2,
+          buildingDensityPerKm2: safeArea !== null ? Math.round(enclosedCount / safeArea) : 0,
+          popDensityPerKm2: safeArea !== null && estPopulation !== null ? Math.round(estPopulation / safeArea) : null,
+        });
+      })
       .catch((e: unknown) => {
         if (controller.signal.aborted) return;
         setBuildingsErr(e instanceof Error ? e.message : "โหลดข้อมูลผังอาคารไม่สำเร็จ");
@@ -1394,7 +1397,7 @@ export default function CesiumMap({
         const stats = RING_RADII_M.map((r) => {
           const buildingCount = byRadius.get(r) ?? 0;
           const population = householdSize !== null ? Math.round(buildingCount * householdSize) : null;
-          const areaKm2 = (Math.PI * (r / 1000) ** 2); // พื้นที่วงกลมสะสม
+          const areaKm2 = Math.PI * (r / 1000) ** 2; // พื้นที่วงกลมสะสม
           const densityPerKm2 = population !== null && areaKm2 > 0 ? Math.round(population / areaKm2) : null;
           return { radiusM: r, buildingCount, population, densityPerKm2 };
         });
@@ -1426,16 +1429,16 @@ export default function CesiumMap({
 
     let cancelled = false;
     loadBorders()
-      .then((countries) => {
+      .then((doc) => {
         if (cancelled) return;
-        const sharedBorders = deriveThaiSharedBorders(countries);
-        if (sharedBorders.length === 0) {
+        if (doc.borders.length === 0) {
           setBordersErr("ไม่พบชุดข้อมูลเส้นชายแดนไทยที่ใช้ร่วมกับประเทศเพื่อนบ้าน");
           return;
         }
+        setBordersCredit(doc.attribution);
 
         const borderMaterial = Color.fromCssColorString("#f97316").withAlpha(0.96);
-        for (const border of sharedBorders) {
+        for (const border of doc.borders) {
           for (const chain of border.chains) {
             bordersDs.entities.add({
               polyline: {
@@ -1496,7 +1499,11 @@ export default function CesiumMap({
         const tailPts = downsample(lastRouteSegment(routeCoords, ROUTE_CHECK_DISTANCE_M), MAX_ROUTE_SAMPLE_POINTS).map(
           ([lng, lat]) => ({ lat, lng }),
         );
-        const fullPts = downsample(routeCoords, MAX_ROUTE_SAMPLE_POINTS).map(([lng, lat]) => ({ lat, lng }));
+        const fullPts = routeElevationSampleCoordinates(
+          routeCoords,
+          [center.lng, center.lat],
+          MAX_GAIN_SAMPLE_POINTS,
+        ).map(([lng, lat]) => ({ lat, lng }));
         const [tailResult, fullResult] = await Promise.all([
           withTimeout(
             sampleCesiumPoints(provider, tailPts, KEYLESS_SAMPLE_LEVEL),
@@ -1576,10 +1583,11 @@ export default function CesiumMap({
       return;
     }
 
-    const sampledCoords = selectedRoute
-      ? sampleRouteCoordinates(selectedRoute.coords, MAX_GAIN_SAMPLE_POINTS)
-      : ([[center.lng, center.lat]] as [number, number][]);
-    sampledCoords[sampledCoords.length - 1] = [center.lng, center.lat];
+    const sampledCoords = routeElevationSampleCoordinates(
+      selectedRoute?.coords ?? [],
+      [center.lng, center.lat],
+      MAX_GAIN_SAMPLE_POINTS,
+    );
 
     let cancelled = false;
     setRouteElevationStatus("loading");
@@ -1608,15 +1616,7 @@ export default function CesiumMap({
     return () => {
       cancelled = true;
     };
-  }, [
-    center.lat,
-    center.lng,
-    national,
-    terrainReady,
-    routeSettled,
-    routeAlternatives,
-    selectedRouteIdx,
-  ]);
+  }, [center.lat, center.lng, national, terrainReady, routeSettled, routeAlternatives, selectedRouteIdx]);
 
   // ── เพิ่มจุดหมายวิเคราะห์จากผลค้นหา: ดึงเส้นทาง OSRM center→จุดหมาย + สุ่มความสูงสะสม ──
   const addGisDestination = useCallback(
@@ -1637,7 +1637,10 @@ export default function CesiumMap({
       const provider = terrainRef.current;
       if (route && provider) {
         try {
-          const points = downsample(route.coords, MAX_GAIN_SAMPLE_POINTS).map(([lng2, lat2]) => ({ lat: lat2, lng: lng2 }));
+          const points = downsample(route.coords, MAX_GAIN_SAMPLE_POINTS).map(([lng2, lat2]) => ({
+            lat: lat2,
+            lng: lng2,
+          }));
           const heights = await withTimeout(
             sampleCesiumPoints(provider, points, KEYLESS_SAMPLE_LEVEL),
             ANALYSIS_TIMEOUT_MS,
@@ -1814,14 +1817,22 @@ export default function CesiumMap({
       appliedToResponses: false,
       savedAt: "",
     };
-  }, [assessment, national, routeAlternatives, selectedRouteIdx, province, center.lat, center.lng, mainRouteGain, gisDestinations, analysis]);
+  }, [
+    assessment,
+    national,
+    routeAlternatives,
+    selectedRouteIdx,
+    province,
+    center.lat,
+    center.lng,
+    mainRouteGain,
+    gisDestinations,
+    analysis,
+  ]);
 
   const previewAuto = useMemo(() => (previewGis ? computeAutoGisScore(previewGis, "") : null), [previewGis]);
   const previewSeverity = previewGis ? derive32Severity(previewGis) : null;
-  const previewCommunity = useMemo(
-    () => (previewGis ? computeCommunityClass(previewGis, "") : null),
-    [previewGis],
-  );
+  const previewCommunity = useMemo(() => (previewGis ? computeCommunityClass(previewGis, "") : null), [previewGis]);
 
   // ข้อสรุปพื้นที่ปัจจุบัน (จากผังอาคารที่วาด) — null ถ้ายังไม่ได้ประมวลผล/พื้นที่เป็นศูนย์
   const currentAreaSummary = useMemo<GisAreaSummary | null>(() => {
@@ -1980,12 +1991,15 @@ export default function CesiumMap({
           <strong>เปิดแผนที่ 3 มิติไม่สำเร็จ</strong>
           <span>{errMsg}</span>
         </div>
-      ) : (
-        <aside className="map-panel">
-          <h2 className="map-panel-title">แผนที่ 3 มิติ (Cesium)</h2>
-          <p className="map-panel-sub">
-            {national ? "มุมมองทั้งประเทศ" : center.name}
-          </p>
+      ) : panelExpanded ? (
+        <aside id="cesium-map-panel" className="map-panel">
+          <div className="map-panel-heading">
+            <div>
+              <h2 className="map-panel-title">แผนที่ 3 มิติ (Cesium)</h2>
+              <p className="map-panel-sub">{national ? "มุมมองทั้งประเทศ" : center.name}</p>
+            </div>
+            <MapPanelToggle expanded onToggle={() => setPanelExpanded(false)} />
+          </div>
           <div className="map-coord">
             พิกัด: {center.lat.toFixed(5)}, {center.lng.toFixed(5)}
           </div>
@@ -2050,12 +2064,7 @@ export default function CesiumMap({
                     addingDest={addingDest}
                     destCount={gisDestinations.length}
                     onAdd={() =>
-                      void addGisDestination(
-                        pickedCoord.name,
-                        pickedCoord.lat,
-                        pickedCoord.lng,
-                        pickedDestType,
-                      )
+                      void addGisDestination(pickedCoord.name, pickedCoord.lat, pickedCoord.lng, pickedDestType)
                     }
                   />
                   <div className="map-confirm-school-move">
@@ -2093,10 +2102,14 @@ export default function CesiumMap({
             <span>แสดงแนวชายแดนไทย + ชื่อประเทศเพื่อนบ้าน</span>
           </label>
           {bordersErr ? <p className="map-note map-note-error">{bordersErr}</p> : null}
+          {showBorders && bordersCredit && !bordersErr ? (
+            <p className="map-note map-note-credit">แนวชายแดน: {bordersCredit}</p>
+          ) : null}
 
           {national ? (
             <p className="map-note">
-              บัญชีผู้ดูแล/เจ้าหน้าที่ไม่ผูกกับโรงเรียนใดโรงเรียนหนึ่ง จึงแสดงมุมมองทั้งประเทศ — ผู้ใช้บทบาทโรงเรียนจะเห็นแผนที่ตั้งจุดที่โรงเรียนของตนเองพร้อมผลวิเคราะห์ภูมิประเทศ
+              บัญชีผู้ดูแล/เจ้าหน้าที่ไม่ผูกกับโรงเรียนใดโรงเรียนหนึ่ง จึงแสดงมุมมองทั้งประเทศ —
+              ผู้ใช้บทบาทโรงเรียนจะเห็นแผนที่ตั้งจุดที่โรงเรียนของตนเองพร้อมผลวิเคราะห์ภูมิประเทศ
             </p>
           ) : (
             <>
@@ -2171,7 +2184,8 @@ export default function CesiumMap({
                     </table>
                     <p className="map-note">
                       นับสะสมภายในแต่ละรัศมี จากผังอาคาร ML × ขนาดครัวเรือนเฉลี่ยจังหวัด
-                      {householdSize !== null ? ` (${householdSize.toFixed(1)} คน/ครัวเรือน)` : ""} — ค่าประมาณ ไม่ใช่สำมะโนจริง
+                      {householdSize !== null ? ` (${householdSize.toFixed(1)} คน/ครัวเรือน)` : ""} — ค่าประมาณ
+                      ไม่ใช่สำมะโนจริง
                     </p>
                     {ringSettlement ? (
                       <div className={`map-area-summary map-area-summary-${ringSettlement.tone}`}>
@@ -2186,7 +2200,9 @@ export default function CesiumMap({
                     ) : null}
                   </>
                 ) : (
-                  <p className="map-note">ยังไม่พบอาคารในบริเวณนี้ (พื้นที่เบาบางมาก หรือกำลังนำเข้าข้อมูลผังอาคารครั้งแรก)</p>
+                  <p className="map-note">
+                    ยังไม่พบอาคารในบริเวณนี้ (พื้นที่เบาบางมาก หรือกำลังนำเข้าข้อมูลผังอาคารครั้งแรก)
+                  </p>
                 )}
               </div>
 
@@ -2248,7 +2264,12 @@ export default function CesiumMap({
                   >
                     เสร็จสิ้น
                   </button>
-                  <button className="ghost-btn" type="button" onClick={handleUndoVertex} disabled={polygonVertices.length === 0}>
+                  <button
+                    className="ghost-btn"
+                    type="button"
+                    onClick={handleUndoVertex}
+                    disabled={polygonVertices.length === 0}
+                  >
                     ย้อนกลับ
                   </button>
                   <button
@@ -2287,67 +2308,68 @@ export default function CesiumMap({
                     </dl>
                     <p className="map-note">
                       ประมาณจากจำนวนอาคาร (Microsoft Building Footprints) คูณขนาดครัวเรือนเฉลี่ยของจังหวัด
-                      {householdSize !== null ? ` (${householdSize.toFixed(1)} คน/ครัวเรือน)` : ""} — ไม่ใช่ข้อมูลสำมะโนประชากรจริง
+                      {householdSize !== null ? ` (${householdSize.toFixed(1)} คน/ครัวเรือน)` : ""} —
+                      ไม่ใช่ข้อมูลสำมะโนประชากรจริง
                       {polygonPopulation.truncated
                         ? " (แผนที่แสดงอาคารบางส่วนเพื่อความลื่นไหล แต่จำนวนที่นับรวมอาคารทั้งหมดในพื้นที่แล้ว)"
                         : ""}
                     </p>
 
                     {/* ข้อสรุปของพื้นที่หลังประมวลผลผังอาคาร — ปิดท้ายส่วนข้อมูล */}
-                    {polygonPopulation.areaKm2 > 0 ? (
-                      (() => {
-                        const cls =
-                          polygonPopulation.popDensityPerKm2 !== null
-                            ? settlementClass(polygonPopulation.popDensityPerKm2)
-                            : null;
-                        return (
-                          <div className={`map-area-summary${cls ? ` map-area-summary-${cls.tone}` : ""}`}>
-                            <h4 className="map-area-summary-title">ข้อสรุปของพื้นที่</h4>
-                            <dl className="map-stats">
-                              <div>
-                                <dt>ขนาดพื้นที่ที่วิเคราะห์</dt>
-                                <dd>
-                                  {polygonPopulation.areaKm2.toFixed(2)} ตร.กม. (
-                                  {Math.round(polygonPopulation.areaKm2 * 625).toLocaleString("th-TH")} ไร่)
-                                </dd>
-                              </div>
-                              <div>
-                                <dt>ความหนาแน่นอาคาร</dt>
-                                <dd>{polygonPopulation.buildingDensityPerKm2.toLocaleString("th-TH")} หลัง/ตร.กม.</dd>
-                              </div>
-                              <div>
-                                <dt>ความหนาแน่นประชากรโดยประมาณ</dt>
-                                <dd>
-                                  {polygonPopulation.popDensityPerKm2 !== null
-                                    ? `${polygonPopulation.popDensityPerKm2.toLocaleString("th-TH")} คน/ตร.กม.`
-                                    : "— (ไม่มีข้อมูลครัวเรือนจังหวัด)"}
-                                </dd>
-                              </div>
-                            </dl>
-                            {cls ? (
-                              <p className="map-area-summary-verdict">
-                                ความหนาแน่นการตั้งถิ่นฐาน (แกน C): <strong>{cls.label}</strong> — {cls.hint}
+                    {polygonPopulation.areaKm2 > 0
+                      ? (() => {
+                          const cls =
+                            polygonPopulation.popDensityPerKm2 !== null
+                              ? settlementClass(polygonPopulation.popDensityPerKm2)
+                              : null;
+                          return (
+                            <div className={`map-area-summary${cls ? ` map-area-summary-${cls.tone}` : ""}`}>
+                              <h4 className="map-area-summary-title">ข้อสรุปของพื้นที่</h4>
+                              <dl className="map-stats">
+                                <div>
+                                  <dt>ขนาดพื้นที่ที่วิเคราะห์</dt>
+                                  <dd>
+                                    {polygonPopulation.areaKm2.toFixed(2)} ตร.กม. (
+                                    {Math.round(polygonPopulation.areaKm2 * 625).toLocaleString("th-TH")} ไร่)
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt>ความหนาแน่นอาคาร</dt>
+                                  <dd>{polygonPopulation.buildingDensityPerKm2.toLocaleString("th-TH")} หลัง/ตร.กม.</dd>
+                                </div>
+                                <div>
+                                  <dt>ความหนาแน่นประชากรโดยประมาณ</dt>
+                                  <dd>
+                                    {polygonPopulation.popDensityPerKm2 !== null
+                                      ? `${polygonPopulation.popDensityPerKm2.toLocaleString("th-TH")} คน/ตร.กม.`
+                                      : "— (ไม่มีข้อมูลครัวเรือนจังหวัด)"}
+                                  </dd>
+                                </div>
+                              </dl>
+                              {cls ? (
+                                <p className="map-area-summary-verdict">
+                                  ความหนาแน่นการตั้งถิ่นฐาน (แกน C): <strong>{cls.label}</strong> — {cls.hint}
+                                </p>
+                              ) : null}
+                              <p className="map-note map-area-summary-note">
+                                ข้อสรุปเป็นค่าประมาณจากผังอาคาร ML และขนาดครัวเรือนเฉลี่ยของจังหวัด ใช้ประกอบดุลยพินิจ
+                                ไม่ใช่ข้อมูลทางการ · แกน C ไม่ใช่ระดับความทุรกันดาร/พื้นที่สูง (ดูกล่องวิเคราะห์ GIS)
                               </p>
-                            ) : null}
-                            <p className="map-note map-area-summary-note">
-                              ข้อสรุปเป็นค่าประมาณจากผังอาคาร ML และขนาดครัวเรือนเฉลี่ยของจังหวัด ใช้ประกอบดุลยพินิจ ไม่ใช่ข้อมูลทางการ
-                              · แกน C ไม่ใช่ระดับความทุรกันดาร/พื้นที่สูง (ดูกล่องวิเคราะห์ GIS)
-                            </p>
-                            {/* ปุ่มส่งข้อสรุปพื้นที่ไปยังแบบประเมิน (เฉพาะโหมดวิเคราะห์แบบประเมินที่ยังไม่ยื่น) */}
-                            {assessment && !assessment.submitted ? (
-                              <GisAreaSendControls
-                                assessmentId={assessment.id}
-                                saving={savingArea}
-                                saved={areaSaved}
-                                err={areaSaveErr}
-                                disabled={!currentAreaSummary}
-                                onSend={() => void saveAreaSummary()}
-                              />
-                            ) : null}
-                          </div>
-                        );
-                      })()
-                    ) : null}
+                              {/* ปุ่มส่งข้อสรุปพื้นที่ไปยังแบบประเมิน (เฉพาะโหมดวิเคราะห์แบบประเมินที่ยังไม่ยื่น) */}
+                              {assessment && !assessment.submitted ? (
+                                <GisAreaSendControls
+                                  assessmentId={assessment.id}
+                                  saving={savingArea}
+                                  saved={areaSaved}
+                                  err={areaSaveErr}
+                                  disabled={!currentAreaSummary}
+                                  onSend={() => void saveAreaSummary()}
+                                />
+                              ) : null}
+                            </div>
+                          );
+                        })()
+                      : null}
                   </>
                 ) : (
                   <p className="map-note">ลากจุดบนแผนที่เพื่อกำหนดพื้นที่คำนวณประชากร</p>
@@ -2375,7 +2397,9 @@ export default function CesiumMap({
                     </div>
                     <div>
                       <dt>ความสูงเฉลี่ย</dt>
-                      <dd>{fmt(analysis.meanElev)} ม. (ต่ำสุด {fmt(analysis.minElev)} – สูงสุด {fmt(analysis.maxElev)})</dd>
+                      <dd>
+                        {fmt(analysis.meanElev)} ม. (ต่ำสุด {fmt(analysis.minElev)} – สูงสุด {fmt(analysis.maxElev)})
+                      </dd>
                     </div>
                     <div>
                       <dt>ความต่างระดับ (relief)</dt>
@@ -2383,7 +2407,9 @@ export default function CesiumMap({
                     </div>
                     <div>
                       <dt>ความลาดชันเฉลี่ย</dt>
-                      <dd>{analysis.meanSlopePct.toFixed(1)}% (สูงสุด {analysis.maxSlopePct.toFixed(1)}%)</dd>
+                      <dd>
+                        {analysis.meanSlopePct.toFixed(1)}% (สูงสุด {analysis.maxSlopePct.toFixed(1)}%)
+                      </dd>
                     </div>
                     <div>
                       <dt>ชั้นความลาดชัน (LDD)</dt>
@@ -2403,14 +2429,14 @@ export default function CesiumMap({
                     <div>
                       <dt>ความสูงสุดตลอดเส้นทางทั้งเส้น (เกต SSRA)</dt>
                       <dd>
-                        {analysis.routeFullMaxElev !== null
-                          ? `${fmt(analysis.routeFullMaxElev)} ม.`
-                          : "ไม่มีข้อมูล"}
+                        {analysis.routeFullMaxElev !== null ? `${fmt(analysis.routeFullMaxElev)} ม.` : "ไม่มีข้อมูล"}
                       </dd>
                     </div>
                     <div>
                       <dt>ความสูงสุดช่วง 5 กม. สุดท้าย (จำแนก landform)</dt>
-                      <dd>{analysis.routeTailMaxElev !== null ? `${fmt(analysis.routeTailMaxElev)} ม.` : "ไม่มีข้อมูล"}</dd>
+                      <dd>
+                        {analysis.routeTailMaxElev !== null ? `${fmt(analysis.routeTailMaxElev)} ม.` : "ไม่มีข้อมูล"}
+                      </dd>
                     </div>
                     {analysis.classificationMethod === "fallback" ? (
                       <div>
@@ -2425,13 +2451,20 @@ export default function CesiumMap({
                   <p className="map-note">รอโหลดข้อมูลภูมิประเทศ…</p>
                 )}
               </div>
-              <button className="ghost-btn" type="button" onClick={() => void runAnalysis()} disabled={analyzing || !terrainReady}>
+              <button
+                className="ghost-btn"
+                type="button"
+                onClick={() => void runAnalysis()}
+                disabled={analyzing || !terrainReady}
+              >
                 {analyzing ? "กำลังวิเคราะห์…" : "วิเคราะห์ภูมิประเทศอีกครั้ง"}
               </button>
             </>
           )}
           <p className="map-credit">ภูมิประเทศ: Terrarium · AWS Open Data • ภาพถ่าย: {imageryStatus.credit}</p>
         </aside>
+      ) : (
+        <MapPanelToggle expanded={false} onToggle={() => setPanelExpanded(true)} />
       )}
     </div>
   );

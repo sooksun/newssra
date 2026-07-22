@@ -1,124 +1,77 @@
 export type LngLat = [number, number];
 
-export interface BorderCountry {
-  name: string;
-  nameTh: string;
-  isThailand: boolean;
-  label: LngLat;
-  rings: LngLat[][];
-}
-
 export interface ThaiSharedBorder {
   name: string;
   nameTh: string;
   label: LngLat;
   chains: LngLat[][];
-  segmentCount: number;
+  pointCount: number;
 }
 
-interface ThaiSegment {
-  ringIndex: number;
-  pointIndex: number;
-  a: LngLat;
-  b: LngLat;
+export interface SharedBordersDoc {
+  attribution: string;
+  borders: ThaiSharedBorder[];
 }
 
 const BORDER_ORDER = ["Myanmar", "Laos", "Cambodia", "Malaysia"];
 
-function coordKey([lng, lat]: LngLat): string {
-  return `${lng.toFixed(6)},${lat.toFixed(6)}`;
-}
+/**
+ * แนวชายแดนถูกคำนวณไว้ล่วงหน้าโดย `scripts/fetch-borders.mjs` (ดึงจาก OpenStreetMap
+ * ผ่าน Overpass API แล้วลดรูป) ฟังก์ชันนี้จึงมีหน้าที่แค่ตรวจความถูกต้องของไฟล์ที่โหลดมา
+ * — ทิ้งพิกัดที่ไม่ใช่ตัวเลขจำกัด และเส้นที่สั้นเกินกว่าจะวาดได้ เพื่อไม่ให้ Cesium พังกลางทาง
+ */
+export function parseSharedBorders(raw: unknown): SharedBordersDoc {
+  const doc = (raw ?? {}) as Record<string, unknown>;
+  const attribution = typeof doc.attribution === "string" ? doc.attribution : "";
+  const list = Array.isArray(doc.borders) ? doc.borders : [];
 
-function normalizedSegmentKey(a: LngLat, b: LngLat): string {
-  const ka = coordKey(a);
-  const kb = coordKey(b);
-  return ka < kb ? `${ka}|${kb}` : `${kb}|${ka}`;
-}
+  const borders = list.flatMap((entry): ThaiSharedBorder[] => {
+    const item = (entry ?? {}) as Record<string, unknown>;
+    const name = typeof item.name === "string" ? item.name : "";
+    const nameTh = typeof item.nameTh === "string" ? item.nameTh : name;
+    const label = toLngLat(item.label);
+    if (!name || !label) return [];
 
-function isValidCoord(point: LngLat): boolean {
-  return Number.isFinite(point[0]) && Number.isFinite(point[1]);
-}
-
-function isValidSegment(a: LngLat, b: LngLat): boolean {
-  return isValidCoord(a) && isValidCoord(b) && (a[0] !== b[0] || a[1] !== b[1]);
-}
-
-function chainThaiSegments(segments: ThaiSegment[]): LngLat[][] {
-  const chains: LngLat[][] = [];
-  let current: LngLat[] = [];
-  let currentRing = -1;
-  let nextIndex = -1;
-
-  const flush = () => {
-    if (current.length >= 2) chains.push(current);
-    current = [];
-  };
-
-  for (const segment of segments) {
-    const continues = segment.ringIndex === currentRing && segment.pointIndex === nextIndex;
-    if (!continues) {
-      flush();
-      currentRing = segment.ringIndex;
-      current = [segment.a, segment.b];
-    } else {
-      current.push(segment.b);
-    }
-    nextIndex = segment.pointIndex + 1;
-  }
-  flush();
-
-  return chains;
-}
-
-export function deriveThaiSharedBorders(countries: BorderCountry[]): ThaiSharedBorder[] {
-  const thailand = countries.find((country) => country.isThailand || country.name === "Thailand");
-  if (!thailand) return [];
-
-  const thaiSegments = new Map<string, ThaiSegment>();
-  thailand.rings.forEach((ring, ringIndex) => {
-    for (let pointIndex = 0; pointIndex < ring.length - 1; pointIndex += 1) {
-      const a = ring[pointIndex];
-      const b = ring[pointIndex + 1];
-      if (!isValidSegment(a, b)) continue;
-      thaiSegments.set(normalizedSegmentKey(a, b), { ringIndex, pointIndex, a, b });
-    }
-  });
-
-  const sharedBorders = countries.flatMap((country): ThaiSharedBorder[] => {
-    if (country === thailand || country.isThailand) return [];
-
-    const matched = new Map<string, ThaiSegment>();
-    for (const ring of country.rings) {
-      for (let i = 0; i < ring.length - 1; i += 1) {
-        const a = ring[i];
-        const b = ring[i + 1];
-        if (!isValidSegment(a, b)) continue;
-        const thaiSegment = thaiSegments.get(normalizedSegmentKey(a, b));
-        if (!thaiSegment) continue;
-        matched.set(`${thaiSegment.ringIndex}:${thaiSegment.pointIndex}`, thaiSegment);
-      }
-    }
-
-    const segments = [...matched.values()].sort(
-      (a, b) => a.ringIndex - b.ringIndex || a.pointIndex - b.pointIndex,
+    const chains = (Array.isArray(item.chains) ? item.chains : []).flatMap(
+      (chain): LngLat[][] => {
+        const points = (Array.isArray(chain) ? chain : [])
+          .map(toLngLat)
+          .filter((point): point is LngLat => point !== null);
+        return points.length >= 2 ? [points] : [];
+      },
     );
-    if (segments.length === 0) return [];
+    if (chains.length === 0) return [];
 
     return [
       {
-        name: country.name,
-        nameTh: country.nameTh,
-        label: country.label,
-        chains: chainThaiSegments(segments),
-        segmentCount: segments.length,
+        name,
+        nameTh,
+        label,
+        chains,
+        pointCount: chains.reduce((sum, chain) => sum + chain.length, 0),
       },
     ];
   });
 
-  return sharedBorders.sort((a, b) => {
+  borders.sort((a, b) => {
     const ai = BORDER_ORDER.indexOf(a.name);
     const bi = BORDER_ORDER.indexOf(b.name);
-    if (ai !== -1 || bi !== -1) return (ai === -1 ? Number.MAX_SAFE_INTEGER : ai) - (bi === -1 ? Number.MAX_SAFE_INTEGER : bi);
+    if (ai !== -1 || bi !== -1) {
+      return (
+        (ai === -1 ? Number.MAX_SAFE_INTEGER : ai) - (bi === -1 ? Number.MAX_SAFE_INTEGER : bi)
+      );
+    }
     return a.name.localeCompare(b.name);
   });
+
+  return { attribution, borders };
+}
+
+function toLngLat(raw: unknown): LngLat | null {
+  if (!Array.isArray(raw) || raw.length < 2) return null;
+  const lng = Number(raw[0]);
+  const lat = Number(raw[1]);
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null;
+  if (lng < -180 || lng > 180 || lat < -90 || lat > 90) return null;
+  return [lng, lat];
 }

@@ -15,9 +15,9 @@ test("Cesium renders red flag billboards for the school and selected-route high 
   assert.match(component.slice(highStart, highStart + 1_400), /billboard:\s*\{/);
 });
 
-test("both flag labels expose elevation and route sampling keeps the exact school coordinate", () => {
+test("both flag labels expose elevation and analysis reuses the flag's route samples", () => {
   assert.match(component, /ระดับความสูง[\s\S]*formatElevationMeters/);
-  assert.match(component, /จุดสูงสุดบนเส้นทาง[\s\S]*formatElevationMeters/);
-  assert.match(component, /sampledCoords\[sampledCoords\.length - 1\] = \[center\.lng, center\.lat\]/);
+  assert.match(component, /formatRouteHighestLabel\(highestPoint\.elevationM\)/);
+  assert.equal(component.match(/routeElevationSampleCoordinates\(/g)?.length, 2);
   assert.match(component, /buildRouteElevationProfile\(sampledCoords, heights\)/);
 });

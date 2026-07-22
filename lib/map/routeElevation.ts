@@ -24,6 +24,19 @@ export function sampleRouteCoordinates(coords: readonly RouteCoordinate[], maxCo
   });
 }
 
+export function routeElevationSampleCoordinates(
+  coords: readonly RouteCoordinate[],
+  schoolCoordinate: RouteCoordinate,
+  maxCount: number,
+): RouteCoordinate[] {
+  const sampled = sampleRouteCoordinates(coords, maxCount);
+  const school: RouteCoordinate = [schoolCoordinate[0], schoolCoordinate[1]];
+
+  if (sampled.length === 0) return [school];
+  sampled[sampled.length - 1] = school;
+  return sampled;
+}
+
 export function buildRouteElevationProfile(
   coords: readonly RouteCoordinate[],
   heights: ArrayLike<number>,
@@ -49,4 +62,8 @@ export function buildRouteElevationProfile(
 
 export function formatElevationMeters(value: number): string {
   return `${Math.round(value).toLocaleString("th-TH")} ม.`;
+}
+
+export function formatRouteHighestLabel(value: number): string {
+  return `จุดสูงสุดบนเส้นทาง\nระดับความสูง ${formatElevationMeters(value)}`;
 }
