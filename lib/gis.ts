@@ -553,8 +553,9 @@ function cleanStr(value: unknown, max: number): string {
   return typeof value === "string" ? value.slice(0, max) : "";
 }
 
-/** จุดสูงสุดตามเส้นทาง — ต้องเป็นชุดตัวอย่างเดียวกับธงแดงบนแผนที่; พิกัด/ความสูงใช้ไม่ได้ → ตัดทิ้ง (null) */
-function cleanHighestPoint(value: unknown): GisRouteHighestPoint | null {
+/** จุดสูงสุดตามเส้นทาง — ต้องเป็นชุดตัวอย่างเดียวกับธงแดงบนแผนที่; พิกัด/ความสูงใช้ไม่ได้ → ตัดทิ้ง (null)
+ * export ให้ lib/gis-request.ts เรียกใช้ตรง ๆ (กันสูตร validate ซ้ำสองที่) */
+export function cleanHighestPoint(value: unknown): GisRouteHighestPoint | null {
   if (!value || typeof value !== "object") return null;
   const p = value as Record<string, unknown>;
   if (!isValidLat(p.lat) || !isValidLng(p.lng)) return null;
