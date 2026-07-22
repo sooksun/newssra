@@ -21,18 +21,21 @@ let repo: typeof import("../../lib/repo.ts");
 
 const YEAR = currentBuddhistYear();
 
-// รหัสโรงเรียนทดสอบ 3 ตัว — แยกสถานการณ์ให้ไม่ชนกัน (แต่ละตัว cleanup แยกชัดเจนตอน after())
+// รหัสโรงเรียนทดสอบ 4 ตัว — แยกสถานการณ์ให้ไม่ชนกัน (แต่ละตัว cleanup แยกชัดเจนตอน after())
 const SCHOOL_A = "TESTMAPA"; // มี master data — ใช้ทดสอบ created → updated + forged schoolCode
 const SCHOOL_B = "TESTMAPB"; // มี master data + แบบประเมินปีนี้ยื่นแล้ว — ใช้ทดสอบ locked
 const SCHOOL_C = "TESTMAPC"; // ไม่มี master data เลย — ใช้ทดสอบ 422 ไม่พบพิกัดโรงเรียน
+const SCHOOL_D = "TESTMAPD"; // มี master data + แบบร่างปีนี้ที่มี unit.lat/lng อยู่แล้ว — ใช้ทดสอบการ์ด relocation
 
 const SESSION_A: SessionUser = { uid: 910001, role: "school", name: "รร.ทดสอบแผนที่ A", source: "local", schoolCode: SCHOOL_A };
 const SESSION_B: SessionUser = { uid: 910002, role: "school", name: "รร.ทดสอบแผนที่ B", source: "local", schoolCode: SCHOOL_B };
 const SESSION_C: SessionUser = { uid: 910003, role: "school", name: "รร.ทดสอบแผนที่ C", source: "local", schoolCode: SCHOOL_C };
 const SESSION_NO_SCHOOL: SessionUser = { uid: 910004, role: "school", name: "บัญชียังไม่ผูกโรงเรียน", source: "local", schoolCode: "" };
+const SESSION_D: SessionUser = { uid: 910005, role: "school", name: "รร.ทดสอบแผนที่ D", source: "local", schoolCode: SCHOOL_D };
 
 const LOC_ID_A = 999999201;
 const LOC_ID_B = 999999202;
+const LOC_ID_D = 999999204;
 // หมายเหตุ: ต้อง "ไม่" ขึ้นต้นด้วย "พสศ-TEST-" เพราะ assessment-security.test.mts มี cleanup แบบ
 // LIKE 'พสศ-TEST-%' อยู่ — ไฟล์ integration test คนละไฟล์รันแข่งกัน (Node test runner กระจาย process)
 // ถ้าใช้พรีฟิกซ์เดียวกันจะโดนลบข้ามไฟล์กลางคัน (ต้นเหตุ flake ที่เจอตอนรันทั้งชุดพร้อมกัน)
@@ -96,14 +99,15 @@ function submittedState(schoolCode: string): AssessmentState {
 
 async function cleanupTestRows() {
   await rawExec(
-    "DELETE FROM assessments WHERE owner_school_code IN (?, ?, ?) OR submitted_ref = ?",
-    [SCHOOL_A, SCHOOL_B, SCHOOL_C, SUBMITTED_REF_B],
+    "DELETE FROM assessments WHERE owner_school_code IN (?, ?, ?, ?) OR submitted_ref = ?",
+    [SCHOOL_A, SCHOOL_B, SCHOOL_C, SCHOOL_D, SUBMITTED_REF_B],
   );
-  await rawExec("DELETE FROM master_school WHERE sc_smis IN (?, ?, ?)", [SCHOOL_A, SCHOOL_B, SCHOOL_C]);
-  await rawExec("DELETE FROM school_location WHERE id IN (?, ?)", [LOC_ID_A, LOC_ID_B]);
+  await rawExec("DELETE FROM master_school WHERE sc_smis IN (?, ?, ?, ?)", [SCHOOL_A, SCHOOL_B, SCHOOL_C, SCHOOL_D]);
+  await rawExec("DELETE FROM school_location WHERE id IN (?, ?, ?)", [LOC_ID_A, LOC_ID_B, LOC_ID_D]);
 }
 
 let submittedBId = 0;
+let draftDId = 0;
 
 before(async () => {
   if (!DB) return;
@@ -113,12 +117,19 @@ before(async () => {
 
   await seedMasterSchool(SCHOOL_A, LOC_ID_A, `โรงเรียนทดสอบแผนที่ ${SCHOOL_A}`);
   await seedMasterSchool(SCHOOL_B, LOC_ID_B, `โรงเรียนทดสอบแผนที่ ${SCHOOL_B}`);
+  await seedMasterSchool(SCHOOL_D, LOC_ID_D, `โรงเรียนทดสอบแผนที่ ${SCHOOL_D}`);
   // SCHOOL_C ไม่มี master data เลย (จงใจ) — ใช้ทดสอบ 422 ไม่พบพิกัดโรงเรียน
 
   const submitted = submittedState(SCHOOL_B);
   submitted.unit.year = YEAR; // ต้องเป็นปีปัจจุบัน — /from-map ผูกกับ (schoolCode, ปีปัจจุบัน) เท่านั้น
   submittedBId = await repo.createAssessment(submitted, { userId: null, schoolCode: SCHOOL_B });
   createdAssessmentIds.push(submittedBId);
+
+  // แบบร่างปีนี้ของ SCHOOL_D — มี unit.lat/lng อยู่แล้ว (20.000000, 99.000000) ใช้ทดสอบการ์ด relocation
+  const draftD = draftState(SCHOOL_D);
+  draftD.unit.year = YEAR;
+  draftDId = await repo.createAssessment(draftD, { userId: null, schoolCode: SCHOOL_D });
+  createdAssessmentIds.push(draftDId);
 });
 
 after(async () => {
@@ -199,6 +210,9 @@ test("POST from-map: สร้างแบบประเมินปีปั�
   assert.equal(rec!.ownerSchoolCode, SCHOOL_A);
   assert.equal(rec!.state.unit.year, YEAR);
   assert.equal(rec!.state.scoringVersion, "v2-gis");
+  // จังหวัดของจุดวิเคราะห์ต้องมาจากทะเบียนโรงเรียนที่ลงทะเบียนไว้ (เชียงราย) เสมอเมื่อพบ — ไม่ว่าจุดวิเคราะห์ที่ส่งมาจะอยู่ที่ใด
+  // (finding 1: fallback ศาลากลางที่ใกล้ที่สุดอิงจุดวิเคราะห์ แต่จังหวัดที่ลงทะเบียนไว้ยังชนะเสมอ)
+  assert.equal(body.gis.center.nearestProvinceName, "เชียงราย");
 });
 
 test("POST from-map: เรียกซ้ำปีเดียวกัน → 200 updated ทับแถวเดิม (ไม่สร้างแถวใหม่)", { skip: !DB }, async () => {
@@ -243,3 +257,57 @@ test("POST from-map: แบบประเมินปีปัจจุบั�
   assert.ok(after_, "แถวต้องยังอยู่หลังเรียก locked");
   assert.deepEqual(after_!.state, before_!.state, "state ทั้งก้อนต้องเหมือนเดิมทุกประการ (ห้ามแตะ GIS/คะแนนของแบบที่ยื่นแล้ว)");
 });
+
+// ─────────────────── การ์ด relocation เมื่อ syncUnitLocation:true (เหมือน /gis) ───────────────────
+// SCHOOL_D มีแบบร่างปีนี้อยู่แล้วโดย unit.lat/lng = 20.000000, 99.000000 (draftState)
+
+test(
+  "POST from-map: syncUnitLocation:true จุดวิเคราะห์ห่างจากพิกัดเดิมเกิน 10 กม. → 409 และไม่แก้ไข unit.lat/lng เดิม",
+  { skip: !DB },
+  async () => {
+    const before_ = await repo.getAssessment(draftDId);
+    assert.ok(before_, "ต้องมีแบบร่างของ SCHOOL_D ให้เปรียบเทียบ");
+    assert.equal(before_!.state.unit.lat, "20.000000");
+    assert.equal(before_!.state.unit.lng, "99.000000");
+
+    await actAs(SESSION_D);
+    // ห่างจากจุดเดิม (20.0, 99.0) ประมาณ 11.1 กม. (0.1 องศาละติจูด) — เกินเพดาน 10,000 ม.
+    const farPayload = {
+      ...validPayload(),
+      center: { lat: 20.1, lng: 99.0, source: "map-pin" },
+      syncUnitLocation: true,
+    };
+    const res = await route.POST(jsonRequest(NextRequest, BASE, { method: "POST", body: farPayload }));
+    assert.equal(res.status, 409);
+
+    const after_ = await repo.getAssessment(draftDId);
+    assert.ok(after_, "แถวต้องยังอยู่หลังถูกปฏิเสธ");
+    assert.equal(after_!.state.unit.lat, "20.000000", "พิกัดโรงเรียนเดิมต้องไม่ถูกแก้ไข");
+    assert.equal(after_!.state.unit.lng, "99.000000", "พิกัดโรงเรียนเดิมต้องไม่ถูกแก้ไข");
+    assert.deepEqual(after_!.state, before_!.state, "state ทั้งก้อนต้องไม่เปลี่ยนแม้แต่ byte เดียวเมื่อถูก 409");
+  },
+);
+
+test(
+  "POST from-map: syncUnitLocation:true จุดวิเคราะห์ห่างจากพิกัดเดิมไม่เกิน 10 กม. → ยังสำเร็จ (updated)",
+  { skip: !DB },
+  async () => {
+    await actAs(SESSION_D);
+    // ห่างจากจุดเดิม (20.0, 99.0) ประมาณ 5.6 กม. (0.05 องศาละติจูด) — อยู่ในเพดาน 10,000 ม.
+    const nearPayload = {
+      ...validPayload(),
+      center: { lat: 20.05, lng: 99.0, source: "map-pin" },
+      syncUnitLocation: true,
+    };
+    const res = await route.POST(jsonRequest(NextRequest, BASE, { method: "POST", body: nearPayload }));
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.action, "updated");
+    assert.equal(body.assessmentId, draftDId);
+
+    const rec = await repo.getAssessment(draftDId);
+    assert.ok(rec);
+    assert.equal(rec!.state.unit.lat, "20.050000", "syncUnitLocation ต้องปรับพิกัดโรงเรียนไปยังจุดวิเคราะห์ใหม่");
+    assert.equal(rec!.state.unit.lng, "99.000000");
+  },
+);
