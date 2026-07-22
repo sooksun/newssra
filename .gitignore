@@ -40,5 +40,8 @@ npm-debug.log*
 # MCP task tooling / session data — ไม่ใช่ซอร์สของแอป
 /mcps/
 
+# Codex isolated feature worktrees
+/.worktrees/
+
 # Claude Code scheduled-task lock (pid/sessionId ของ process ปัจจุบัน)
 /.claude/scheduled_tasks.lock
