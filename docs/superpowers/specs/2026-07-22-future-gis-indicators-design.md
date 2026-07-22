@@ -20,15 +20,15 @@
 
 ## สถาปัตยกรรม (ทาง A — derived-only, ไม่เก็บลง state)
 
-ทั้งสองค่าเป็นค่าอนุพันธ์จากข้อมูลที่ `state.gis` มีอยู่แล้ว (`straightKm`, `roadKm`, `travelTimeRatio`) จึง**คำนวณสดตอนเรนเดอร์** — ไม่แก้ schema, ไม่แตะ `sanitizeGis`, ไม่มี migration, แถวเก่า round-trip เหมือนเดิมทุก byte
+ทั้งสองค่าเป็นค่าอนุพันธ์จากข้อมูลที่ `state.gis` มีอยู่แล้ว (`straightDistanceKm`, `roadDistanceKm`, `roadCircuityRatio`, `travelTimeRatio`) จึง**คำนวณสดตอนเรนเดอร์** — ไม่แก้ schema, ไม่แตะ `sanitizeGis`, ไม่มี migration, แถวเก่า round-trip เหมือนเดิมทุก byte
 
 ### หน่วยที่เพิ่ม/แก้
 
 1. **`lib/gis.ts`** (pure, framework-free — คงข้อห้าม import `lib/scoring.ts`)
-   - `displacementRatio(straightKm, roadKm): number | null` — คืน `straightKm / roadKm` ปัด 2 ตำแหน่ง; null เมื่อค่าไม่ finite หรือ `roadKm <= 0` หรือ `straightKm <= 0.05` (สอดคล้อง guard ของ `computeRcr`)
+   - `displacementRatio(straightKm, roadKm): number | null` — คืน `straightKm / roadKm` ปัด 2 ตำแหน่ง; null เมื่อค่าไม่ finite หรือ `roadKm <= 0` หรือ `straightKm <= 0.05` (สอดคล้อง guard ของ `computeRcr`; รับค่าจาก `route.straightDistanceKm` / `route.roadDistanceKm`)
    - `FUTURE_INDICATOR_IDS = ["F1", "F2"] as const` + type `FutureIndicatorResult = { id, title, value, valueLabel, severity, score, maxScore, explain }`
    - `futureIndicators(gis): FutureIndicatorResult[]` — ใช้ `primaryRoute(gis)` (เส้นทางไปที่ว่าการอำเภอ/ศาลากลาง):
-     - F1: value = `displacementRatio(route.straightKm, route.roadKm)`; **severity มาจาก `rcrSeverity(route.circuityRatio)` เดิม** (single source of truth — DR เป็นเพียงมุมมองกลับของ RCR จึงไม่สร้างตาราง band ใหม่ให้ drift ได้); score = severity, maxScore = 4
+     - F1: value = `displacementRatio(route.straightDistanceKm, route.roadDistanceKm)`; **severity มาจาก `rcrSeverity(route.roadCircuityRatio)` เดิม** (single source of truth — DR เป็นเพียงมุมมองกลับของ RCR จึงไม่สร้างตาราง band ใหม่ให้ drift ได้); score = severity, maxScore = 4
      - F2: value = `route.travelTimeRatio`; severity = `ttrSeverity(...)` เดิม; score = severity, maxScore = 4
      - explain ใช้ explainer ไทยแนวเดียวกับ `explainRcrTh`/`explainTtrTh` (F1 มี explainer ใหม่มุม "การกระจัด": เช่น "ระยะเส้นตรง X กม. แต่ต้องเดินทางจริง Y กม. — เส้นทางอ้อม Z%")
      - route เป็น null หรือค่าคำนวณไม่ได้ → คืน list ว่าง (UI แสดงบรรทัดเชิญชวน)
