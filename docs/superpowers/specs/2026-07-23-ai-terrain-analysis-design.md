@@ -1,0 +1,87 @@
+# Design: AI วิเคราะห์ภูมิประเทศจากภาพ 3D (แนะค่าลักษณะที่ตั้ง)
+
+วันที่: 2026-07-23 · สถานะ: อนุมัติดีไซน์แล้ว (รอ implementation plan)
+
+## เป้าหมาย
+
+หลังผู้ใช้จับภาพ 3D 9 มุมของที่ตั้งโรงเรียนเสร็จ ให้ **Claude vision วิเคราะห์ภาพทั้ง 9 อัตโนมัติ** แล้ว**แนะค่า "ลักษณะที่ตั้ง" (`settingType`)** — เกาะ / ภูเขาสูง / หุบเขา / เชิงเขา / พื้นราบห่างไกล / อื่นๆ — พร้อมเหตุผลภาษาไทยและระดับความมั่นใจ ผู้ใช้กด "ใช้ค่านี้" เพื่อเติมช่องลักษณะที่ตั้ง เป็นสัญญาณที่สองคู่กับที่ GIS แนะอยู่แล้ว (`suggestSettingTypeFromGis`)
+
+นี่คือ AI integration ตัวแรกของแอป (เดิมไม่มี AI ใดๆ)
+
+## ข้อตัดสินใจหลัก (ยืนยันกับผู้ใช้แล้ว)
+
+1. **AI แนะค่า `settingType` เท่านั้น** — ไม่แตะคะแนน/จุดตัด (`settingType` เป็นข้อมูลประกอบ ไม่คิดคะแนนอยู่แล้ว)
+2. **วิเคราะห์อัตโนมัติหลังจับภาพเสร็จ** — ไม่มีปุ่มแยก; client เรียกต่อจาก `/site-snapshots` สำเร็จ
+3. **แนะนำ ไม่ทับ** — เติม `settingType` เฉพาะเมื่อผู้ใช้กด "ใช้ค่านี้" (ไม่เขียนทับค่าที่ผู้ใช้เลือกเอง — ตามหลักเดิมของ fillBlankUnitFromMaster)
+
+## สถาปัตยกรรม
+
+### 1. AI layer (`lib/ai/terrainAnalysis.ts`, server-only)
+
+- Dependency ใหม่ **`@anthropic-ai/sdk`** (ตัวแรกที่เป็น AI) — เรียกฝั่ง server เท่านั้น, key ไม่รั่วไป client
+- Env ใหม่ `ANTHROPIC_API_KEY` (เพิ่มใน `.env.production.example` + `docs/DEPLOY.md`); ถ้าไม่ตั้ง → route คืน error สุภาพ ไม่ crash (เหมือน legacy tables ที่อาจไม่มี)
+- โมเดล **`claude-opus-4-8`**, `output_config: { effort: "medium" }` (perception ไม่ต้อง max), `thinking: { type: "adaptive" }`
+- **Structured output** บังคับ schema ผ่าน `output_config.format` (json_schema, `additionalProperties: false`):
+  ```
+  { settingType: enum ["เกาะ","ภูเขาสูง","หุบเขา","เชิงเขา","พื้นราบห่างไกล","อื่น ๆ"],
+    rationale: string,           // เหตุผลภาษาไทย ≤ 500 ตัวอักษร
+    confidence: enum ["high","medium","low"] }
+  ```
+- prompt (ไทย): อธิบายเกณฑ์ให้สอดคล้อง landform legend เดิม (ภูเขา สพฐ. ≥600 ม., เนินเขา ~150–600 ม., ฯลฯ จาก `lib/landform-legend.ts`), สั่งวิเคราะห์**เฉพาะภูมิประเทศ ห้ามระบุตัวบุคคล** (PDPA — ภาพเป็นภูมิทัศน์ดาวเทียม ไม่มีคนอยู่แล้ว), ส่ง 9 ภาพเป็น image content blocks (base64 จาก Buffer) เรียงตามมุม (บน/ใกล้4ทิศ/ไกล4ทิศ) พร้อม label มุม
+- ฟังก์ชัน `analyzeTerrainFromImages(images: {buffer, viewLabel, mimeType}[]): Promise<TerrainSuggestion>` — **จัดการทุก error แบบ null-safe**: `stop_reason === "refusal"`, rate-limit (429), auth (401 = key ผิด/ไม่มี), network — throw `TerrainAnalysisError` ให้ route แปลงเป็น HTTP status; validate `settingType` อยู่ใน `SETTING_TYPES` เสมอ (ไม่เชื่อ freeform)
+
+### 2. ชนิดข้อมูล + sanitize + preserve
+
+- `lib/types.ts`: เพิ่ม `TerrainSuggestion { settingType: SettingType; rationale: string; confidence: "high"|"medium"|"low"; analyzedAt: string }` และ **optional** `UnitInfo.settingSuggestion?: TerrainSuggestion` (optional → แถวเก่า round-trip ไม่งอก key)
+- `lib/state.ts`:
+  - `makeBlankState` ไม่ใส่ `settingSuggestion`
+  - `sanitizeState`: `cleanSettingSuggestion(raw)` — settingType ต้องอยู่ใน `SETTING_TYPES` (ไม่งั้นทิ้ง key), confidence ใน 3 ค่า, rationale cap 500, analyzedAt cap 40; set เฉพาะเมื่อ valid
+  - `preserveServerOwned`: `settingSuggestion` เป็น **server-owned** เหมือน `siteSnapshots` (delete จาก client ก่อน แล้วยกจาก DB ถ้ามี) — client แก้เองไม่ได้ผ่าน autosave
+
+### 3. Route (`POST /api/assessments/[id]/site-snapshots/analyze`)
+
+- `requireAssessmentAccess`; **409 หลัง submit**
+- อ่าน `state.unit.siteSnapshots` (ต้องมี ≥1 ภาพ ไม่งั้น 400 "ยังไม่มีภาพ") → `readSiteSnapshot` ทุกไฟล์ → `analyzeTerrainFromImages` → validate → เก็บ `state.unit.settingSuggestion` ผ่าน `saveAssessment` → คืน `{ suggestion }`
+- error map: `TerrainAnalysisError` code → 401 (key/auth) / 429 (rate-limit) / 422 (refusal) / 502 (upstream) / 500 (อื่น); ไม่แตะ state เมื่อ error
+
+### 4. Client (`CesiumMap.tsx`)
+
+- หลัง `/site-snapshots` คืน 201 → set สถานะ "กำลังวิเคราะห์ภูมิประเทศด้วย AI…" → `POST /analyze` → **ไม่ว่าจะสำเร็จหรือล้ม** navigate `/assessment/{id}#unitPanel` (ภาพครบเสมอ; ถ้า AI ล้มก็แค่ไม่มีคำแนะนำ — แสดง toast/inline error สั้น ๆ ก่อน navigate ก็ได้ แต่ไม่บล็อก)
+- ปุ่มจับภาพ label progress เดิม + เพิ่มสเต็ป "วิเคราะห์…" ต่อท้าย 9/9
+
+### 5. แสดงผล + รับค่า (`UnitPanel.tsx`)
+
+- ใต้บล็อก "ลักษณะที่ตั้ง" (ใกล้ gallery) แสดง `<SettingSuggestionCard>` เมื่อ `unit.settingSuggestion`:
+  - "🤖 AI แนะนำลักษณะที่ตั้ง: **{settingType}** (ความมั่นใจ {high→สูง/medium→ปานกลาง/low→ต่ำ})" + rationale + วันเวลา
+  - ปุ่ม **"ใช้ค่านี้"** → `onChange("settingType", suggestion.settingType)` (เติมค่า, ผู้ใช้แก้ทีหลังได้); ถ้า `settingType` ตรงกับที่แนะอยู่แล้ว → แสดง "ตรงกับที่เลือกไว้" แทนปุ่ม
+  - เป็น presentational (ทดสอบด้วย renderToStaticMarkup); ซ่อนตอน print
+- คู่กับกล่อง GIS-แนะนำเดิมใน GisSummary (คนละที่ คนละสัญญาณ — ไม่ชนกัน)
+
+## Error handling
+
+- AI ทุก error → route คืน status ที่เหมาะสม, state เดิมไม่เปลี่ยน, client แสดงข้อความไทยสั้น ๆ ไม่บล็อกการใช้งานฟอร์ม
+- ไม่มี key / dev ไม่ได้ตั้ง → 401 พร้อมข้อความ "ยังไม่ได้ตั้งค่า AI (ANTHROPIC_API_KEY)"; แอปส่วนอื่นทำงานปกติ
+- `settingSuggestion` null-safe ทุกจุด (optional field)
+
+## สิ่งที่ไม่แตะ
+
+`lib/scoring.ts`, `canSubmit`, คะแนน 100, flow จับภาพเดิม (`/site-snapshots` POST/GET ไม่เปลี่ยน — แค่มี `/analyze` เพิ่ม), `lib/gis.ts`
+
+## ทางเลือกที่พิจารณาแล้วไม่เลือก
+
+- **ผูก AI เข้าใน POST `/site-snapshots`** — ปุ่มจับภาพช้าขึ้นหลายวินาที (รอ vision) และ AI ล่มลากการจับภาพล้มด้วย; แยก endpoint ปลอดภัยกว่า
+- **background job + polling** — เกินจำเป็น แอปไม่มี job infra (Docker Compose ธรรมดา)
+- **AI เติม settingType อัตโนมัติ** — เสี่ยงทับดุลยพินิจผู้ประเมิน; แนะนำ+กดรับ สอดคล้องหลักเดิม
+
+## ข้อควรรู้ (จะย้ำใน spec)
+
+- **ค่าใช้จ่าย**: จับภาพซ้ำ = เรียก AI ใหม่ (Opus 4.8 vision 9 ภาพ) — `lib/ai/terrainAnalysis.ts` อ่านโมเดล/effort จาก env (`AI_TERRAIN_MODEL`, `AI_TERRAIN_EFFORT`) เผื่อปรับลดต้นทุน (default opus-4-8 / medium); log การเรียกทุกครั้ง
+- **PDPA**: prompt สั่งวิเคราะห์เฉพาะภูมิประเทศ ห้ามระบุ/อนุมานตัวบุคคล
+- **ความปลอดภัย key**: `ANTHROPIC_API_KEY` อ่านฝั่ง server เท่านั้น (route + lib/ai) — ห้าม import จาก client component
+
+## Testing
+
+- `lib/ai/terrainAnalysis.test.ts` (unit, no network): `cleanSettingSuggestion`/validate — settingType นอก enum ถูกทิ้ง, cap ความยาว, confidence ผิดค่าถูกปัดทิ้ง; parse ผล SDK แบบ mock (ถ้าแยกฟังก์ชัน parse ออกมา pure ได้ ให้ทดสอบ parse ล้วนโดยไม่แตะเครือข่าย)
+- `tests/state.test.ts`: sanitize + preserve ของ `settingSuggestion` (server-owned, ไม่งอก key, client แก้ไม่ได้)
+- `components/SettingSuggestionCard.test.tsx`: มี/ไม่มี suggestion, ปุ่ม "ใช้ค่านี้", กรณีตรงกับค่าที่เลือกแล้ว
+- Integration (`assessment-security.test.mts`): `/analyze` 409 หลัง submit + scoping (mock ตัว AI call ด้วย `mock.module` เพื่อไม่ยิงเครือข่ายจริง — คืน suggestion คงที่)
