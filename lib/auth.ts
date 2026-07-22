@@ -27,13 +27,13 @@ function authSecret(): string {
   if (process.env.NODE_ENV === "production") {
     throw new Error(
       "[auth] ต้องตั้งค่า AUTH_SECRET (ยาว >= 16 ตัว และไม่ใช่ค่า default) บน production — สร้างด้วย: " +
-        'node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+        "node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
     );
   }
 
   if (!warnedSecret) {
     console.warn(
-      "[auth] AUTH_SECRET ไม่ได้ตั้งค่า (หรือสั้นเกินไป) — ใช้ค่า default สำหรับ dev เท่านั้น ห้ามใช้บน production"
+      "[auth] AUTH_SECRET ไม่ได้ตั้งค่า (หรือสั้นเกินไป) — ใช้ค่า default สำหรับ dev เท่านั้น ห้ามใช้บน production",
     );
     warnedSecret = true;
   }

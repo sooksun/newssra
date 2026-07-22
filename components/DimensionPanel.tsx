@@ -40,7 +40,14 @@ export default function DimensionPanel({ dimension, assessmentId, state, compute
       </div>
       <div className="indicator-grid">
         {dimension.ids.map((id) => (
-          <IndicatorCard key={id} id={id} assessmentId={assessmentId} state={state} computed={computed} handlers={handlers} />
+          <IndicatorCard
+            key={id}
+            id={id}
+            assessmentId={assessmentId}
+            state={state}
+            computed={computed}
+            handlers={handlers}
+          />
         ))}
       </div>
     </section>
@@ -107,7 +114,7 @@ function CriteriaInfo({ id, indicator }: { id: IndicatorId; indicator: Indicator
   const bands =
     indicator.kind === "level"
       ? indicator.options.map((option) => `${option.label} = ${option.points} คะแนน`)
-      : indicator.criteria ?? [];
+      : (indicator.criteria ?? []);
 
   return (
     <span className="info-icon-wrap" tabIndex={0} aria-label={`เกณฑ์การให้คะแนนตัวชี้วัด ${id} ${indicator.title}`}>
@@ -347,7 +354,11 @@ function EvidenceBox({ id, indicator, evidence, assessmentId, onEvidence }: Evid
           disabled={uploading || atLimit}
           onChange={handleFileSelect}
         />
-        {uploading ? "กำลังอัปโหลด…" : atLimit ? `แนบไฟล์ครบ ${MAX_FILES_PER_INDICATOR} ไฟล์แล้ว` : "+ แนบไฟล์หลักฐาน (ภาพ/PDF)"}
+        {uploading
+          ? "กำลังอัปโหลด…"
+          : atLimit
+            ? `แนบไฟล์ครบ ${MAX_FILES_PER_INDICATOR} ไฟล์แล้ว`
+            : "+ แนบไฟล์หลักฐาน (ภาพ/PDF)"}
       </label>
       {error ? <p className="evidence-upload-error">{error}</p> : null}
     </div>

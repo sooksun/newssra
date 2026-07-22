@@ -91,7 +91,14 @@ export function sanitizeState(input: unknown): AssessmentState {
 
   const rawUnit = (raw.unit && typeof raw.unit === "object" ? raw.unit : {}) as Record<string, unknown>;
   const unitKeys: Exclude<keyof UnitInfo, "unitType" | "settingType">[] = [
-    "name", "code", "year", "totalStudents", "areaOffice", "province", "lat", "lng",
+    "name",
+    "code",
+    "year",
+    "totalStudents",
+    "areaOffice",
+    "province",
+    "lat",
+    "lng",
   ];
   unitKeys.forEach((key) => {
     state.unit[key] = cleanString(rawUnit[key]);
@@ -107,7 +114,10 @@ export function sanitizeState(input: unknown): AssessmentState {
     state.unit.settingType = "";
   }
 
-  const rawResponses = (raw.responses && typeof raw.responses === "object" ? raw.responses : {}) as Record<string, unknown>;
+  const rawResponses = (raw.responses && typeof raw.responses === "object" ? raw.responses : {}) as Record<
+    string,
+    unknown
+  >;
   const rawEvidence = (raw.evidence && typeof raw.evidence === "object" ? raw.evidence : {}) as Record<string, unknown>;
   const rawFeedback = (raw.feedback && typeof raw.feedback === "object" ? raw.feedback : {}) as Record<string, unknown>;
 

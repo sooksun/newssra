@@ -38,7 +38,7 @@ export async function POST() {
           error: `โรงเรียนนี้มีแบบประเมินสำหรับปี ${state.unit.year} อยู่แล้ว ไม่สามารถสร้างซ้ำได้ (1 โรงเรียนสร้างได้ 1 แบบประเมินต่อปี)`,
           assessmentId: existing?.id ?? null,
         },
-        { status: 409 }
+        { status: 409 },
       );
     }
     console.error("[api] create assessment failed:", error);

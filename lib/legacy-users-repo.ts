@@ -26,7 +26,7 @@ export async function findLegacyUser(code: string): Promise<LegacyUser | null> {
   try {
     const [rows] = await pool.query<LegacyRow[]>(
       "SELECT `user`, name, sc_id, password FROM `user` WHERE `user` = ? LIMIT 1",
-      [code]
+      [code],
     );
     if (!rows.length) return null;
     const r = rows[0];

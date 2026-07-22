@@ -3,13 +3,7 @@
 
 import { settlementClass } from "./settlement";
 import { estimateWscClass } from "./wsc-proxy";
-import type {
-  CommunityAxisATier,
-  CommunityCompositeKey,
-  GisAnalysis,
-  GisCommunityClass,
-  SettingType,
-} from "./types";
+import type { CommunityAxisATier, CommunityCompositeKey, GisAnalysis, GisCommunityClass, SettingType } from "./types";
 
 // เวอร์ชันเกณฑ์จำแนกชุมชน 3 แกน — เปลี่ยนเมื่อปรับประตูความสูง/ป้าย composite
 // cc-2: partial axis (A-only / B-only) → incomplete เท่านั้น (ไม่เดา flat_* หรือ highland_*)
@@ -200,9 +194,7 @@ export function classifyCommunity(input: ClassifyCommunityInput): GisCommunityCl
   }
 
   const meanSlopePct =
-    input.meanSlopePct !== null &&
-    input.meanSlopePct !== undefined &&
-    Number.isFinite(input.meanSlopePct)
+    input.meanSlopePct !== null && input.meanSlopePct !== undefined && Number.isFinite(input.meanSlopePct)
       ? input.meanSlopePct
       : null;
   const wsc = estimateWscClass({ meanSlopePct, schoolElevationM });
@@ -279,10 +271,7 @@ export function communityAxisATierLabelTh(tier: CommunityAxisATier): string {
  * แนะนำ unit.settingType จากผล GIS
  * ใช้ communityClass ที่มีอยู่แล้ว ถ้าไม่มีจะ classify จาก accessSeverity ที่ส่งมา
  */
-export function suggestSettingTypeFromGis(
-  gis: GisAnalysis,
-  accessSeverity: number | null = null,
-): SettingType | null {
+export function suggestSettingTypeFromGis(gis: GisAnalysis, accessSeverity: number | null = null): SettingType | null {
   const cc = gis.communityClass ?? computeCommunityClass(gis, accessSeverity);
   const landform = (gis.elevation?.landformTh ?? cc.axisA.landformTh ?? "").trim();
 

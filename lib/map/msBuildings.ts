@@ -246,7 +246,7 @@ export async function importQuadkeyToDb(quadkey: string, log?: (msg: string) => 
   await pool.query(
     `INSERT INTO map_buildings_meta (quadkey, building_count, imported_at) VALUES (?, ?, ?)
      ON DUPLICATE KEY UPDATE building_count = VALUES(building_count), imported_at = VALUES(imported_at)`,
-    [quadkey, total, new Date().toISOString()]
+    [quadkey, total, new Date().toISOString()],
   );
   return total;
 }
@@ -255,7 +255,7 @@ export async function importQuadkeyToDb(quadkey: string, log?: (msg: string) => 
 async function ensureQuadkeyImported(pool: Pool, quadkey: string): Promise<void> {
   const [rows] = await pool.query<import("mysql2/promise").RowDataPacket[]>(
     "SELECT quadkey FROM map_buildings_meta WHERE quadkey = ? LIMIT 1",
-    [quadkey]
+    [quadkey],
   );
   if (rows.length) return;
 
@@ -359,14 +359,23 @@ export async function fetchBuildingFootprints(
     const [rows] = await pool.query<import("mysql2/promise").RowDataPacket[]>(
       `SELECT lat, lng, area_m2 FROM map_buildings
         WHERE quadkey IN (?) AND lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?`,
-      [quadkeys, lat - dLat, lat + dLat, lng - dLng, lng + dLng]
+      [quadkeys, lat - dLat, lat + dLat, lng - dLng, lng + dLng],
     );
     candidates = rows
-      .map((r) => ({ lat: r.lat as number, lng: r.lng as number, areaM2: r.area_m2 as number, ring: null, d: haversineM(lat, lng, r.lat, r.lng) }))
+      .map((r) => ({
+        lat: r.lat as number,
+        lng: r.lng as number,
+        areaM2: r.area_m2 as number,
+        ring: null,
+        d: haversineM(lat, lng, r.lat, r.lng),
+      }))
       .filter((c) => c.d <= radiusM);
   } catch (error) {
     // ── fallback: DB ใช้ไม่ได้ — สตรีม quadkey กลาง + cache ใน memory (พฤติกรรมเดิม) ──
-    console.warn("[buildings] DB path unavailable, falling back to streaming:", error instanceof Error ? error.message : error);
+    console.warn(
+      "[buildings] DB path unavailable, falling back to streaming:",
+      error instanceof Error ? error.message : error,
+    );
     const all = await loadQuadkeyBuildingsInMemory(centerQuadkey);
     candidates = all
       .map((b) => ({ lat: b.lat, lng: b.lng, areaM2: b.areaM2, ring: b.ring, d: haversineM(lat, lng, b.lat, b.lng) }))

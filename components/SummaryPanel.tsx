@@ -106,7 +106,8 @@ export default function SummaryPanel({
           ในกรณีที่ผลการประเมินของสถานศึกษาแห่งนี้เข้าเกณฑ์ตามที่กำหนด
           ข้าราชการครูและบุคลากรทางการศึกษาที่ปฏิบัติหน้าที่ในสถานศึกษาแห่งนี้มีสิทธิ์ยื่นขอรับเงินเพิ่มสำหรับตำแหน่งที่มีเหตุพิเศษ
           (พ.ส.ศ.) โดยมีเงื่อนไขว่าต้องปฏิบัติหน้าที่ในสถานศึกษาแห่งนี้ติดต่อกันไม่น้อยกว่า 5 ปี
-          นับแต่วันที่ได้รับการแต่งตั้งให้ปฏิบัติหน้าที่ ณ สถานศึกษาแห่งนี้ ทั้งนี้ ผู้มีสิทธิ์อาจเลือกไม่ยื่นขอรับเงินเพิ่มดังกล่าวก็ได้
+          นับแต่วันที่ได้รับการแต่งตั้งให้ปฏิบัติหน้าที่ ณ สถานศึกษาแห่งนี้ ทั้งนี้
+          ผู้มีสิทธิ์อาจเลือกไม่ยื่นขอรับเงินเพิ่มดังกล่าวก็ได้
         </p>
       </div>
 
@@ -119,12 +120,7 @@ export default function SummaryPanel({
       </label>
 
       <div className="submit-row">
-        <button
-          className="primary-btn"
-          type="button"
-          disabled={!computed.submittable || submitting}
-          onClick={onSubmit}
-        >
+        <button className="primary-btn" type="button" disabled={!computed.submittable || submitting} onClick={onSubmit}>
           {submitting ? "กำลังส่ง…" : submitLabel}
         </button>
         <span className="submit-hint">{submitHint}</span>

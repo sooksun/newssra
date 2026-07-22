@@ -21,11 +21,7 @@ export const dynamic = "force-dynamic";
 // มุมมองเริ่มต้นทั้งประเทศ (ศูนย์กลางประมาณกลางประเทศไทย) สำหรับ admin/ssra_admin
 const THAILAND_CENTER: MapCenter = { lat: 15.5, lng: 101.0, name: "ประเทศไทย" };
 
-export default async function MapPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ assessment?: string }>;
-}) {
+export default async function MapPage({ searchParams }: { searchParams: Promise<{ assessment?: string }> }) {
   const user = await requireUser();
   const canSeeAll = user.role === "admin" || user.role === "ssra_admin";
   const sp = await searchParams;

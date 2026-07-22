@@ -28,18 +28,14 @@ export default function MapCommunityClassPreview({ community }: Props) {
         </li>
         <li>
           <span className="map-community-axis">C ความหนาแน่น</span>
-          {community.axisC
-            ? community.axisC.label
-            : "ยังไม่มีข้อสรุปพื้นที่ (วาด polygon หรือดูวงรัศมี)"}
+          {community.axisC ? community.axisC.label : "ยังไม่มีข้อสรุปพื้นที่ (วาด polygon หรือดูวงรัศมี)"}
           <span className="map-community-c-note"> — แกนเมือง/ชนบท ไม่ใช่ระดับความทุรกันดาร</span>
         </li>
         {community.wscProxy ? (
           <li>
             <span className="map-community-axis">WSC</span>
             {community.wscProxy.labelTh}
-            {community.wscProxy.meanSlopePct !== null
-              ? ` · ลาด ${community.wscProxy.meanSlopePct}%`
-              : ""}
+            {community.wscProxy.meanSlopePct !== null ? ` · ลาด ${community.wscProxy.meanSlopePct}%` : ""}
             <span className="map-community-c-note"> — ประมาณจาก slope ไม่ใช่แผนที่ราชการ</span>
           </li>
         ) : null}

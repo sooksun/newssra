@@ -80,9 +80,7 @@ export default async function HomePage({
   const requestedPage = Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1);
   const rawCommunity = sp.community ?? "";
   const communityFilter =
-    rawCommunity === "" ||
-    rawCommunity === COMMUNITY_LIST_UNINDEXED_KEY ||
-    isCommunityCompositeKey(rawCommunity)
+    rawCommunity === "" || rawCommunity === COMMUNITY_LIST_UNINDEXED_KEY || isCommunityCompositeKey(rawCommunity)
       ? rawCommunity
       : "";
 
@@ -147,7 +145,8 @@ export default async function HomePage({
       <div className="pilot-banner">
         <strong>ระบบอยู่ระหว่างทดสอบกับผู้เกี่ยวข้อง (Stakeholder Test)</strong>
         <span>
-          สร้างแบบประเมินเพื่อทดลองกรอกและแสดงความคิดเห็นต่อแต่ละตัวชี้วัด แล้วดูสรุปความคิดเห็นทั้งหมดได้ที่ &ldquo;สรุปความคิดเห็นผู้ทดสอบ&rdquo;
+          สร้างแบบประเมินเพื่อทดลองกรอกและแสดงความคิดเห็นต่อแต่ละตัวชี้วัด แล้วดูสรุปความคิดเห็นทั้งหมดได้ที่
+          &ldquo;สรุปความคิดเห็นผู้ทดสอบ&rdquo;
         </span>
       </div>
 
@@ -205,9 +204,7 @@ export default async function HomePage({
                 {items.map((item) => (
                   <tr key={item.id}>
                     <td className="cell-main">
-                      <a href={`/assessment/${item.id}`}>
-                        {item.unitName || "(ยังไม่ระบุชื่อ)"}
-                      </a>
+                      <a href={`/assessment/${item.id}`}>{item.unitName || "(ยังไม่ระบุชื่อ)"}</a>
                       <span className="cell-sub">
                         {item.unitType}
                         {item.unitCode ? ` • รหัส ${item.unitCode}` : ""}
@@ -231,9 +228,7 @@ export default async function HomePage({
                       <span className="cell-sub">/100</span>
                     </td>
                     <td>
-                      <span className={`level-pill ${levelPillClass(item.levelKey)}`}>
-                        {item.levelLabel}
-                      </span>
+                      <span className={`level-pill ${levelPillClass(item.levelKey)}`}>{item.levelLabel}</span>
                     </td>
                     <td>
                       {item.submittedRef ? (
@@ -265,15 +260,21 @@ export default async function HomePage({
                 ← ก่อนหน้า
               </Link>
             ) : (
-              <span className="ghost-btn disabled" aria-disabled="true">← ก่อนหน้า</span>
+              <span className="ghost-btn disabled" aria-disabled="true">
+                ← ก่อนหน้า
+              </span>
             )}
-            <span className="pager-status">หน้า {currentPage} / {pageCount}</span>
+            <span className="pager-status">
+              หน้า {currentPage} / {pageCount}
+            </span>
             {currentPage < pageCount ? (
               <Link className="ghost-btn" href={filterHref(communityFilter, currentPage + 1)}>
                 ถัดไป →
               </Link>
             ) : (
-              <span className="ghost-btn disabled" aria-disabled="true">ถัดไป →</span>
+              <span className="ghost-btn disabled" aria-disabled="true">
+                ถัดไป →
+              </span>
             )}
           </nav>
         ) : null}

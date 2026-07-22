@@ -12,10 +12,7 @@ import type {
   IndicatorId,
   SessionUser,
 } from "./types";
-import {
-  COMMUNITY_LIST_UNINDEXED_KEY,
-  isCommunityCompositeKey,
-} from "./community-class";
+import { COMMUNITY_LIST_UNINDEXED_KEY, isCommunityCompositeKey } from "./community-class";
 import { computeCommunityClass } from "./gis";
 import { applyMapGisToState, fillBlankUnitFromMaster } from "./map-assessment";
 import type { MapAssessmentSaveResult, SaveAssessmentFromMapInput, SchoolAssessmentMaster } from "./map-assessment";
@@ -73,9 +70,7 @@ function summaryValues(state: AssessmentState) {
   const total = totalScore(state);
   const level = levelFor(total);
   // ถ้ามี gis แต่ยังไม่มี communityClass (แถวเก่า) — คำนวณสดสำหรับดัชนีรายการ
-  const cc = state.gis
-    ? (state.gis.communityClass ?? computeCommunityClass(state.gis))
-    : null;
+  const cc = state.gis ? (state.gis.communityClass ?? computeCommunityClass(state.gis)) : null;
   return {
     unitName: state.unit.name,
     unitCode: state.unit.code,
@@ -160,11 +155,7 @@ async function insertAssessmentRow(
 
 /** UPDATE แถว assessments ที่มีอยู่ — ใช้ร่วมกันทั้ง saveAssessment (pool) และ saveAssessmentFromMapOnce (conn ใน transaction)
  *  ไม่แตะ owner_user_id/owner_school_code (เจ้าของตั้งครั้งเดียวตอนสร้าง ไม่เปลี่ยนภายหลัง) */
-async function updateAssessmentRow(
-  executor: SqlExecutor,
-  id: number,
-  indexed: AssessmentState,
-): Promise<number> {
+async function updateAssessmentRow(executor: SqlExecutor, id: number, indexed: AssessmentState): Promise<number> {
   const s = summaryValues(indexed);
   const [result] = await executor.query<ResultSetHeader>(
     `UPDATE assessments SET ${SHARED_SUMMARY_COLUMNS.map((c) => `${c} = ?`).join(", ")} WHERE id = ?`,
@@ -222,14 +213,12 @@ export interface PageOpts {
   communityClassKey?: string;
 }
 
-
 function normalizePage(opts?: PageOpts): { limit: number; offset: number; communityClassKey: string | null } | null {
   if (!opts) return null;
   const limit = Number.isInteger(opts.limit) && opts.limit > 0 ? Math.min(opts.limit, 200) : 20;
   const offset = Number.isInteger(opts.offset) && opts.offset > 0 ? opts.offset : 0;
   const raw = opts.communityClassKey;
-  const key =
-    raw === COMMUNITY_LIST_UNINDEXED_KEY || isCommunityCompositeKey(raw) ? raw : null;
+  const key = raw === COMMUNITY_LIST_UNINDEXED_KEY || isCommunityCompositeKey(raw) ? raw : null;
   return { limit, offset, communityClassKey: key };
 }
 
@@ -253,14 +242,14 @@ export async function listAssessments(viewer: Viewer, opts?: PageOpts): Promise<
     if (!viewer.schoolCode) return []; // school ที่ยังไม่ผูกรหัสโรงเรียน → ไม่เห็นอะไรเลย
     const [rows] = await pool.query<AssessmentRow[]>(
       `SELECT ${SUMMARY_COLUMNS} FROM assessments WHERE owner_school_code = ?${cf.sql} ORDER BY updated_at DESC${pageSql}`,
-      [viewer.schoolCode, ...cf.args, ...pageArgs]
+      [viewer.schoolCode, ...cf.args, ...pageArgs],
     );
     return rows.map(rowToSummary);
   }
   const where = cf.sql ? `WHERE 1=1${cf.sql}` : "";
   const [rows] = await pool.query<AssessmentRow[]>(
     `SELECT ${SUMMARY_COLUMNS} FROM assessments ${where} ORDER BY updated_at DESC${pageSql}`,
-    [...cf.args, ...pageArgs]
+    [...cf.args, ...pageArgs],
   );
   return rows.map(rowToSummary);
 }
@@ -273,7 +262,7 @@ export async function countAssessments(viewer: Viewer, communityClassKey?: strin
     if (!viewer.schoolCode) return 0;
     const [rows] = await pool.query<(RowDataPacket & { n: number })[]>(
       `SELECT COUNT(*) AS n FROM assessments WHERE owner_school_code = ?${cf.sql}`,
-      [viewer.schoolCode, ...cf.args]
+      [viewer.schoolCode, ...cf.args],
     );
     return rows[0]?.n ?? 0;
   }
@@ -289,7 +278,7 @@ export async function getAssessment(id: number): Promise<AssessmentRecord | null
   const pool = await getPool();
   const [rows] = await pool.query<AssessmentRow[]>(
     `SELECT id, state, owner_user_id, owner_school_code, created_at, updated_at FROM assessments WHERE id = ? LIMIT 1`,
-    [id]
+    [id],
   );
   if (!rows.length) return null;
   return rowToRecord(rows[0]);
@@ -305,7 +294,7 @@ export async function assessmentForSchoolYear(schoolCode: string, year: string):
        FROM assessments
       WHERE owner_school_code = ? AND assessment_year = ?
       LIMIT 1`,
-    [schoolCode, year]
+    [schoolCode, year],
   );
   return rows.length ? rowToRecord(rows[0]) : null;
 }
@@ -316,10 +305,9 @@ export async function assessmentForSchoolYear(schoolCode: string, year: string):
  *  - string = รหัสโรงเรียนเจ้าของ */
 export async function getAssessmentOwnerSchoolCode(id: number): Promise<string | null | undefined> {
   const pool = await getPool();
-  const [rows] = await pool.query<AssessmentRow[]>(
-    `SELECT owner_school_code FROM assessments WHERE id = ? LIMIT 1`,
-    [id]
-  );
+  const [rows] = await pool.query<AssessmentRow[]>(`SELECT owner_school_code FROM assessments WHERE id = ? LIMIT 1`, [
+    id,
+  ]);
   if (!rows.length) return undefined;
   return rows[0].owner_school_code;
 }
@@ -342,10 +330,9 @@ export async function saveAssessment(id: number, state: AssessmentState): Promis
   const affectedRows = await updateAssessmentRow(pool, id, indexed);
   if (affectedRows === 0) return null;
 
-  const [rows] = await pool.query<AssessmentRow[]>(
-    `SELECT ${SUMMARY_COLUMNS} FROM assessments WHERE id = ? LIMIT 1`,
-    [id]
-  );
+  const [rows] = await pool.query<AssessmentRow[]>(`SELECT ${SUMMARY_COLUMNS} FROM assessments WHERE id = ? LIMIT 1`, [
+    id,
+  ]);
   return rows.length ? rowToSummary(rows[0]) : null;
 }
 
@@ -356,7 +343,7 @@ export async function saveAssessment(id: number, state: AssessmentState): Promis
  */
 async function saveAssessmentFromMapOnce(
   conn: PoolConnection,
-  input: SaveAssessmentFromMapInput
+  input: SaveAssessmentFromMapInput,
 ): Promise<MapAssessmentSaveResult> {
   await conn.beginTransaction();
   try {
@@ -366,7 +353,7 @@ async function saveAssessmentFromMapOnce(
         WHERE owner_school_code = ? AND assessment_year = ?
         LIMIT 1
         FOR UPDATE`,
-      [input.schoolCode, input.year]
+      [input.schoolCode, input.year],
     );
 
     if (rows.length) {
@@ -380,7 +367,7 @@ async function saveAssessmentFromMapOnce(
         ? fillBlankUnitFromMaster(existing.state, input.master, input.year)
         : existing.state;
       const nextState = reindexCommunityOnState(
-        applyMapGisToState(stateWithMasterFields, input.gis, { syncUnitLocation: input.syncUnitLocation })
+        applyMapGisToState(stateWithMasterFields, input.gis, { syncUnitLocation: input.syncUnitLocation }),
       );
       await updateAssessmentRow(conn, existing.id, nextState);
       await conn.commit();
@@ -388,7 +375,7 @@ async function saveAssessmentFromMapOnce(
     }
 
     const nextState = reindexCommunityOnState(
-      applyMapGisToState(input.initialState, input.gis, { syncUnitLocation: input.syncUnitLocation })
+      applyMapGisToState(input.initialState, input.gis, { syncUnitLocation: input.syncUnitLocation }),
     );
     const insertId = await insertAssessmentRow(conn, nextState, {
       userId: input.ownerUserId,
@@ -411,9 +398,7 @@ async function saveAssessmentFromMapOnce(
  *  ทั้งสามกรณีนี้รอบสองจะเจอแถวที่ได้ล็อกไปแล้วจาก SELECT ... FOR UPDATE และตัดสินใจ updated/locked ตามจริง */
 const RETRYABLE_TRANSACTION_ERROR_CODES = new Set(["ER_DUP_ENTRY", "ER_LOCK_DEADLOCK", "ER_LOCK_WAIT_TIMEOUT"]);
 
-export async function saveAssessmentFromMapAtomic(
-  input: SaveAssessmentFromMapInput
-): Promise<MapAssessmentSaveResult> {
+export async function saveAssessmentFromMapAtomic(input: SaveAssessmentFromMapInput): Promise<MapAssessmentSaveResult> {
   const pool = await getPool();
   const conn = await pool.getConnection();
   try {
@@ -443,7 +428,7 @@ export async function maxSubmissionSeq(year: string): Promise<number> {
   const [rows] = await pool.query<(RowDataPacket & { m: number | null })[]>(
     `SELECT MAX(CAST(SUBSTRING_INDEX(submitted_ref, '-', -1) AS UNSIGNED)) AS m
        FROM assessments WHERE submitted_ref LIKE ?`,
-    [`พสศ-${year}-%`]
+    [`พสศ-${year}-%`],
   );
   const m = Number(rows[0]?.m);
   return Number.isFinite(m) ? m : 0;
@@ -470,7 +455,7 @@ export async function listAllStates(limit: number = DASHBOARD_ROW_CAP): Promise<
   const cap = Number.isInteger(limit) && limit > 0 ? limit : DASHBOARD_ROW_CAP;
   const [rows] = await pool.query<AssessmentRow[]>(
     `SELECT id, state, unit_name, unit_code, province, submitted_ref, updated_at FROM assessments ORDER BY updated_at DESC LIMIT ?`,
-    [cap]
+    [cap],
   );
   return rows.map((row) => ({
     id: row.id,
@@ -502,7 +487,7 @@ export async function latestOwnerCoords(schoolCode: string): Promise<OwnerCoords
   const pool = await getPool();
   const [rows] = await pool.query<AssessmentRow[]>(
     `SELECT state, unit_name FROM assessments WHERE owner_school_code = ? ORDER BY updated_at DESC LIMIT 20`,
-    [schoolCode]
+    [schoolCode],
   );
   for (const row of rows) {
     const state = parseState(row.state);
@@ -537,7 +522,7 @@ export async function schoolLocationByCode(schoolCode: string): Promise<OwnerCoo
          JOIN school_location sl ON sl.id = ms.sc_id
         WHERE ms.sc_smis = ?
         LIMIT 1`,
-      [schoolCode]
+      [schoolCode],
     );
   } catch (error) {
     console.error("[repo] schoolLocationByCode failed (legacy tables missing?):", error);
@@ -577,7 +562,7 @@ export async function provinceHouseholdSize(provinceName: string): Promise<numbe
     const pool = await getPool();
     const [rows] = await pool.query<HouseholdSizeRow[]>(
       `SELECT SUM(people) AS totalPeople, SUM(family) AS totalFamily FROM master_viledges WHERE TRIM(province) = ?`,
-      [provinceName]
+      [provinceName],
     );
     const people = Number(rows[0]?.totalPeople);
     const family = Number(rows[0]?.totalFamily);
@@ -602,9 +587,7 @@ export async function listProvinces(): Promise<ProvinceInfo[]> {
   const pool = await getPool();
   let rows: ProvinceRow[];
   try {
-    [rows] = await pool.query<ProvinceRow[]>(
-      `SELECT PROVINCE_NAME AS name, lat, lng, high AS avgElev FROM province`
-    );
+    [rows] = await pool.query<ProvinceRow[]>(`SELECT PROVINCE_NAME AS name, lat, lng, high AS avgElev FROM province`);
   } catch (error) {
     console.error("[repo] listProvinces failed (legacy table missing?):", error);
     return [];
@@ -644,7 +627,7 @@ export async function schoolProvinceName(schoolCode: string): Promise<string | n
   try {
     const [rows] = await pool.query<(RowDataPacket & { provinces: string | null })[]>(
       "SELECT provinces FROM master_school WHERE sc_smis = ? LIMIT 1",
-      [schoolCode]
+      [schoolCode],
     );
     const name = rows[0]?.provinces?.trim();
     return name ? name : null;
@@ -657,10 +640,7 @@ export async function schoolProvinceName(schoolCode: string): Promise<string | n
 /** ข้อมูลโรงเรียนสำหรับ prefill แบบประเมินจากแผนที่ (Task 4 /from-map) — รวมพิกัด + จังหวัดจากทะเบียนระบบเดิม
  *  คืน null ถ้าไม่พบพิกัดโรงเรียน (schoolLocationByCode ไม่พบ) — จังหวัดที่หาไม่เจอจะเป็นสตริงว่างแทน (ไม่ใช่ null ทั้งก้อน) */
 export async function schoolAssessmentMaster(schoolCode: string): Promise<SchoolAssessmentMaster | null> {
-  const [location, province] = await Promise.all([
-    schoolLocationByCode(schoolCode),
-    schoolProvinceName(schoolCode),
-  ]);
+  const [location, province] = await Promise.all([schoolLocationByCode(schoolCode), schoolProvinceName(schoolCode)]);
   if (!location) return null;
   return {
     code: schoolCode,
@@ -687,7 +667,7 @@ export function provinceByName(provinces: ProvinceInfo[], name: string): Provinc
  *  รวม logic การเลือกไว้ที่เดียว เพื่อให้ทั้งหน้าแผนที่และ route /gis จับคู่จังหวัดตรงกัน */
 export async function resolveSchoolProvince(
   provinces: ProvinceInfo[],
-  opts: { schoolCode?: string | null; enteredProvince?: string | null; lat: number; lng: number }
+  opts: { schoolCode?: string | null; enteredProvince?: string | null; lat: number; lng: number },
 ): Promise<ProvinceInfo | null> {
   const registered = opts.schoolCode ? await schoolProvinceName(opts.schoolCode) : null;
   if (registered) {
@@ -714,7 +694,7 @@ export interface FeedbackEntry {
 export async function listAllFeedback(): Promise<FeedbackEntry[]> {
   const pool = await getPool();
   const [rows] = await pool.query<AssessmentRow[]>(
-    `SELECT id, state, unit_name, unit_code, updated_at FROM assessments ORDER BY updated_at DESC`
+    `SELECT id, state, unit_name, unit_code, updated_at FROM assessments ORDER BY updated_at DESC`,
   );
   return rows.map((row) => {
     const state = parseState(row.state);

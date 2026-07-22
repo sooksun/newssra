@@ -183,9 +183,7 @@ export default function GisAssessmentPanel({
                   type="button"
                   className="map-gis-remove"
                   onClick={() =>
-                    onRemoveDestination(
-                      `${r.destinationType}-${r.destLat.toFixed(5)}-${r.destLng.toFixed(5)}`,
-                    )
+                    onRemoveDestination(`${r.destinationType}-${r.destLat.toFixed(5)}-${r.destLng.toFixed(5)}`)
                   }
                   aria-label={`ลบจุดหมาย ${r.destinationName}`}
                 >
@@ -278,16 +276,16 @@ export default function GisAssessmentPanel({
       ) : null}
 
       <p className="map-note">
-        เพิ่มจุดหมาย (อำเภอ/รพ.) ได้จากช่องค้นหาด้านบน: ค้นหา → เลือกประเภท → “เพิ่มเป็นจุดหมายวิเคราะห์” (
-        {destCount}/{MAX_GIS_DESTINATIONS})
+        เพิ่มจุดหมาย (อำเภอ/รพ.) ได้จากช่องค้นหาด้านบน: ค้นหา → เลือกประเภท → “เพิ่มเป็นจุดหมายวิเคราะห์” ({destCount}/
+        {MAX_GIS_DESTINATIONS})
       </p>
 
       {canSaveAssessment ? (
         <div className="map-gis-save">
           {crossYear ? (
             <p className="map-note map-gis-cross-year">
-              กำลังดูแบบประเมินปี {assessment!.year} — บันทึกจะสร้าง/ปรับปรุงแบบประเมินปีปัจจุบัน ({currentYear!.year}
-              ) แทน
+              กำลังดูแบบประเมินปี {assessment!.year} — บันทึกจะสร้าง/ปรับปรุงแบบประเมินปีปัจจุบัน ({currentYear!.year})
+              แทน
             </p>
           ) : null}
           {currentSubmitted ? (
@@ -301,9 +299,9 @@ export default function GisAssessmentPanel({
           {saveAction ? <p className="map-note map-gis-saved">✓ {SAVE_ACTION_MESSAGES[saveAction]}</p> : null}
           {saveErr ? <p className="map-note map-note-error">{saveErr}</p> : null}
           <p className="map-note map-gis-disclaimer">
-            บันทึกครั้งเดียวจะสร้าง/ปรับปรุงแบบประเมินปีปัจจุบันของโรงเรียน กรอกข้อมูลประกอบ
-            และคำนวณคะแนนด้านที่ 3 (คมนาคม) ให้อัตโนมัติ — ความสูงสุ่มจากเบราว์เซอร์ (Terrarium DEM)
-            เป็นค่าโดยประมาณ ระยะทาง/เวลา/อัตราส่วนทุกตัว ระบบคำนวณยืนยันฝั่งเซิร์ฟเวอร์อีกครั้งตอนบันทึก
+            บันทึกครั้งเดียวจะสร้าง/ปรับปรุงแบบประเมินปีปัจจุบันของโรงเรียน กรอกข้อมูลประกอบ และคำนวณคะแนนด้านที่ 3
+            (คมนาคม) ให้อัตโนมัติ — ความสูงสุ่มจากเบราว์เซอร์ (Terrarium DEM) เป็นค่าโดยประมาณ
+            ระยะทาง/เวลา/อัตราส่วนทุกตัว ระบบคำนวณยืนยันฝั่งเซิร์ฟเวอร์อีกครั้งตอนบันทึก
           </p>
         </div>
       ) : (

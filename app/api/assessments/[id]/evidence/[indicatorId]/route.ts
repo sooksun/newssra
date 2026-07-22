@@ -57,7 +57,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
     if (currentFiles.length >= MAX_FILES_PER_INDICATOR) {
       return NextResponse.json(
         { error: `แนบไฟล์ได้สูงสุด ${MAX_FILES_PER_INDICATOR} ไฟล์ต่อตัวชี้วัด` },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
     if (!detectedType) {
       return NextResponse.json(
         { error: "เนื้อไฟล์ไม่ตรงกับชนิดที่รองรับ (รองรับเฉพาะภาพ JPEG/PNG/WebP หรือ PDF จริงเท่านั้น)" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 

@@ -71,8 +71,7 @@ export async function fetchBuildings(
   polygon: [number, number][] = [],
 ): Promise<BuildingsResult> {
   const ringsParam = ringRadiiM.length ? `&rings=${ringRadiiM.join(",")}` : "";
-  const polyParam =
-    polygon.length >= 3 ? `&poly=${polygon.map(([la, ln]) => `${la},${ln}`).join(",")}` : "";
+  const polyParam = polygon.length >= 3 ? `&poly=${polygon.map(([la, ln]) => `${la},${ln}`).join(",")}` : "";
   const res = await fetch(
     `/api/buildings?lat=${lat}&lng=${lng}&radius=${radiusM}${ringsParam}${polyParam}`,
     signal ? { signal } : {},

@@ -57,7 +57,9 @@ function submittedState(): AssessmentState {
 before(async () => {
   if (!DB) return;
   // ล้างของค้างจากรอบก่อน (กัน unique submitted_ref ชน + owner ทดสอบตกค้าง)
-  await rawExec("DELETE FROM assessments WHERE owner_school_code IN ('TESTAAAA','TESTBBBB') OR submitted_ref LIKE 'พสศ-TEST-%'");
+  await rawExec(
+    "DELETE FROM assessments WHERE owner_school_code IN ('TESTAAAA','TESTBBBB') OR submitted_ref LIKE 'พสศ-TEST-%'",
+  );
   assessmentRoute = await import("../../app/api/assessments/[id]/route.ts");
   gisRoute = await import("../../app/api/assessments/[id]/gis/route.ts");
   repo = await import("../../lib/repo.ts");
@@ -70,7 +72,9 @@ before(async () => {
 after(async () => {
   if (!DB) return;
   for (const id of created) await repo.deleteAssessment(id).catch(() => {});
-  await rawExec("DELETE FROM assessments WHERE owner_school_code IN ('TESTAAAA','TESTBBBB') OR submitted_ref LIKE 'พสศ-TEST-%'");
+  await rawExec(
+    "DELETE FROM assessments WHERE owner_school_code IN ('TESTAAAA','TESTBBBB') OR submitted_ref LIKE 'พสศ-TEST-%'",
+  );
 });
 
 // ─────────────────────── 1) การเข้าถึง (scoping) ───────────────────────
@@ -113,7 +117,10 @@ test("GET: แบบประเมินที่ไม่มีจริง �
 test("PUT: school อื่นแก้แบบประเมินของโรงเรียนอื่น → 403 (ไม่บันทึก)", { skip: !DB }, async () => {
   await actAs(SESSIONS.schoolB);
   const body = { state: draftState() };
-  const res = await assessmentRoute.PUT(jsonRequest(NextRequest, `${BASE}/${draftAId}`, { method: "PUT", body }), ctx(draftAId));
+  const res = await assessmentRoute.PUT(
+    jsonRequest(NextRequest, `${BASE}/${draftAId}`, { method: "PUT", body }),
+    ctx(draftAId),
+  );
   assert.equal(res.status, 403);
 });
 
@@ -151,21 +158,30 @@ test("PUT: client ปลอม submitted + ล้าง evidence.files ไม่
 test("POST /gis: แบบประเมินที่ยื่นแล้ว → 409 (ห้ามเขียนผล GIS ทับ)", { skip: !DB }, async () => {
   await actAs(SESSIONS.schoolA);
   const body = { center: { lat: 18.7, lng: 98.9 }, routes: [], apply: false };
-  const res = await gisRoute.POST(jsonRequest(NextRequest, `${BASE}/${submittedAId}/gis`, { method: "POST", body }), ctx(submittedAId));
+  const res = await gisRoute.POST(
+    jsonRequest(NextRequest, `${BASE}/${submittedAId}/gis`, { method: "POST", body }),
+    ctx(submittedAId),
+  );
   assert.equal(res.status, 409);
 });
 
 test("POST /gis: school อื่น → 403", { skip: !DB }, async () => {
   await actAs(SESSIONS.schoolB);
   const body = { center: { lat: 18.7, lng: 98.9 }, routes: [] };
-  const res = await gisRoute.POST(jsonRequest(NextRequest, `${BASE}/${draftAId}/gis`, { method: "POST", body }), ctx(draftAId));
+  const res = await gisRoute.POST(
+    jsonRequest(NextRequest, `${BASE}/${draftAId}/gis`, { method: "POST", body }),
+    ctx(draftAId),
+  );
   assert.equal(res.status, 403);
 });
 
 test("POST /gis: พิกัดศูนย์กลางไม่ถูกต้อง → 400", { skip: !DB }, async () => {
   await actAs(SESSIONS.schoolA);
   const body = { center: { lat: 999, lng: 98.9 }, routes: [] };
-  const res = await gisRoute.POST(jsonRequest(NextRequest, `${BASE}/${draftAId}/gis`, { method: "POST", body }), ctx(draftAId));
+  const res = await gisRoute.POST(
+    jsonRequest(NextRequest, `${BASE}/${draftAId}/gis`, { method: "POST", body }),
+    ctx(draftAId),
+  );
   assert.equal(res.status, 400);
 });
 

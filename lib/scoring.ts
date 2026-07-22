@@ -254,7 +254,7 @@ export function flags(state: AssessmentState): Flag[] {
 export function unitComplete(state: AssessmentState): boolean {
   const unit = state.unit;
   return Boolean(
-    unit.name && unit.code && unit.year && num(unit.totalStudents) > 0 && unit.areaOffice && unit.province
+    unit.name && unit.code && unit.year && num(unit.totalStudents) > 0 && unit.areaOffice && unit.province,
   );
 }
 

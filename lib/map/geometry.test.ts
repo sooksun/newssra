@@ -37,10 +37,7 @@ test("pointInPolygon: รูป 10 จุดแบบเว้า (concave) — 
   }
   // จุดตรงร่องเว้า (ระยะ ~innerR/2 ตามแนวเส้นแบ่งระหว่างแฉก) ควรอยู่นอกรูปดาว
   const midAngle = Math.PI / 10; // กึ่งกลางระหว่างจุดแฉกที่ 0 กับ 1
-  const dentPoint: [number, number] = [
-    (innerR * 0.4) * Math.cos(midAngle),
-    (innerR * 0.4) * Math.sin(midAngle),
-  ];
+  const dentPoint: [number, number] = [innerR * 0.4 * Math.cos(midAngle), innerR * 0.4 * Math.sin(midAngle)];
   assert.equal(pointInPolygon(dentPoint, star), true); // ใกล้ศูนย์กลางมากพอยังอยู่ในรูป
   // จุดไกลเกินรัศมีนอกสุด ต้องอยู่นอกรูปเสมอ
   assert.equal(pointInPolygon([outerR * 2, 0], star), false);
@@ -48,7 +45,7 @@ test("pointInPolygon: รูป 10 จุดแบบเว้า (concave) — 
 
 test("polygonCentroid: สามเหลี่ยมสมมาตรรอบจุดกำเนิด centroid ใกล้ (0,0)", () => {
   const [lat, lng] = polygonCentroid(triangle);
-  assert.ok(Math.abs(lat - (-1 / 3)) < 1e-9);
+  assert.ok(Math.abs(lat - -1 / 3) < 1e-9);
   assert.ok(Math.abs(lng) < 1e-9);
 });
 
@@ -90,6 +87,12 @@ test("polygonAreaM2: ทิศทางวน (CW/CCW) ให้พื้นท�
 });
 
 test("polygonAreaM2: จุดน้อยกว่า 3 → 0", () => {
-  assert.equal(polygonAreaM2([[0, 0], [0, 0.01]]), 0);
+  assert.equal(
+    polygonAreaM2([
+      [0, 0],
+      [0, 0.01],
+    ]),
+    0,
+  );
   assert.equal(polygonAreaM2([]), 0);
 });

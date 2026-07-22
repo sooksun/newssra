@@ -63,7 +63,12 @@ test("scoringVersion 'v2-gis' ถูกทิ้งถ้าไม่มีก�
 
 test("ไฟล์หลักฐาน — จำกัดจำนวน (<=10) และต้องมี id", () => {
   const files = Array.from({ length: 50 }, (_, i) => ({
-    id: `f${i}`, originalName: "a", mimeType: "image/png", size: 1, sha256: "x", uploadedAt: "t",
+    id: `f${i}`,
+    originalName: "a",
+    mimeType: "image/png",
+    size: 1,
+    sha256: "x",
+    uploadedAt: "t",
   }));
   const s = sanitizeState({ evidence: { "1.1": { ready: true, note: "", files } } });
   assert.ok(s.evidence["1.1"].files.length <= 10);
@@ -73,7 +78,9 @@ test("ไฟล์หลักฐาน — จำกัดจำนวน (<=10
 });
 
 test("submitted — รับเฉพาะเมื่อมี ref + at เป็น string", () => {
-  const ok = sanitizeState({ submitted: { ref: "พสศ-2569-0001", at: "2026-01-01T00:00:00.000Z", total: 70, level: "ระดับ 3" } });
+  const ok = sanitizeState({
+    submitted: { ref: "พสศ-2569-0001", at: "2026-01-01T00:00:00.000Z", total: 70, level: "ระดับ 3" },
+  });
   assert.equal(ok.submitted?.ref, "พสศ-2569-0001");
   const bad = sanitizeState({ submitted: { ref: 123, at: null } });
   assert.equal(bad.submitted, null);
@@ -82,7 +89,12 @@ test("submitted — รับเฉพาะเมื่อมี ref + at เ�
 // preserveServerOwned — helper ที่ทั้ง PUT autosave และ POST submit ใช้ร่วมกัน
 // ยืนยันว่า client เขียนทับฟิลด์ที่ server เป็นเจ้าของไม่ได้ (บั๊กเดิม: submit ลืม merge แบบ PUT)
 const DB_FILE: EvidenceFile = {
-  id: "db-file", originalName: "a.pdf", mimeType: "application/pdf", size: 1, sha256: "x", uploadedAt: "t",
+  id: "db-file",
+  originalName: "a.pdf",
+  mimeType: "application/pdf",
+  size: 1,
+  sha256: "x",
+  uploadedAt: "t",
 };
 
 test("preserveServerOwned — evidence.files มาจาก DB แต่ ready/ฟิลด์ปกติมาจาก client", () => {

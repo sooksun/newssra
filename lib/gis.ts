@@ -58,12 +58,7 @@ export {
 } from "./landform-legend";
 export { settlementClass } from "./settlement";
 export type { SettlementTone } from "./settlement";
-export {
-  estimateWscClass,
-  wscProxySuggestsFlat,
-  wscProxySuggestsUpland,
-  WSC_CLASS_LABELS,
-} from "./wsc-proxy";
+export { estimateWscClass, wscProxySuggestsFlat, wscProxySuggestsUpland, WSC_CLASS_LABELS } from "./wsc-proxy";
 export type { WscClass, WscProxyResult } from "./wsc-proxy";
 
 /** เวอร์ชันตารางเกณฑ์ GIS — เปลี่ยนเมื่อปรับ band/คะแนน เพื่อให้ตามรอยได้ว่าแถวไหนคิดด้วยเกณฑ์ชุดใด */
@@ -680,7 +675,10 @@ export function cleanDataSources(value: unknown): GisDataSources | undefined {
 function cleanAutoScore(value: unknown): GisAutoScore | null {
   if (!value || typeof value !== "object") return null;
   const a = value as Record<string, unknown>;
-  const rawComponents = (a.components && typeof a.components === "object" ? a.components : {}) as Record<string, unknown>;
+  const rawComponents = (a.components && typeof a.components === "object" ? a.components : {}) as Record<
+    string,
+    unknown
+  >;
   const componentLimit = { min: 0, max: 10 };
   const components: GisAutoScore["components"] = {
     elevation: cleanNullableNum(rawComponents.elevation, componentLimit, 0),
@@ -732,7 +730,10 @@ export function clampGisPayload(input: unknown): GisAnalysis | undefined {
 
   const source = rawCenter.source === "unit" || rawCenter.source === "search" ? rawCenter.source : "map-pin";
   const routes = Array.isArray(raw.routes)
-    ? raw.routes.map(cleanRoute).filter((r): r is GisRouteAnalysis => r !== null).slice(0, MAX_GIS_ROUTES)
+    ? raw.routes
+        .map(cleanRoute)
+        .filter((r): r is GisRouteAnalysis => r !== null)
+        .slice(0, MAX_GIS_ROUTES)
     : [];
 
   const result: GisAnalysis = {
@@ -775,14 +776,8 @@ export function finalizeGisAnalysis(gis: GisAnalysis, opts: FinalizeGisOptions =
   const calculatedAt = opts.calculatedAt || gis.savedAt || "";
   let elevation = gis.elevation;
   const fillProvince =
-    opts.provinceAvgElev !== undefined &&
-    opts.provinceAvgElev !== null &&
-    Number.isFinite(opts.provinceAvgElev);
-  if (
-    elevation &&
-    fillProvince &&
-    (elevation.provinceAvgElev === null || elevation.provinceAvgElev === undefined)
-  ) {
+    opts.provinceAvgElev !== undefined && opts.provinceAvgElev !== null && Number.isFinite(opts.provinceAvgElev);
+  if (elevation && fillProvince && (elevation.provinceAvgElev === null || elevation.provinceAvgElev === undefined)) {
     elevation = { ...elevation, provinceAvgElev: Math.round(opts.provinceAvgElev as number) };
   }
 

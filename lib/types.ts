@@ -1,11 +1,21 @@
 // ชนิดข้อมูลกลางของระบบประเมิน พ.ส.ศ. — ใช้ร่วมกันทั้ง client, API และ database layer
 
 export const INDICATOR_IDS = [
-  "1.1", "1.2", "1.3", "1.4",
-  "2.1", "2.2", "2.3",
-  "3.1", "3.2", "3.3",
-  "4.1", "4.2", "4.3",
-  "5.1", "5.2",
+  "1.1",
+  "1.2",
+  "1.3",
+  "1.4",
+  "2.1",
+  "2.2",
+  "2.3",
+  "3.1",
+  "3.2",
+  "3.3",
+  "4.1",
+  "4.2",
+  "4.3",
+  "5.1",
+  "5.2",
 ] as const;
 
 export type IndicatorId = (typeof INDICATOR_IDS)[number];
@@ -55,14 +65,7 @@ export type UnitType = (typeof UNIT_TYPES)[number];
  * ลักษณะที่ตั้ง (ข้อมูลประกอบ — ไม่ใช่เงื่อนไขตัดสิทธิ์ พ.ส.ศ. ตาม R2)
  * ตาม docs/ข้อเสนอเกณฑ์… § ด้านที่ 3
  */
-export const SETTING_TYPES = [
-  "เกาะ",
-  "ภูเขาสูง",
-  "หุบเขา",
-  "เชิงเขา",
-  "พื้นราบห่างไกล",
-  "อื่น ๆ",
-] as const;
+export const SETTING_TYPES = ["เกาะ", "ภูเขาสูง", "หุบเขา", "เชิงเขา", "พื้นราบห่างไกล", "อื่น ๆ"] as const;
 export type SettingType = (typeof SETTING_TYPES)[number];
 
 export const SETTING_TYPE_LABELS: Record<SettingType, string> = {
@@ -238,11 +241,7 @@ export type CommunityAxisATier = "low" | "mid" | "high";
 
 /** ป้ายหลอมแกน A (ภูมิประเทศ) + B (การเข้าถึง) — ตั้งฉากกับความหนาแน่น (แกน C) */
 export type CommunityCompositeKey =
-  | "highland_remote"
-  | "highland_accessible"
-  | "flat_remote"
-  | "flat_normal"
-  | "incomplete";
+  "highland_remote" | "highland_accessible" | "flat_remote" | "flat_normal" | "incomplete";
 
 /**
  * จำแนกชุมชน 3 แกน (วิจัย SSRA/HRDI + ความหนาแน่น) — เขียน server-side ผ่าน sanitizeGis/POST /gis

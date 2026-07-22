@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
   if (status.blocked) {
     return NextResponse.json(
       { error: "เรียกข้อมูลผังอาคารถี่เกินไป กรุณารอสักครู่" },
-      { status: 429, headers: { "Retry-After": String(status.retryAfterSec) } }
+      { status: 429, headers: { "Retry-After": String(status.retryAfterSec) } },
     );
   }
   buildingsRateLimiter.fail(rlKey); // นับคำขอนี้เข้าโควตา
@@ -43,7 +43,10 @@ export async function GET(request: NextRequest) {
   const lat = Number(searchParams.get("lat"));
   const lng = Number(searchParams.get("lng"));
   const radiusParam = Number(searchParams.get("radius"));
-  const radius = Math.min(Number.isFinite(radiusParam) && radiusParam > 0 ? radiusParam : DEFAULT_RADIUS_M, MAX_RADIUS_M);
+  const radius = Math.min(
+    Number.isFinite(radiusParam) && radiusParam > 0 ? radiusParam : DEFAULT_RADIUS_M,
+    MAX_RADIUS_M,
+  );
   // รัศมีที่ต้องการนับจำนวนอาคารสะสม (สำหรับตารางประมาณประชากร) — เช่น "500,1000,1500,2000"
   const ringRadiiM = (searchParams.get("rings") ?? "")
     .split(",")

@@ -86,9 +86,7 @@ export function applyMapGisToState(
     unit: {
       ...state.unit,
       settingType: suggested,
-      ...(options.syncUnitLocation
-        ? { lat: gis.center.lat.toFixed(6), lng: gis.center.lng.toFixed(6) }
-        : {}),
+      ...(options.syncUnitLocation ? { lat: gis.center.lat.toFixed(6), lng: gis.center.lng.toFixed(6) } : {}),
     },
     gis: { ...mergedGis, appliedToResponses: Object.keys(derived).length > 0 },
     responses: { ...state.responses, ...derived },

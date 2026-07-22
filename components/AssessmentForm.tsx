@@ -9,7 +9,14 @@ import { DIMENSIONS } from "@/lib/criteria";
 import { DEMO_PROFILES, makeDemoState } from "@/lib/demo";
 import { computeAll } from "@/lib/scoring";
 import { makeBlankState } from "@/lib/state";
-import type { AssessmentState, EvidenceInfo, IndicatorFeedback, IndicatorId, SubmittedInfo, UnitInfo } from "@/lib/types";
+import type {
+  AssessmentState,
+  EvidenceInfo,
+  IndicatorFeedback,
+  IndicatorId,
+  SubmittedInfo,
+  UnitInfo,
+} from "@/lib/types";
 import DimensionPanel from "./DimensionPanel";
 import GisSummary from "./GisSummary";
 import ScoreRail from "./ScoreRail";
@@ -53,47 +60,50 @@ export default function AssessmentForm({ id, initial, user }: Props) {
 
   // ส่งคำขอบันทึกหนึ่งครั้ง — ยกเลิกคำขอที่ค้าง (กันชนกัน), กันผลลัพธ์ล้าสมัยด้วย seq,
   // และลองใหม่อัตโนมัติแบบ backoff เมื่อล้มเหลว จนกว่าจะครบเพดานจึงแจ้งเตือนผู้ใช้
-  const runSave = useCallback((json: string, attempt: number) => {
-    abortRef.current?.abort(); // ยกเลิก PUT ก่อนหน้าที่ยังไม่จบ
-    const controller = new AbortController();
-    abortRef.current = controller;
-    const seq = ++saveSeqRef.current;
-    setSaveStatus("saving");
-    fetch(`/api/assessments/${id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: `{"state":${json}}`,
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (res.status === 409) {
-          // ปีการประเมินชนกับแบบประเมินอื่นของโรงเรียนเดียวกัน — ไม่ใช่ปัญหาชั่วคราว จึงไม่ retry
-          if (seq !== saveSeqRef.current) return;
-          const data = (await res.json().catch(() => null)) as { error?: string } | null;
-          setSaveStatus("error");
-          showToast(data?.error || "บันทึกไม่สำเร็จ — ปีการประเมินนี้ซ้ำกับแบบประเมินอื่นของโรงเรียนนี้");
-          return;
-        }
-        if (!res.ok) throw new Error(`save failed: ${res.status}`);
-        if (seq !== saveSeqRef.current) return; // มีคำขอใหม่กว่าแซงแล้ว — ไม่แตะสถานะ
-        lastSavedRef.current = json;
-        setSaveStatus("saved");
-        setSavedAt(
-          new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" })
-        );
+  const runSave = useCallback(
+    (json: string, attempt: number) => {
+      abortRef.current?.abort(); // ยกเลิก PUT ก่อนหน้าที่ยังไม่จบ
+      const controller = new AbortController();
+      abortRef.current = controller;
+      const seq = ++saveSeqRef.current;
+      setSaveStatus("saving");
+      fetch(`/api/assessments/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: `{"state":${json}}`,
+        signal: controller.signal,
       })
-      .catch((error) => {
-        if (controller.signal.aborted || seq !== saveSeqRef.current) return; // ถูกแทนที่แล้ว
-        if (attempt < MAX_SAVE_RETRIES) {
-          setSaveStatus("pending");
-          retryTimerRef.current = setTimeout(() => runSave(json, attempt + 1), RETRY_DELAYS_MS[attempt] ?? 10000);
-        } else {
-          console.error(error);
-          setSaveStatus("error");
-          showToast("บันทึกอัตโนมัติไม่สำเร็จ — ตรวจสอบการเชื่อมต่อ ระบบจะลองใหม่เมื่อคุณแก้ไขต่อ");
-        }
-      });
-  }, [id]);
+        .then(async (res) => {
+          if (res.status === 409) {
+            // ปีการประเมินชนกับแบบประเมินอื่นของโรงเรียนเดียวกัน — ไม่ใช่ปัญหาชั่วคราว จึงไม่ retry
+            if (seq !== saveSeqRef.current) return;
+            const data = (await res.json().catch(() => null)) as { error?: string } | null;
+            setSaveStatus("error");
+            showToast(data?.error || "บันทึกไม่สำเร็จ — ปีการประเมินนี้ซ้ำกับแบบประเมินอื่นของโรงเรียนนี้");
+            return;
+          }
+          if (!res.ok) throw new Error(`save failed: ${res.status}`);
+          if (seq !== saveSeqRef.current) return; // มีคำขอใหม่กว่าแซงแล้ว — ไม่แตะสถานะ
+          lastSavedRef.current = json;
+          setSaveStatus("saved");
+          setSavedAt(
+            new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" }),
+          );
+        })
+        .catch((error) => {
+          if (controller.signal.aborted || seq !== saveSeqRef.current) return; // ถูกแทนที่แล้ว
+          if (attempt < MAX_SAVE_RETRIES) {
+            setSaveStatus("pending");
+            retryTimerRef.current = setTimeout(() => runSave(json, attempt + 1), RETRY_DELAYS_MS[attempt] ?? 10000);
+          } else {
+            console.error(error);
+            setSaveStatus("error");
+            showToast("บันทึกอัตโนมัติไม่สำเร็จ — ตรวจสอบการเชื่อมต่อ ระบบจะลองใหม่เมื่อคุณแก้ไขต่อ");
+          }
+        });
+    },
+    [id],
+  );
 
   // autosave: หน่วงหลังแก้ไขล่าสุด แล้วเรียก runSave (ซึ่งจัดการ retry/abort เอง)
   useEffect(() => {
@@ -170,7 +180,7 @@ export default function AssessmentForm({ id, initial, user }: Props) {
     showToast(
       profile
         ? `เติมตัวอย่าง "${profile.name}" แล้ว (${profile.total}/100, ${profile.levelLabel})`
-        : "เติมข้อมูลตัวอย่างแล้ว"
+        : "เติมข้อมูลตัวอย่างแล้ว",
     );
   }
 
@@ -230,7 +240,7 @@ export default function AssessmentForm({ id, initial, user }: Props) {
       setState(next);
       setSaveStatus("saved");
       setSavedAt(
-        new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" })
+        new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Bangkok" }),
       );
       showToast(`ส่งแบบประเมินแล้ว เลขที่อ้างอิง ${data.submitted.ref}`);
     } catch (error) {
@@ -315,7 +325,8 @@ export default function AssessmentForm({ id, initial, user }: Props) {
         <strong>ระบบอยู่ระหว่างทดสอบกับผู้เกี่ยวข้อง (Stakeholder Test)</strong>
         <span>
           กรุณาทดลองกรอกแบบประเมิน แล้วแสดงความคิดเห็นในช่อง &ldquo;ความคิดเห็นของผู้ทดสอบ&rdquo; ท้ายแต่ละตัวชี้วัด
-          หรือช่องความคิดเห็นโดยรวมท้ายแบบประเมิน เพื่อนำไปปรับปรุงเกณฑ์ก่อนประกาศใช้จริง — เว้นว่างได้หากไม่มีความเห็นเพิ่มเติม
+          หรือช่องความคิดเห็นโดยรวมท้ายแบบประเมิน เพื่อนำไปปรับปรุงเกณฑ์ก่อนประกาศใช้จริง —
+          เว้นว่างได้หากไม่มีความเห็นเพิ่มเติม
         </span>
       </div>
 

@@ -15,10 +15,12 @@ export default function NotFound() {
             <h1>ไม่พบหน้าที่ต้องการ</h1>
           </div>
         </div>
-        <p className="login-lead">
-          หน้าที่คุณเปิดอาจถูกลบ ย้าย หรือคุณไม่มีสิทธิ์เข้าถึงแบบประเมินนี้
-        </p>
-        <Link href="/" className="primary-btn" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+        <p className="login-lead">หน้าที่คุณเปิดอาจถูกลบ ย้าย หรือคุณไม่มีสิทธิ์เข้าถึงแบบประเมินนี้</p>
+        <Link
+          href="/"
+          className="primary-btn"
+          style={{ display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+        >
           กลับหน้าแรก
         </Link>
       </div>

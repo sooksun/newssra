@@ -41,9 +41,7 @@ export function estimateWscClass(input: {
   if (slope === null) return null;
 
   const elev =
-    input.schoolElevationM !== null &&
-    input.schoolElevationM !== undefined &&
-    Number.isFinite(input.schoolElevationM)
+    input.schoolElevationM !== null && input.schoolElevationM !== undefined && Number.isFinite(input.schoolElevationM)
       ? input.schoolElevationM
       : null;
 
@@ -64,8 +62,7 @@ export function estimateWscClass(input: {
   return {
     class: cls,
     labelTh: WSC_CLASS_LABELS[cls],
-    hint:
-      "ประมาณจากความลาดชันเฉลี่ยรอบจุด (และความสูงประกอบ) — ไม่ใช่ชั้นลุ่มน้ำราชการจากแผนที่ WSC เต็มรูปแบบ",
+    hint: "ประมาณจากความลาดชันเฉลี่ยรอบจุด (และความสูงประกอบ) — ไม่ใช่ชั้นลุ่มน้ำราชการจากแผนที่ WSC เต็มรูปแบบ",
     meanSlopePct: Math.round(slope * 10) / 10,
     schoolElevationM: elev !== null ? Math.round(elev) : null,
   };

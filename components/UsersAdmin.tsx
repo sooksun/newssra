@@ -202,7 +202,12 @@ export default function UsersAdmin({ initialUsers, currentUserId }: Props) {
                   </td>
                   <td>
                     {user.role === "school" ? (
-                      <button className="ghost-btn" type="button" disabled={busy} onClick={() => handleEditSchoolCode(user)}>
+                      <button
+                        className="ghost-btn"
+                        type="button"
+                        disabled={busy}
+                        onClick={() => handleEditSchoolCode(user)}
+                      >
                         {user.schoolCode || "— ตั้งรหัส"}
                       </button>
                     ) : (

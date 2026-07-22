@@ -77,9 +77,7 @@ async function init(): Promise<Pool> {
   // สร้าง database ถ้ายังไม่มี (ใช้ connection ชั่วคราวที่ยังไม่เลือก database)
   try {
     const boot = await mysql.createConnection(baseConfig());
-    await boot.query(
-      `CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
-    );
+    await boot.query(`CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
     await boot.end();
   } catch (error) {
     // สิทธิ์ไม่พอหรือมี database อยู่แล้ว — ปล่อยให้ pool ด้านล่างเป็นผู้รายงานปัญหาจริง
@@ -100,30 +98,57 @@ async function init(): Promise<Pool> {
     await pool.query(USERS_SCHEMA_SQL);
 
     // migration สำหรับฐานข้อมูลเดิม — MySQL 8 ไม่มี ADD COLUMN IF NOT EXISTS จึงเช็ค information_schema ก่อน
-    await ensureColumn(pool, "assessments", "owner_user_id",
-      "ALTER TABLE assessments ADD COLUMN owner_user_id INT UNSIGNED NULL, ADD KEY idx_owner (owner_user_id)");
-    await ensureColumn(pool, "assessments", "owner_school_code",
-      "ALTER TABLE assessments ADD COLUMN owner_school_code VARCHAR(16) NULL, ADD KEY idx_owner_school (owner_school_code)");
+    await ensureColumn(
+      pool,
+      "assessments",
+      "owner_user_id",
+      "ALTER TABLE assessments ADD COLUMN owner_user_id INT UNSIGNED NULL, ADD KEY idx_owner (owner_user_id)",
+    );
+    await ensureColumn(
+      pool,
+      "assessments",
+      "owner_school_code",
+      "ALTER TABLE assessments ADD COLUMN owner_school_code VARCHAR(16) NULL, ADD KEY idx_owner_school (owner_school_code)",
+    );
     // Phase 4: สรุปจำแนกชุมชน + ลักษณะที่ตั้ง สำหรับรายการ/กรอง (derive จาก state ตอน save)
-    await ensureColumn(pool, "assessments", "community_class_key",
-      "ALTER TABLE assessments ADD COLUMN community_class_key VARCHAR(32) NULL, ADD KEY idx_community_class (community_class_key)");
-    await ensureColumn(pool, "assessments", "community_class_label",
-      "ALTER TABLE assessments ADD COLUMN community_class_label VARCHAR(100) NULL");
-    await ensureColumn(pool, "assessments", "setting_type",
-      "ALTER TABLE assessments ADD COLUMN setting_type VARCHAR(32) NULL");
-    await ensureColumn(pool, "users", "school_code",
-      "ALTER TABLE users ADD COLUMN school_code VARCHAR(16) NULL");
+    await ensureColumn(
+      pool,
+      "assessments",
+      "community_class_key",
+      "ALTER TABLE assessments ADD COLUMN community_class_key VARCHAR(32) NULL, ADD KEY idx_community_class (community_class_key)",
+    );
+    await ensureColumn(
+      pool,
+      "assessments",
+      "community_class_label",
+      "ALTER TABLE assessments ADD COLUMN community_class_label VARCHAR(100) NULL",
+    );
+    await ensureColumn(
+      pool,
+      "assessments",
+      "setting_type",
+      "ALTER TABLE assessments ADD COLUMN setting_type VARCHAR(32) NULL",
+    );
+    await ensureColumn(pool, "users", "school_code", "ALTER TABLE users ADD COLUMN school_code VARCHAR(16) NULL");
 
     // บังคับให้เลขที่อ้างอิงการยื่นไม่ซ้ำในระดับฐานข้อมูล (ถ้าฐานเดิมมีเลขซ้ำอยู่แล้ว การ ALTER จะล้ม
     // — จับ error ไว้แล้วเตือน ให้ผู้ดูแลไป dedupe เอง; แอปยังทำงานต่อได้ด้วยตัวสร้างเลขแบบรันในโค้ด)
-    await ensureUniqueIndex(pool, "assessments", "uq_submitted_ref",
-      "ALTER TABLE assessments ADD UNIQUE KEY uq_submitted_ref (submitted_ref)");
+    await ensureUniqueIndex(
+      pool,
+      "assessments",
+      "uq_submitted_ref",
+      "ALTER TABLE assessments ADD UNIQUE KEY uq_submitted_ref (submitted_ref)",
+    );
 
     // บังคับ 1 โรงเรียน/1 ปี พ.ศ. ต่อแบบประเมิน — ตรวจซ้ำก่อนเสมอ (ต่างจาก uq_submitted_ref ด้านบน):
     // ถ้าเจอแถวซ้ำจริงในฐานเดิม ต้อง throw ทันที ห้าม auto-fix/ลบ/เลือกผู้ชนะเอง (ต้องให้แอดมินตัดสินใจ)
     await assertNoDuplicateOwnerSchoolYear(pool);
-    await ensureUniqueIndex(pool, "assessments", "uq_owner_school_year",
-      "ALTER TABLE assessments ADD UNIQUE KEY uq_owner_school_year (owner_school_code, assessment_year)");
+    await ensureUniqueIndex(
+      pool,
+      "assessments",
+      "uq_owner_school_year",
+      "ALTER TABLE assessments ADD UNIQUE KEY uq_owner_school_year (owner_school_code, assessment_year)",
+    );
 
     // สร้างบัญชีตั้งต้นผู้ดูแล (dynamic import เพื่อเลี่ยง cycle db ↔ users-repo)
     try {
@@ -145,7 +170,7 @@ async function ensureColumn(pool: Pool, table: string, column: string, alterSql:
   const [rows] = await pool.query<(RowDataPacket & { n: number })[]>(
     `SELECT COUNT(*) AS n FROM information_schema.COLUMNS
      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?`,
-    [DB_NAME, table, column]
+    [DB_NAME, table, column],
   );
   if ((rows[0]?.n ?? 0) === 0) {
     await pool.query(alterSql);
@@ -172,14 +197,12 @@ async function assertNoDuplicateOwnerSchoolYear(pool: Pool): Promise<void> {
        FROM assessments
       WHERE owner_school_code IS NOT NULL AND owner_school_code <> ''
       GROUP BY owner_school_code, assessment_year
-     HAVING COUNT(*) > 1`
+     HAVING COUNT(*) > 1`,
   );
   if (!rows.length) return;
-  const groups = rows
-    .map((r) => `${r.owner_school_code}/${r.assessment_year} (ids: ${r.ids})`)
-    .join("; ");
+  const groups = rows.map((r) => `${r.owner_school_code}/${r.assessment_year} (ids: ${r.ids})`).join("; ");
   throw new Error(
-    `[db] พบแบบประเมินซ้ำโรงเรียน/ปีเดียวกันก่อนเพิ่ม uq_owner_school_year — ต้องแก้ก่อน (ไม่ลบ/รวมอัตโนมัติ): ${groups}`
+    `[db] พบแบบประเมินซ้ำโรงเรียน/ปีเดียวกันก่อนเพิ่ม uq_owner_school_year — ต้องแก้ก่อน (ไม่ลบ/รวมอัตโนมัติ): ${groups}`,
   );
 }
 
@@ -188,7 +211,7 @@ async function ensureUniqueIndex(pool: Pool, table: string, indexName: string, a
   const [rows] = await pool.query<(RowDataPacket & { n: number })[]>(
     `SELECT COUNT(*) AS n FROM information_schema.STATISTICS
      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?`,
-    [DB_NAME, table, indexName]
+    [DB_NAME, table, indexName],
   );
   if ((rows[0]?.n ?? 0) > 0) return;
   try {
@@ -197,7 +220,7 @@ async function ensureUniqueIndex(pool: Pool, table: string, indexName: string, a
   } catch (error) {
     console.warn(
       `[db] ไม่สามารถเพิ่ม unique index ${table}.${indexName} ได้ (อาจมีค่าซ้ำเดิม) — โปรด dedupe แล้วลองใหม่:`,
-      error instanceof Error ? error.message : error
+      error instanceof Error ? error.message : error,
     );
   }
 }

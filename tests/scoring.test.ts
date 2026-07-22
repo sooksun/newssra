@@ -5,15 +5,7 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 
-import {
-  scoreIndicator,
-  totalScore,
-  levelFor,
-  flags,
-  canSubmit,
-  answeredCount,
-  unitComplete,
-} from "../lib/scoring";
+import { scoreIndicator, totalScore, levelFor, flags, canSubmit, answeredCount, unitComplete } from "../lib/scoring";
 import { makeBlankState } from "../lib/state";
 import { makeDemoState } from "../lib/demo";
 import { INDICATORS, PASS_THRESHOLD } from "../lib/criteria";
@@ -222,11 +214,21 @@ describe("invariants — เพดานคะแนนและผลรวม"
     const s = makeBlankState();
     s.unit.totalStudents = "100";
     const maxData: Record<IndicatorId, ResponseData> = {
-      "1.1": { count: "100" }, "1.2": { count: "100" }, "1.3": { count: "100" }, "1.4": { langs: "5" },
-      "2.1": { frame: "100", actual: "0" }, "2.2": { level: "3" }, "2.3": { rate: "100" },
-      "3.1": { minutes: "999" }, "3.2": { level: "4" }, "3.3": { minutes: "999" },
-      "4.1": { level: "3" }, "4.2": { level: "3" }, "4.3": { level: "3" },
-      "5.1": { level: "2" }, "5.2": { level: "2" },
+      "1.1": { count: "100" },
+      "1.2": { count: "100" },
+      "1.3": { count: "100" },
+      "1.4": { langs: "5" },
+      "2.1": { frame: "100", actual: "0" },
+      "2.2": { level: "3" },
+      "2.3": { rate: "100" },
+      "3.1": { minutes: "999" },
+      "3.2": { level: "4" },
+      "3.3": { minutes: "999" },
+      "4.1": { level: "3" },
+      "4.2": { level: "3" },
+      "4.3": { level: "3" },
+      "5.1": { level: "2" },
+      "5.2": { level: "2" },
     };
     INDICATOR_IDS.forEach((id) => (s.responses[id] = maxData[id]));
     for (const id of INDICATOR_IDS) {
@@ -248,10 +250,15 @@ describe("invariants — เพดานคะแนนและผลรวม"
 
 describe("levelFor — จุดตัด 50/60/70", () => {
   const cases: [number, string][] = [
-    [0, "neutral"], [49, "neutral"],
-    [50, "level-1"], [59, "level-1"],
-    [60, "level-2"], [69, "level-2"],
-    [PASS_THRESHOLD, "level-3"], [70, "level-3"], [100, "level-3"],
+    [0, "neutral"],
+    [49, "neutral"],
+    [50, "level-1"],
+    [59, "level-1"],
+    [60, "level-2"],
+    [69, "level-2"],
+    [PASS_THRESHOLD, "level-3"],
+    [70, "level-3"],
+    [100, "level-3"],
   ];
   for (const [score, key] of cases) {
     test(`${score} → ${key}`, () => assert.equal(levelFor(score).key, key));
@@ -292,7 +299,10 @@ describe("flags — ธงบล็อก/เตือน", () => {
     s.unit.totalStudents = "100";
     s.responses["1.2"] = { count: "5" };
     s.evidence["1.2"] = { ready: true, note: "", files: [] }; // ปลอม ready แต่ไม่มีไฟล์
-    assert.ok(flags(s).find((x) => x.code === "V02"), "ready ปลอมต้องไม่ปลดล็อก V02");
+    assert.ok(
+      flags(s).find((x) => x.code === "V02"),
+      "ready ปลอมต้องไม่ปลดล็อก V02",
+    );
   });
 
   test("V02: มีไฟล์หลักฐานจริง → ไม่มี block", () => {
@@ -304,7 +314,11 @@ describe("flags — ธงบล็อก/เตือน", () => {
       note: "",
       files: [{ id: "f1", originalName: "a.pdf", mimeType: "application/pdf", size: 1, sha256: "x", uploadedAt: "t" }],
     };
-    assert.equal(flags(s).find((x) => x.code === "V02"), undefined, "มีไฟล์แล้วต้องไม่ติด V02");
+    assert.equal(
+      flags(s).find((x) => x.code === "V02"),
+      undefined,
+      "มีไฟล์แล้วต้องไม่ติด V02",
+    );
   });
 
   test("V04: เข้าถึงยากระดับสูง (3.2≥3) แต่เดินทางจากเขต ≤30 นาที → warn", () => {

@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
   if (retryAfterSec > 0) {
     return NextResponse.json(
       { error: "พยายามเข้าสู่ระบบผิดหลายครั้งเกินไป กรุณารอสักครู่แล้วลองใหม่" },
-      { status: 429, headers: { "Retry-After": String(retryAfterSec) } }
+      { status: 429, headers: { "Retry-After": String(retryAfterSec) } },
     );
   }
 

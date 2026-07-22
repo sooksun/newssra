@@ -52,11 +52,7 @@ import {
   futureIndicators,
   FUTURE_INDICATOR_IDS,
 } from "../lib/gis";
-import {
-  MORPHOLOGY_HIGH_MOUNTAIN_M,
-  MORPHOLOGY_HIGHLAND_MIN_M,
-  maxFiniteElev,
-} from "../lib/map/morphology";
+import { MORPHOLOGY_HIGH_MOUNTAIN_M, MORPHOLOGY_HIGHLAND_MIN_M, maxFiniteElev } from "../lib/map/morphology";
 import { flags, scoreIndicator } from "../lib/scoring";
 import { makeBlankState, sanitizeState } from "../lib/state";
 import { estimateWscClass, wscProxySuggestsFlat, wscProxySuggestsUpland } from "../lib/wsc-proxy";
@@ -185,7 +181,15 @@ describe("ratio math — ตัวอย่างจาก PRD และ guard",
 
 describe("rcrSeverity — เกณฑ์ PRD ตรงตัว", () => {
   const cases: [number, number][] = [
-    [1.29, 0], [1.3, 1], [1.49, 1], [1.5, 2], [1.79, 2], [1.8, 3], [2.09, 3], [2.1, 4], [5, 4],
+    [1.29, 0],
+    [1.3, 1],
+    [1.49, 1],
+    [1.5, 2],
+    [1.79, 2],
+    [1.8, 3],
+    [2.09, 3],
+    [2.1, 4],
+    [5, 4],
   ];
   for (const [rcr, expect] of cases) {
     test(`RCR ${rcr} → ระดับ ${expect}`, () => assert.equal(rcrSeverity(rcr), expect));
@@ -195,7 +199,15 @@ describe("rcrSeverity — เกณฑ์ PRD ตรงตัว", () => {
 
 describe("avgSpeedSeverity — เกณฑ์ PRD ตรงตัว", () => {
   const cases: [number, number][] = [
-    [60.1, 0], [60, 1], [45, 1], [44.99, 2], [30, 2], [29.99, 3], [20, 3], [19.99, 4], [5, 4],
+    [60.1, 0],
+    [60, 1],
+    [45, 1],
+    [44.99, 2],
+    [30, 2],
+    [29.99, 3],
+    [20, 3],
+    [19.99, 4],
+    [5, 4],
   ];
   for (const [speed, expect] of cases) {
     test(`${speed} กม./ชม. → ระดับ ${expect}`, () => assert.equal(avgSpeedSeverity(speed), expect));
@@ -205,7 +217,14 @@ describe("avgSpeedSeverity — เกณฑ์ PRD ตรงตัว", () => {
 
 describe("ttrSeverity", () => {
   const cases: [number, number][] = [
-    [1.29, 0], [1.3, 1], [1.59, 1], [1.6, 2], [1.99, 2], [2.0, 3], [2.49, 3], [2.5, 4],
+    [1.29, 0],
+    [1.3, 1],
+    [1.59, 1],
+    [1.6, 2],
+    [1.99, 2],
+    [2.0, 3],
+    [2.49, 3],
+    [2.5, 4],
   ];
   for (const [ttr, expect] of cases) {
     test(`TTR ${ttr} → ระดับ ${expect}`, () => assert.equal(ttrSeverity(ttr), expect));
@@ -214,7 +233,14 @@ describe("ttrSeverity", () => {
 
 describe("elevationGainSeverity", () => {
   const cases: [number, number][] = [
-    [99, 0], [100, 1], [299, 1], [300, 2], [599, 2], [600, 3], [999, 3], [1000, 4],
+    [99, 0],
+    [100, 1],
+    [299, 1],
+    [300, 2],
+    [599, 2],
+    [600, 3],
+    [999, 3],
+    [1000, 4],
   ];
   for (const [gain, expect] of cases) {
     test(`ไต่สะสม ${gain} ม. → ระดับ ${expect}`, () => assert.equal(elevationGainSeverity(gain), expect));
@@ -248,17 +274,22 @@ describe("elevationGainLoss — ความสูงสะสมตามเส
 
 describe("buildRouteAnalysis — คำนวณครบจากวัตถุดิบดิบ", () => {
   test("60 กม. 90 นาที → speed 40, TTR 1.5, ED 90", () => {
-    const route = buildRouteAnalysis(18.0, 99.0, {
-      destinationType: "district_office",
-      destinationName: "ที่ว่าการอำเภอทดสอบ",
-      destLat: 18.2,
-      destLng: 99.2,
-      roadDistanceM: 60000,
-      durationS: 5400,
-      elevationGainM: 450,
-      elevationLossM: 120,
-      selected: true,
-    }, "2569-01-01T00:00:00.000Z");
+    const route = buildRouteAnalysis(
+      18.0,
+      99.0,
+      {
+        destinationType: "district_office",
+        destinationName: "ที่ว่าการอำเภอทดสอบ",
+        destLat: 18.2,
+        destLng: 99.2,
+        roadDistanceM: 60000,
+        durationS: 5400,
+        elevationGainM: 450,
+        elevationLossM: 120,
+        selected: true,
+      },
+      "2569-01-01T00:00:00.000Z",
+    );
     assert.ok(route);
     assert.equal(route.roadDistanceKm, 60);
     assert.equal(route.travelTimeMin, 90);
@@ -363,12 +394,12 @@ describe("computeAutoGisScore — เต็ม 45, นับเฉพาะท�
     const auto = computeAutoGisScore(gis, "2569-01-01T00:00:00.000Z");
     assert.ok(auto);
     assert.deepEqual(auto.components, {
-      elevation: 4,        // 1200 ม. → 4
-      slopeGain: 5,        // max(slope 25% → 4, gain sev4 → 5)
+      elevation: 4, // 1200 ม. → 4
+      slopeGain: 5, // max(slope 25% → 4, gain sev4 → 5)
       rcr: 10,
       ttr: 10,
       avgSpeed: 4,
-      serviceDistance: 5,  // รพ. 60 กม. → 5
+      serviceDistance: 5, // รพ. 60 กม. → 5
       borderMunicipality: null,
     });
     assert.equal(auto.total, 38);
@@ -412,16 +443,20 @@ describe("ธงชุด GIS ใน flags()", () => {
   });
 
   test("V12: ระยะถนนสั้นกว่าระยะเส้นตรง", () => {
-    const s = stateWithGis(makeGis({
-      routes: [makeRoute({ roadDistanceKm: 20, straightDistanceKm: 30 })],
-    }));
+    const s = stateWithGis(
+      makeGis({
+        routes: [makeRoute({ roadDistanceKm: 20, straightDistanceKm: 30 })],
+      }),
+    );
     assert.ok(flagCodes(s).includes("V12"));
   });
 
   test("V14: RCR ของเส้นทางหลัก > 3.0", () => {
-    const s = stateWithGis(makeGis({
-      routes: [makeRoute({ roadCircuityRatio: 3.2 })],
-    }));
+    const s = stateWithGis(
+      makeGis({
+        routes: [makeRoute({ roadCircuityRatio: 3.2 })],
+      }),
+    );
     assert.ok(flagCodes(s).includes("V14"));
     assert.ok(!flagCodes(stateWithGis(makeGis())).includes("V14"), "RCR 2.4 ไม่ติดธง");
   });
@@ -478,7 +513,9 @@ describe("ธงชุด GIS ใน flags()", () => {
   });
 
   test("ธงชุด GIS เป็น info/warn เท่านั้น — ไม่กระทบ canSubmit", () => {
-    const s = stateWithGis(makeGis({ routes: [makeRoute({ roadCircuityRatio: 3.5, roadDistanceKm: 20, straightDistanceKm: 30 })] }));
+    const s = stateWithGis(
+      makeGis({ routes: [makeRoute({ roadCircuityRatio: 3.5, roadDistanceKm: 20, straightDistanceKm: 30 })] }),
+    );
     s.unit.province = "น่าน";
     s.responses["3.2"] = { level: "0" };
     const gisFlags = flags(s).filter((f) =>
@@ -945,7 +982,10 @@ describe("landform legend (Phase 2) — สพฐ. 600 vs แอป 1000", () =>
   });
 
   test("landformAppLabelNoteTh อธิบายป้ายแอป vs สพฐ.", () => {
-    assert.ok(landformAppLabelNoteTh("ชุมชนบนภูเขาสูง").includes("1,000") || landformAppLabelNoteTh("ชุมชนบนภูเขาสูง").includes("1000"));
+    assert.ok(
+      landformAppLabelNoteTh("ชุมชนบนภูเขาสูง").includes("1,000") ||
+        landformAppLabelNoteTh("ชุมชนบนภูเขาสูง").includes("1000"),
+    );
     assert.ok(landformAppLabelNoteTh("ชุมชนบนภูเขาสูง").includes("600"));
     assert.ok(landformAppLabelNoteTh("ชุมชนบนพื้นราบ").includes("พื้นราบ"));
     assert.ok(landformAppLabelNoteTh("ชุมชนในหุบเขา").includes("หุบเขา"));
@@ -961,7 +1001,9 @@ describe("landform legend (Phase 2) — สพฐ. 600 vs แอป 1000", () =>
   });
 
   test("communityAxisATierLabelTh mid-band บอก 500–999 และ สพฐ. 600", () => {
-    assert.ok(communityAxisATierLabelTh("high").includes("1,000") || communityAxisATierLabelTh("high").includes("1000"));
+    assert.ok(
+      communityAxisATierLabelTh("high").includes("1,000") || communityAxisATierLabelTh("high").includes("1000"),
+    );
     assert.ok(communityAxisATierLabelTh("mid").includes("500"));
     assert.ok(communityAxisATierLabelTh("mid").includes("600"));
     assert.ok(communityAxisATierLabelTh("low").includes("500"));
@@ -1144,9 +1186,13 @@ describe("cleanAreaSummary — sanitize ข้อสรุปพื้นที�
   test("รอด round-trip ผ่าน sanitizeGis (แนบใน gis)", () => {
     const gis = makeGis();
     gis.areaSummary = {
-      areaKm2: 1.17, buildingCount: 120, estPopulation: 336,
-      buildingDensityPerKm2: 103, popDensityPerKm2: 287,
-      settlementLabel: settlementClass(287).label, calculatedAt: "2569-01-01T00:00:00.000Z",
+      areaKm2: 1.17,
+      buildingCount: 120,
+      estPopulation: 336,
+      buildingDensityPerKm2: 103,
+      popDensityPerKm2: 287,
+      settlementLabel: settlementClass(287).label,
+      calculatedAt: "2569-01-01T00:00:00.000Z",
     };
     const out = sanitizeGis(JSON.parse(JSON.stringify(gis)));
     assert.ok(out?.areaSummary);
@@ -1192,9 +1238,7 @@ describe("cleanRadiusSummaries — สรุปอาคาร/ประชา�
     assert.equal(out, undefined);
   });
   test("แถวหนึ่ง buildingCount ไม่ใช่ตัวเลข → ตัดทิ้งทั้งชุด", () => {
-    const out = cleanRadiusSummaries([
-      { radiusM: 500, buildingCount: "ห้า", estPopulation: 10, popDensityPerKm2: 20 },
-    ]);
+    const out = cleanRadiusSummaries([{ radiusM: 500, buildingCount: "ห้า", estPopulation: 10, popDensityPerKm2: 20 }]);
     assert.equal(out, undefined);
   });
   test("ไม่ใช่ array → undefined; array ว่าง → undefined (ไม่มีแถวเหลือ)", () => {
@@ -1330,7 +1374,10 @@ describe("futureIndicators (F1 Displacement Ratio + F2 Travel Time Ratio)", () =
 
   test("ids ตรงกับ FUTURE_INDICATOR_IDS", () => {
     const out = futureIndicators(makeGis());
-    assert.deepEqual(out.map((f) => f.id), [...FUTURE_INDICATOR_IDS]);
+    assert.deepEqual(
+      out.map((f) => f.id),
+      [...FUTURE_INDICATOR_IDS],
+    );
   });
 
   test("F1 severity ตามขอบ band RCR เดิมทุกจุด (1.29/1.3/1.5/1.8/2.1)", () => {
@@ -1365,9 +1412,10 @@ describe("futureIndicators (F1 Displacement Ratio + F2 Travel Time Ratio)", () =
   });
 
   test("เส้นตรงสั้นเกิน (DR คำนวณไม่ได้) → มีแต่ F2", () => {
-    const out = futureIndicators(
-      makeGis({ routes: [makeRoute({ straightDistanceKm: 0.04 })] })
+    const out = futureIndicators(makeGis({ routes: [makeRoute({ straightDistanceKm: 0.04 })] }));
+    assert.deepEqual(
+      out.map((f) => f.id),
+      ["F2"],
     );
-    assert.deepEqual(out.map((f) => f.id), ["F2"]);
   });
 });

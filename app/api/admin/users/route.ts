@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
   if (!USERNAME_PATTERN.test(username)) {
     return NextResponse.json(
       { error: "ชื่อบัญชีต้องยาว 3–64 ตัว ใช้ได้เฉพาะ a-z, 0-9, จุด, ขีด, ขีดล่าง" },
-      { status: 400 }
+      { status: 400 },
     );
   }
   if (password.length < 6) {

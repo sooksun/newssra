@@ -126,9 +126,9 @@ export default async function FeedbackPage() {
       .filter(
         (entry) =>
           entry.generalFeedback.trim().length > 0 ||
-          Object.values(entry.feedback).some((fb) => fb && (fb.opinion !== "agree" || fb.note.trim().length > 0))
+          Object.values(entry.feedback).some((fb) => fb && (fb.opinion !== "agree" || fb.note.trim().length > 0)),
       )
-      .map((entry) => entry.assessmentId)
+      .map((entry) => entry.assessmentId),
   ).size;
 
   return (

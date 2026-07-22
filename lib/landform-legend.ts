@@ -1,11 +1,7 @@
 // ถ้อยคำภูมิประเทศ สพฐ./HRDI vs แอป — pure copy helpers สำหรับ UI tooltip (Phase 2)
 // แยกจาก lib/gis.ts และ lib/community-class.ts — ไม่มี logic คะแนน/เส้นทาง
 
-import {
-  COMMUNITY_HIGHLAND_MIN_M,
-  COMMUNITY_HIGH_MOUNTAIN_M,
-  communityAxisATierLabelTh,
-} from "./community-class";
+import { COMMUNITY_HIGHLAND_MIN_M, COMMUNITY_HIGH_MOUNTAIN_M, communityAxisATierLabelTh } from "./community-class";
 import type { CommunityAxisATier } from "./types";
 
 /** เนินเขา (คู่มือ สพฐ.): ~150–600 ม. */

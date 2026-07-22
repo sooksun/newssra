@@ -29,13 +29,55 @@ const SCHOOL_D = "TESTMAPD"; // มี master data + แบบร่างปี
 const SCHOOL_E = "TESTMAPE"; // มี master data + แบบร่างปีนี้ที่ unit.name/code/province ว่างเปล่า — ใช้ทดสอบเติมข้อมูลจากทะเบียนตอน update
 const SCHOOL_F = "TESTMAPF"; // มี master data + แบบร่างปีนี้ที่ unit.name เป็นชื่อที่ครูพิมพ์เอง — ใช้ทดสอบว่าไม่ถูกทับ
 
-const SESSION_A: SessionUser = { uid: 910001, role: "school", name: "รร.ทดสอบแผนที่ A", source: "local", schoolCode: SCHOOL_A };
-const SESSION_B: SessionUser = { uid: 910002, role: "school", name: "รร.ทดสอบแผนที่ B", source: "local", schoolCode: SCHOOL_B };
-const SESSION_C: SessionUser = { uid: 910003, role: "school", name: "รร.ทดสอบแผนที่ C", source: "local", schoolCode: SCHOOL_C };
-const SESSION_NO_SCHOOL: SessionUser = { uid: 910004, role: "school", name: "บัญชียังไม่ผูกโรงเรียน", source: "local", schoolCode: "" };
-const SESSION_D: SessionUser = { uid: 910005, role: "school", name: "รร.ทดสอบแผนที่ D", source: "local", schoolCode: SCHOOL_D };
-const SESSION_E: SessionUser = { uid: 910006, role: "school", name: "รร.ทดสอบแผนที่ E", source: "local", schoolCode: SCHOOL_E };
-const SESSION_F: SessionUser = { uid: 910007, role: "school", name: "รร.ทดสอบแผนที่ F", source: "local", schoolCode: SCHOOL_F };
+const SESSION_A: SessionUser = {
+  uid: 910001,
+  role: "school",
+  name: "รร.ทดสอบแผนที่ A",
+  source: "local",
+  schoolCode: SCHOOL_A,
+};
+const SESSION_B: SessionUser = {
+  uid: 910002,
+  role: "school",
+  name: "รร.ทดสอบแผนที่ B",
+  source: "local",
+  schoolCode: SCHOOL_B,
+};
+const SESSION_C: SessionUser = {
+  uid: 910003,
+  role: "school",
+  name: "รร.ทดสอบแผนที่ C",
+  source: "local",
+  schoolCode: SCHOOL_C,
+};
+const SESSION_NO_SCHOOL: SessionUser = {
+  uid: 910004,
+  role: "school",
+  name: "บัญชียังไม่ผูกโรงเรียน",
+  source: "local",
+  schoolCode: "",
+};
+const SESSION_D: SessionUser = {
+  uid: 910005,
+  role: "school",
+  name: "รร.ทดสอบแผนที่ D",
+  source: "local",
+  schoolCode: SCHOOL_D,
+};
+const SESSION_E: SessionUser = {
+  uid: 910006,
+  role: "school",
+  name: "รร.ทดสอบแผนที่ E",
+  source: "local",
+  schoolCode: SCHOOL_E,
+};
+const SESSION_F: SessionUser = {
+  uid: 910007,
+  role: "school",
+  name: "รร.ทดสอบแผนที่ F",
+  source: "local",
+  schoolCode: SCHOOL_F,
+};
 
 const LOC_ID_A = 999999201;
 const LOC_ID_B = 999999202;
@@ -77,7 +119,26 @@ async function seedMasterSchool(schoolCode: string, locId: number, name: string)
       (sc_id, sc_smis, sc_obec, sao_code, sc_name, dir_name, address, districts, amphures, provinces,
        zipcodes, email, website, telephone, establish, status, remote, last_update)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [String(locId), schoolCode, "000000", 1, name, "ทดสอบ", "ที่อยู่ทดสอบ", "ทดสอบ", "ทดสอบ", "เชียงราย", "57000", "", "", "", "", 1, 0, "2026"],
+    [
+      String(locId),
+      schoolCode,
+      "000000",
+      1,
+      name,
+      "ทดสอบ",
+      "ที่อยู่ทดสอบ",
+      "ทดสอบ",
+      "ทดสอบ",
+      "เชียงราย",
+      "57000",
+      "",
+      "",
+      "",
+      "",
+      1,
+      0,
+      "2026",
+    ],
   );
   await rawExec(
     `INSERT INTO school_location
@@ -120,15 +181,30 @@ function typedNameDraftState(): AssessmentState {
 }
 
 async function cleanupTestRows() {
-  await rawExec(
-    "DELETE FROM assessments WHERE owner_school_code IN (?, ?, ?, ?, ?, ?) OR submitted_ref = ?",
-    [SCHOOL_A, SCHOOL_B, SCHOOL_C, SCHOOL_D, SCHOOL_E, SCHOOL_F, SUBMITTED_REF_B],
-  );
-  await rawExec(
-    "DELETE FROM master_school WHERE sc_smis IN (?, ?, ?, ?, ?, ?)",
-    [SCHOOL_A, SCHOOL_B, SCHOOL_C, SCHOOL_D, SCHOOL_E, SCHOOL_F],
-  );
-  await rawExec("DELETE FROM school_location WHERE id IN (?, ?, ?, ?, ?)", [LOC_ID_A, LOC_ID_B, LOC_ID_D, LOC_ID_E, LOC_ID_F]);
+  await rawExec("DELETE FROM assessments WHERE owner_school_code IN (?, ?, ?, ?, ?, ?) OR submitted_ref = ?", [
+    SCHOOL_A,
+    SCHOOL_B,
+    SCHOOL_C,
+    SCHOOL_D,
+    SCHOOL_E,
+    SCHOOL_F,
+    SUBMITTED_REF_B,
+  ]);
+  await rawExec("DELETE FROM master_school WHERE sc_smis IN (?, ?, ?, ?, ?, ?)", [
+    SCHOOL_A,
+    SCHOOL_B,
+    SCHOOL_C,
+    SCHOOL_D,
+    SCHOOL_E,
+    SCHOOL_F,
+  ]);
+  await rawExec("DELETE FROM school_location WHERE id IN (?, ?, ?, ?, ?)", [
+    LOC_ID_A,
+    LOC_ID_B,
+    LOC_ID_D,
+    LOC_ID_E,
+    LOC_ID_F,
+  ]);
 }
 
 let submittedBId = 0;
@@ -327,21 +403,29 @@ test(
 
 // ─────────────────────── locked (แถวปีนี้ยื่นแล้ว) ───────────────────────
 
-test("POST from-map: แบบประเมินปีปัจจุบันยื่นแล้ว → 200 locked และ state ไม่เปลี่ยนแม้แต่ byte เดียว", { skip: !DB }, async () => {
-  const before_ = await repo.getAssessment(submittedBId);
-  assert.ok(before_, "ต้องมีแถวยื่นแล้วให้เปรียบเทียบ");
+test(
+  "POST from-map: แบบประเมินปีปัจจุบันยื่นแล้ว → 200 locked และ state ไม่เปลี่ยนแม้แต่ byte เดียว",
+  { skip: !DB },
+  async () => {
+    const before_ = await repo.getAssessment(submittedBId);
+    assert.ok(before_, "ต้องมีแถวยื่นแล้วให้เปรียบเทียบ");
 
-  await actAs(SESSION_B);
-  const res = await route.POST(jsonRequest(NextRequest, BASE, { method: "POST", body: validPayload() }));
-  assert.equal(res.status, 200);
-  const body = await res.json();
-  assert.equal(body.action, "locked");
-  assert.equal(body.assessmentId, submittedBId);
+    await actAs(SESSION_B);
+    const res = await route.POST(jsonRequest(NextRequest, BASE, { method: "POST", body: validPayload() }));
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.action, "locked");
+    assert.equal(body.assessmentId, submittedBId);
 
-  const after_ = await repo.getAssessment(submittedBId);
-  assert.ok(after_, "แถวต้องยังอยู่หลังเรียก locked");
-  assert.deepEqual(after_!.state, before_!.state, "state ทั้งก้อนต้องเหมือนเดิมทุกประการ (ห้ามแตะ GIS/คะแนนของแบบที่ยื่นแล้ว)");
-});
+    const after_ = await repo.getAssessment(submittedBId);
+    assert.ok(after_, "แถวต้องยังอยู่หลังเรียก locked");
+    assert.deepEqual(
+      after_!.state,
+      before_!.state,
+      "state ทั้งก้อนต้องเหมือนเดิมทุกประการ (ห้ามแตะ GIS/คะแนนของแบบที่ยื่นแล้ว)",
+    );
+  },
+);
 
 // ─────────────────── การ์ด relocation เมื่อ syncUnitLocation:true (เหมือน /gis) ───────────────────
 // SCHOOL_D มีแบบร่างปีนี้อยู่แล้วโดย unit.lat/lng = 20.000000, 99.000000 (draftState)

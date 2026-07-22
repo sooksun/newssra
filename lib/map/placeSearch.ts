@@ -83,8 +83,7 @@ export function loadGoogleMaps(): Promise<GoogleMapsApi> {
     });
     script.src = `https://maps.googleapis.com/maps/api/js?${params.toString()}`;
     script.async = true;
-    script.onerror = () =>
-      reject(new Error("โหลด Google Maps script ไม่สำเร็จ (ตรวจสอบเครือข่ายหรือ API key)"));
+    script.onerror = () => reject(new Error("โหลด Google Maps script ไม่สำเร็จ (ตรวจสอบเครือข่ายหรือ API key)"));
     document.head.appendChild(script);
   });
 
@@ -110,13 +109,10 @@ let googleGeocoderAvailable = true; // ปิดถาวรเมื่อพ�
 async function autocompleteGoogle(gmaps: GoogleMapsApi, q: string): Promise<PlaceHit[]> {
   const svc = new gmaps.maps.places.AutocompleteService();
   const preds = await new Promise<AutocompletePrediction[]>((resolve, reject) => {
-    svc.getPlacePredictions(
-      { input: q, language: "th", componentRestrictions: { country: "th" } },
-      (p, status) => {
-        if (status === gmaps.maps.places.PlacesServiceStatus.OK && p) resolve(p);
-        else reject(new Error(String(status)));
-      },
-    );
+    svc.getPlacePredictions({ input: q, language: "th", componentRestrictions: { country: "th" } }, (p, status) => {
+      if (status === gmaps.maps.places.PlacesServiceStatus.OK && p) resolve(p);
+      else reject(new Error(String(status)));
+    });
   });
   // ยังไม่มีพิกัด (lat/lng = NaN) — จะแปลงจาก place_id ตอนผู้ใช้เลือก
   return preds.slice(0, 6).map((p) => ({ name: p.description, lat: NaN, lng: NaN, placeId: p.place_id }));
@@ -149,7 +145,12 @@ function nominatimProvince(addr?: NominatimAddress): string | undefined {
 export async function geocodeNominatim(q: string): Promise<PlaceHit[]> {
   const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=6&accept-language=th&q=${encodeURIComponent(q)}`;
   const res = await fetch(url, { headers: { Accept: "application/json" } });
-  const data = (await res.json()) as Array<{ display_name: string; lat: string; lon: string; address?: NominatimAddress }>;
+  const data = (await res.json()) as Array<{
+    display_name: string;
+    lat: string;
+    lon: string;
+    address?: NominatimAddress;
+  }>;
   return data.map((d) => ({
     name: d.display_name,
     lat: Number(d.lat),

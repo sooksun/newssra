@@ -3,10 +3,7 @@ import { DIMENSIONS, INDICATORS, PASS_THRESHOLD } from "@/lib/criteria";
 import { countAllAssessments, DASHBOARD_ROW_CAP, listAllStates } from "@/lib/repo";
 import { requireRole } from "@/lib/auth";
 import { computeCommunityClass } from "@/lib/gis";
-import {
-  COMMUNITY_DASHBOARD_LABELS,
-  COMMUNITY_DASHBOARD_ORDER,
-} from "@/lib/community-class";
+import { COMMUNITY_DASHBOARD_LABELS, COMMUNITY_DASHBOARD_ORDER } from "@/lib/community-class";
 import { computeAll } from "@/lib/scoring";
 import { INDICATOR_IDS } from "@/lib/types";
 import type { IndicatorId } from "@/lib/types";
@@ -61,9 +58,7 @@ export default async function DashboardPage() {
   const maxLevelCount = Math.max(1, ...Object.values(levelCounts));
 
   // จำแนกชุมชน 3 แกน (จาก state.gis — คำนวณ live เหมือนคะแนน)
-  const communityCounts: Record<string, number> = Object.fromEntries(
-    COMMUNITY_DASHBOARD_ORDER.map((k) => [k, 0]),
-  );
+  const communityCounts: Record<string, number> = Object.fromEntries(COMMUNITY_DASHBOARD_ORDER.map((k) => [k, 0]));
   rows.forEach((row) => {
     if (!row.state.gis) {
       communityCounts.none += 1;
@@ -74,7 +69,6 @@ export default async function DashboardPage() {
     communityCounts[key] = (communityCounts[key] ?? 0) + 1;
   });
   const maxCommunityCount = Math.max(1, ...Object.values(communityCounts));
-
 
   const buckets = Array.from({ length: HISTOGRAM_BUCKETS }, (_, index) => ({
     label: `${index * 10}-${index === HISTOGRAM_BUCKETS - 1 ? 100 : index * 10 + 9}`,
@@ -145,10 +139,12 @@ export default async function DashboardPage() {
             {capped ? (
               <div className="pilot-banner">
                 <strong>
-                  แสดงสถิติจาก {total.toLocaleString("th-TH")} รายการล่าสุด (จากทั้งหมด {totalInDb.toLocaleString("th-TH")})
+                  แสดงสถิติจาก {total.toLocaleString("th-TH")} รายการล่าสุด (จากทั้งหมด{" "}
+                  {totalInDb.toLocaleString("th-TH")})
                 </strong>
                 <span>
-                  เพื่อความเร็วในการโหลด แดชบอร์ดคำนวณจากแบบประเมินล่าสุดสูงสุด {DASHBOARD_ROW_CAP.toLocaleString("th-TH")} รายการ
+                  เพื่อความเร็วในการโหลด แดชบอร์ดคำนวณจากแบบประเมินล่าสุดสูงสุด{" "}
+                  {DASHBOARD_ROW_CAP.toLocaleString("th-TH")} รายการ
                 </span>
               </div>
             ) : null}
@@ -193,7 +189,10 @@ export default async function DashboardPage() {
                     <div className="chart-bar-row" key={key}>
                       <span className={`level-pill ${LEVEL_META[key].className}`}>{LEVEL_META[key].label}</span>
                       <div className="chart-bar-track">
-                        <div className={`chart-bar-fill fill-${LEVEL_META[key].className}`} style={{ width: `${widthPercent}%` }} />
+                        <div
+                          className={`chart-bar-fill fill-${LEVEL_META[key].className}`}
+                          style={{ width: `${widthPercent}%` }}
+                        />
                       </div>
                       <span className="chart-bar-value">
                         {count} <small>({percent.toFixed(0)}%)</small>
@@ -230,10 +229,10 @@ export default async function DashboardPage() {
                 })}
               </div>
               <p className="gis-community-c-note" style={{ marginTop: 10 }}>
-                คำนวณ live จาก state.gis (communityClass) ทุกครั้งที่โหลดแดชบอร์ด — ตรงกับเกณฑ์ปัจจุบัน
-                (cc-3: ต้องมีทั้งแกน A+B ถึงได้ป้าย highland/flat; แกนเดียว = ข้อมูลไม่ครบ; WSC 1–5 = ประมาณจากความลาดชัน)
-                · หน้ารายการใช้คอลัมน์ดัชนีที่อัปเดตตอนบันทึก — ถ้าแสดง &quot;ยังไม่จัดดัชนีรายการ&quot; ให้เปิดบันทึกอีกครั้ง
-                · ไม่ใช่ความหนาแน่นประชากร · WSC proxy ไม่ใช่แผนที่ลุ่มน้ำราชการ
+                คำนวณ live จาก state.gis (communityClass) ทุกครั้งที่โหลดแดชบอร์ด — ตรงกับเกณฑ์ปัจจุบัน (cc-3:
+                ต้องมีทั้งแกน A+B ถึงได้ป้าย highland/flat; แกนเดียว = ข้อมูลไม่ครบ; WSC 1–5 = ประมาณจากความลาดชัน) ·
+                หน้ารายการใช้คอลัมน์ดัชนีที่อัปเดตตอนบันทึก — ถ้าแสดง &quot;ยังไม่จัดดัชนีรายการ&quot;
+                ให้เปิดบันทึกอีกครั้ง · ไม่ใช่ความหนาแน่นประชากร · WSC proxy ไม่ใช่แผนที่ลุ่มน้ำราชการ
               </p>
             </section>
 
@@ -357,7 +356,9 @@ export default async function DashboardPage() {
                           <span className="cell-sub">/100</span>
                         </td>
                         <td>
-                          <span className={`level-pill ${LEVEL_META[row.computed.level.key as keyof typeof LEVEL_META]?.className ?? "neutral"}`}>
+                          <span
+                            className={`level-pill ${LEVEL_META[row.computed.level.key as keyof typeof LEVEL_META]?.className ?? "neutral"}`}
+                          >
                             {row.computed.level.label}
                           </span>
                         </td>

@@ -59,12 +59,11 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
 
   // กันล็อกตัวเองออกจากระบบ: ต้องเหลือผู้ดูแลระบบที่ใช้งานได้อย่างน้อย 1 บัญชีเสมอ
   const removesActiveAdmin =
-    target.role === "admin" && target.active && (patch.role === "school" || patch.role === "ssra_admin" || patch.active === false);
+    target.role === "admin" &&
+    target.active &&
+    (patch.role === "school" || patch.role === "ssra_admin" || patch.active === false);
   if (removesActiveAdmin && (await countAdmins(true)) <= 1) {
-    return NextResponse.json(
-      { error: "ต้องมีผู้ดูแลระบบ (admin) ที่ใช้งานได้อย่างน้อย 1 บัญชี" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "ต้องมีผู้ดูแลระบบ (admin) ที่ใช้งานได้อย่างน้อย 1 บัญชี" }, { status: 400 });
   }
 
   try {

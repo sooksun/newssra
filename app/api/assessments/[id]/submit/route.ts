@@ -46,7 +46,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
     if (!canSubmit(state)) {
       return NextResponse.json(
         { error: "ข้อมูลยังไม่ครบเงื่อนไขการส่ง (ตัวชี้วัด หลักฐาน ธงบล็อก หรือการลงนาม)" },
-        { status: 422 }
+        { status: 422 },
       );
     }
 

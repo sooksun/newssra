@@ -75,10 +75,7 @@ export default function GisSummary({ state, assessmentId }: Props) {
   const community = gis.communityClass ?? computeCommunityClass(gis, gis.savedAt);
   const suggestedSetting = suggestSettingTypeFromGis(gis);
   const future = futureIndicators(gis);
-  const settingMismatch =
-    suggestedSetting &&
-    state.unit.settingType &&
-    state.unit.settingType !== suggestedSetting;
+  const settingMismatch = suggestedSetting && state.unit.settingType && state.unit.settingType !== suggestedSetting;
 
   // เทียบค่าที่ GIS derive กับค่าที่อยู่ในแบบประเมินจริงตอนนี้ (ผู้ใช้อาจแก้มือหลัง apply — ธง V19/V20 จับความต่าง)
   const comparisons: { id: string; label: string; gisValue: string; currentValue: string }[] = [];
@@ -142,7 +139,8 @@ export default function GisSummary({ state, assessmentId }: Props) {
             <div>
               <dt>ความสูงต่ำสุด / สูงสุด</dt>
               <dd>
-                {valueOrMissing(gis.elevation.minElevationM, " ม.")} / {valueOrMissing(gis.elevation.maxElevationM, " ม.")}
+                {valueOrMissing(gis.elevation.minElevationM, " ม.")} /{" "}
+                {valueOrMissing(gis.elevation.maxElevationM, " ม.")}
               </dd>
             </div>
             <div>
@@ -248,9 +246,7 @@ export default function GisSummary({ state, assessmentId }: Props) {
               <dt>WSC 1–5 (ประมาณ)</dt>
               <dd>
                 <strong>{community.wscProxy.labelTh}</strong>
-                {community.wscProxy.meanSlopePct !== null
-                  ? ` · ลาดชันเฉลี่ย ${community.wscProxy.meanSlopePct}%`
-                  : ""}
+                {community.wscProxy.meanSlopePct !== null ? ` · ลาดชันเฉลี่ย ${community.wscProxy.meanSlopePct}%` : ""}
                 <span className="gis-community-c-note"> — {community.wscProxy.hint}</span>
               </dd>
             </div>
@@ -355,8 +351,8 @@ export default function GisSummary({ state, assessmentId }: Props) {
             คะแนน GIS อัตโนมัติ: {auto.total} / {auto.maxComputable} คะแนนที่คำนวณได้ (จากเต็ม {auto.max})
           </strong>
           <span className="gis-auto-note">
-            คะแนนประกอบการพิจารณา — ไม่รวมกับคะแนนทางการ 100 คะแนน; องค์ประกอบที่ยังไม่มีข้อมูล
-            (เช่น พื้นที่ชายแดน/เขตเทศบาล) ไม่ถูกนับ
+            คะแนนประกอบการพิจารณา — ไม่รวมกับคะแนนทางการ 100 คะแนน; องค์ประกอบที่ยังไม่มีข้อมูล (เช่น
+            พื้นที่ชายแดน/เขตเทศบาล) ไม่ถูกนับ
           </span>
         </div>
       ) : null}
@@ -393,8 +389,8 @@ export default function GisSummary({ state, assessmentId }: Props) {
             </table>
           </div>
           <span className="gis-auto-note">
-            คำนวณอัตโนมัติจากเส้นทางหลัก (ที่ว่าการอำเภอ/ศาลากลาง) ที่บันทึกจากแผนที่ —
-            เกณฑ์ทดลองเพื่อประกอบการพิจารณา ไม่มีผลต่อคะแนนรวมและการยื่นแบบประเมิน
+            คำนวณอัตโนมัติจากเส้นทางหลัก (ที่ว่าการอำเภอ/ศาลากลาง) ที่บันทึกจากแผนที่ — เกณฑ์ทดลองเพื่อประกอบการพิจารณา
+            ไม่มีผลต่อคะแนนรวมและการยื่นแบบประเมิน
           </span>
         </div>
       ) : null}

@@ -61,8 +61,8 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
     // uq_owner_school_year: เปลี่ยน "ปีการประเมิน" ไปชนกับแบบประเมินอื่นของโรงเรียนเดียวกัน
     if ((error as { code?: string } | null)?.code === "ER_DUP_ENTRY") {
       return NextResponse.json(
-        { error: "โรงเรียนนี้มีแบบประเมินสำหรับปีนี้อยู่แล้ว กรุณาแก้ไข \"ปีการประเมิน\" ให้เป็นปีอื่น" },
-        { status: 409 }
+        { error: 'โรงเรียนนี้มีแบบประเมินสำหรับปีนี้อยู่แล้ว กรุณาแก้ไข "ปีการประเมิน" ให้เป็นปีอื่น' },
+        { status: 409 },
       );
     }
     console.error("[api] save assessment failed:", error);

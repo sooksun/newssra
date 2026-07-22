@@ -59,19 +59,14 @@ export default function LandformLegendTip({ className = "" }: Props) {
                 <p className="help-panel-kicker">คำอธิบายเกณฑ์</p>
                 <h2 id={titleId}>ถ้อยคำภูมิประเทศ: สพฐ. / HRDI / แอป</h2>
               </div>
-              <button
-                type="button"
-                className="help-panel-close"
-                aria-label="ปิด"
-                onClick={() => setOpen(false)}
-              >
+              <button type="button" className="help-panel-close" aria-label="ปิด" onClick={() => setOpen(false)}>
                 X
               </button>
             </div>
 
             <p className="help-panel-lead">
-              เกตคัดกรองพื้นที่สูงใช้ 500 ม. หรือเทียบกับค่าเฉลี่ยจังหวัด/เส้นทางผ่านที่สูง
-              ส่วนป้าย “ภูเขาสูง” ของแอปใช้ชั้น 1,000 ม. เพื่อไม่ปะปนกับนิยาม “ภูเขา” ในคู่มือ สพฐ.
+              เกตคัดกรองพื้นที่สูงใช้ 500 ม. หรือเทียบกับค่าเฉลี่ยจังหวัด/เส้นทางผ่านที่สูง ส่วนป้าย “ภูเขาสูง”
+              ของแอปใช้ชั้น 1,000 ม. เพื่อไม่ปะปนกับนิยาม “ภูเขา” ในคู่มือ สพฐ.
             </p>
 
             <div className="help-panel-callout">

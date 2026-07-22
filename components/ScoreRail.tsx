@@ -28,11 +28,7 @@ export default function ScoreRail({ computed, signed }: Props) {
   return (
     <aside className="score-rail" aria-label="สรุปคะแนน">
       <section className="score-panel">
-        <div
-          className="score-ring"
-          aria-live="polite"
-          style={{ "--score-angle": `${angle}deg` } as CSSProperties}
-        >
+        <div className="score-ring" aria-live="polite" style={{ "--score-angle": `${angle}deg` } as CSSProperties}>
           <span>{computed.total}</span>
           <small>/100</small>
         </div>

@@ -50,44 +50,52 @@ after(async () => {
   await rawExec("DELETE FROM assessments WHERE owner_school_code = ?", [SCHOOL_CODE]);
 });
 
-test("POST /api/assessments: โรงเรียนที่มีแบบประเมินปีปัจจุบันอยู่แล้ว → 409 + assessmentId เดิม (ไม่สร้างแถวใหม่)", { skip: !DB }, async () => {
-  // makeBlankState() ใช้ currentBuddhistYear() เป็น default — สร้างแถวปีปัจจุบันของโรงเรียนนี้ไว้ล่วงหน้า
-  const { currentBuddhistYear } = await import("../../lib/assessment-year.ts");
-  const thisYear = currentBuddhistYear();
-  const existing = stateFor(thisYear);
-  const existingId = await repo.createAssessment(existing, { userId: null, schoolCode: SCHOOL_CODE });
-  created.push(existingId);
+test(
+  "POST /api/assessments: โรงเรียนที่มีแบบประเมินปีปัจจุบันอยู่แล้ว → 409 + assessmentId เดิม (ไม่สร้างแถวใหม่)",
+  { skip: !DB },
+  async () => {
+    // makeBlankState() ใช้ currentBuddhistYear() เป็น default — สร้างแถวปีปัจจุบันของโรงเรียนนี้ไว้ล่วงหน้า
+    const { currentBuddhistYear } = await import("../../lib/assessment-year.ts");
+    const thisYear = currentBuddhistYear();
+    const existing = stateFor(thisYear);
+    const existingId = await repo.createAssessment(existing, { userId: null, schoolCode: SCHOOL_CODE });
+    created.push(existingId);
 
-  const countBefore = await repo.countAssessments({ uid: 0, role: "school", schoolCode: SCHOOL_CODE });
+    const countBefore = await repo.countAssessments({ uid: 0, role: "school", schoolCode: SCHOOL_CODE });
 
-  await actAs({ uid: 900010, role: "school", name: "รร.ทดสอบปีชน", source: "local", schoolCode: SCHOOL_CODE });
-  const res = await listCreateRoute.POST();
-  assert.equal(res.status, 409);
-  const data = (await res.json()) as { error?: string; assessmentId?: number | null };
-  assert.equal(data.assessmentId, existingId);
-  assert.ok(data.error && data.error.length > 0);
+    await actAs({ uid: 900010, role: "school", name: "รร.ทดสอบปีชน", source: "local", schoolCode: SCHOOL_CODE });
+    const res = await listCreateRoute.POST();
+    assert.equal(res.status, 409);
+    const data = (await res.json()) as { error?: string; assessmentId?: number | null };
+    assert.equal(data.assessmentId, existingId);
+    assert.ok(data.error && data.error.length > 0);
 
-  const countAfter = await repo.countAssessments({ uid: 0, role: "school", schoolCode: SCHOOL_CODE });
-  assert.equal(countAfter, countBefore, "ต้องไม่มีแถวใหม่ถูกสร้างขึ้น");
-});
+    const countAfter = await repo.countAssessments({ uid: 0, role: "school", schoolCode: SCHOOL_CODE });
+    assert.equal(countAfter, countBefore, "ต้องไม่มีแถวใหม่ถูกสร้างขึ้น");
+  },
+);
 
-test("PUT /api/assessments/[id]: แก้ unit.year ไปชนปีอื่นของโรงเรียนเดียวกัน → 409 (ปีเดิมในฐานข้อมูลไม่ถูกแก้)", { skip: !DB }, async () => {
-  await actAs({ uid: 900011, role: "school", name: "รร.ทดสอบปีชน", source: "local", schoolCode: SCHOOL_CODE });
+test(
+  "PUT /api/assessments/[id]: แก้ unit.year ไปชนปีอื่นของโรงเรียนเดียวกัน → 409 (ปีเดิมในฐานข้อมูลไม่ถูกแก้)",
+  { skip: !DB },
+  async () => {
+    await actAs({ uid: 900011, role: "school", name: "รร.ทดสอบปีชน", source: "local", schoolCode: SCHOOL_CODE });
 
-  const forged = stateFor(YEAR_A);
-  forged.unit.year = YEAR_B; // ชนกับ rowYearBId ที่มีอยู่แล้ว
-  forged.unit.name = "ชื่อที่พยายามแก้";
+    const forged = stateFor(YEAR_A);
+    forged.unit.year = YEAR_B; // ชนกับ rowYearBId ที่มีอยู่แล้ว
+    forged.unit.name = "ชื่อที่พยายามแก้";
 
-  const res = await assessmentRoute.PUT(
-    jsonRequest(NextRequest, `${BASE}/${rowYearAId}`, { method: "PUT", body: { state: forged } }),
-    ctx(rowYearAId),
-  );
-  assert.equal(res.status, 409);
-  const data = (await res.json()) as { error?: string };
-  assert.ok(data.error && data.error.length > 0);
+    const res = await assessmentRoute.PUT(
+      jsonRequest(NextRequest, `${BASE}/${rowYearAId}`, { method: "PUT", body: { state: forged } }),
+      ctx(rowYearAId),
+    );
+    assert.equal(res.status, 409);
+    const data = (await res.json()) as { error?: string };
+    assert.ok(data.error && data.error.length > 0);
 
-  const rec = await repo.getAssessment(rowYearAId);
-  assert.ok(rec, "แถวต้องยังอยู่");
-  assert.equal(rec!.state.unit.year, YEAR_A, "ปีในฐานข้อมูลต้องไม่เปลี่ยน");
-  assert.notEqual(rec!.state.unit.name, "ชื่อที่พยายามแก้", "การแก้ที่ทำให้ชนต้องไม่ถูกบันทึกเลย");
-});
+    const rec = await repo.getAssessment(rowYearAId);
+    assert.ok(rec, "แถวต้องยังอยู่");
+    assert.equal(rec!.state.unit.year, YEAR_A, "ปีในฐานข้อมูลต้องไม่เปลี่ยน");
+    assert.notEqual(rec!.state.unit.name, "ชื่อที่พยายามแก้", "การแก้ที่ทำให้ชนต้องไม่ถูกบันทึกเลย");
+  },
+);

@@ -32,14 +32,12 @@ export function parseSharedBorders(raw: unknown): SharedBordersDoc {
     const label = toLngLat(item.label);
     if (!name || !label) return [];
 
-    const chains = (Array.isArray(item.chains) ? item.chains : []).flatMap(
-      (chain): LngLat[][] => {
-        const points = (Array.isArray(chain) ? chain : [])
-          .map(toLngLat)
-          .filter((point): point is LngLat => point !== null);
-        return points.length >= 2 ? [points] : [];
-      },
-    );
+    const chains = (Array.isArray(item.chains) ? item.chains : []).flatMap((chain): LngLat[][] => {
+      const points = (Array.isArray(chain) ? chain : [])
+        .map(toLngLat)
+        .filter((point): point is LngLat => point !== null);
+      return points.length >= 2 ? [points] : [];
+    });
     if (chains.length === 0) return [];
 
     return [
@@ -57,9 +55,7 @@ export function parseSharedBorders(raw: unknown): SharedBordersDoc {
     const ai = BORDER_ORDER.indexOf(a.name);
     const bi = BORDER_ORDER.indexOf(b.name);
     if (ai !== -1 || bi !== -1) {
-      return (
-        (ai === -1 ? Number.MAX_SAFE_INTEGER : ai) - (bi === -1 ? Number.MAX_SAFE_INTEGER : bi)
-      );
+      return (ai === -1 ? Number.MAX_SAFE_INTEGER : ai) - (bi === -1 ? Number.MAX_SAFE_INTEGER : bi);
     }
     return a.name.localeCompare(b.name);
   });

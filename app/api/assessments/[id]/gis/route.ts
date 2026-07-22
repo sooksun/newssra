@@ -75,11 +75,7 @@ export async function POST(request: NextRequest, { params }: Ctx) {
         { status: 409 },
       );
     }
-    if (
-      distanceFromUnitM !== null &&
-      distanceFromUnitM > CENTER_SYNC_TOLERANCE_M &&
-      !syncUnitLocation
-    ) {
+    if (distanceFromUnitM !== null && distanceFromUnitM > CENTER_SYNC_TOLERANCE_M && !syncUnitLocation) {
       return NextResponse.json(
         { error: "พิกัด GIS ไม่ตรงกับพิกัดในแบบฟอร์ม กรุณายืนยันการอัปเดตพิกัดโรงเรียนก่อนบันทึก" },
         { status: 409 },
@@ -121,7 +117,8 @@ export async function POST(request: NextRequest, { params }: Ctx) {
 
     // เมื่อ apply คะแนน v2 และผู้ใช้ยังไม่ระบุลักษณะที่ตั้ง — แนะนำจาก GIS (ไม่ทับค่าที่มีอยู่)
     let unit = existing.state.unit;
-    const syncedUnitLocation = syncUnitLocation && (!hasUnitCoords || (distanceFromUnitM ?? 0) > CENTER_SYNC_TOLERANCE_M);
+    const syncedUnitLocation =
+      syncUnitLocation && (!hasUnitCoords || (distanceFromUnitM ?? 0) > CENTER_SYNC_TOLERANCE_M);
     if (syncedUnitLocation) {
       unit = { ...unit, lat: lat.toFixed(6), lng: lng.toFixed(6) };
     }

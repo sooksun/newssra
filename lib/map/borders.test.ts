@@ -9,11 +9,51 @@ test("parseSharedBorders drops malformed entries and orders neighbors", () => {
   const doc = parseSharedBorders({
     attribution: "© OpenStreetMap contributors",
     borders: [
-      { name: "Malaysia", nameTh: "มาเลเซีย", label: [101, 6], chains: [[[100, 6], [101, 6]]] },
-      { name: "Myanmar", nameTh: "เมียนมา", label: [98, 16], chains: [[[98, 16], [99, 17]]] },
+      {
+        name: "Malaysia",
+        nameTh: "มาเลเซีย",
+        label: [101, 6],
+        chains: [
+          [
+            [100, 6],
+            [101, 6],
+          ],
+        ],
+      },
+      {
+        name: "Myanmar",
+        nameTh: "เมียนมา",
+        label: [98, 16],
+        chains: [
+          [
+            [98, 16],
+            [99, 17],
+          ],
+        ],
+      },
       // ตกไปทั้งหมด: ไม่มีชื่อ / label เพี้ยน / เส้นสั้นเกินไป / ไม่มีเส้นเลย
-      { name: "", nameTh: "ไร้ชื่อ", label: [100, 15], chains: [[[100, 15], [101, 15]]] },
-      { name: "Nowhere", nameTh: "ไม่มีจริง", label: [999, 15], chains: [[[100, 15], [101, 15]]] },
+      {
+        name: "",
+        nameTh: "ไร้ชื่อ",
+        label: [100, 15],
+        chains: [
+          [
+            [100, 15],
+            [101, 15],
+          ],
+        ],
+      },
+      {
+        name: "Nowhere",
+        nameTh: "ไม่มีจริง",
+        label: [999, 15],
+        chains: [
+          [
+            [100, 15],
+            [101, 15],
+          ],
+        ],
+      },
       { name: "TooShort", nameTh: "สั้นไป", label: [100, 15], chains: [[[100, 15]]] },
       { name: "NoChains", nameTh: "ไม่มีเส้น", label: [100, 15], chains: [] },
     ],
@@ -33,9 +73,7 @@ test("parseSharedBorders tolerates a missing or broken document", () => {
 });
 
 test("bundled border data covers Thailand's four land neighbors at map-usable precision", () => {
-  const doc = parseSharedBorders(
-    JSON.parse(readFileSync(join(process.cwd(), "public/geo/sea-borders.json"), "utf8")),
-  );
+  const doc = parseSharedBorders(JSON.parse(readFileSync(join(process.cwd(), "public/geo/sea-borders.json"), "utf8")));
 
   assert.deepEqual(
     doc.borders.map((border) => border.name),
@@ -88,8 +126,7 @@ function haversineKm(a: [number, number], b: [number, number]): number {
   const rad = (d: number) => (d * Math.PI) / 180;
   const dLat = rad(b[1] - a[1]);
   const dLng = rad(b[0] - a[0]);
-  const h =
-    Math.sin(dLat / 2) ** 2 + Math.cos(rad(a[1])) * Math.cos(rad(b[1])) * Math.sin(dLng / 2) ** 2;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a[1])) * Math.cos(rad(b[1])) * Math.sin(dLng / 2) ** 2;
   return 2 * 6371.0088 * Math.asin(Math.sqrt(h));
 }
 

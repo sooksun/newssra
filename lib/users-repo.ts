@@ -42,16 +42,14 @@ function rowToUser(row: UserRow): User {
   };
 }
 
-const USER_COLUMNS =
-  "id, username, password_hash, role, display_name, school_code, active, created_at, updated_at";
+const USER_COLUMNS = "id, username, password_hash, role, display_name, school_code, active, created_at, updated_at";
 
 /** ใช้ตอน login — คืนทั้ง password_hash เพื่อตรวจรหัสผ่าน */
 export async function findByUsername(username: string): Promise<UserRow | null> {
   const pool = await getPool();
-  const [rows] = await pool.query<UserRow[]>(
-    `SELECT ${USER_COLUMNS} FROM users WHERE username = ? LIMIT 1`,
-    [username]
-  );
+  const [rows] = await pool.query<UserRow[]>(`SELECT ${USER_COLUMNS} FROM users WHERE username = ? LIMIT 1`, [
+    username,
+  ]);
   return rows.length ? rows[0] : null;
 }
 
@@ -70,7 +68,7 @@ export async function listUsers(): Promise<User[]> {
 export async function countAdmins(activeOnly = true): Promise<number> {
   const pool = await getPool();
   const [rows] = await pool.query<(RowDataPacket & { n: number })[]>(
-    `SELECT COUNT(*) AS n FROM users WHERE role = 'admin'${activeOnly ? " AND active = 1" : ""}`
+    `SELECT COUNT(*) AS n FROM users WHERE role = 'admin'${activeOnly ? " AND active = 1" : ""}`,
   );
   return rows[0]?.n ?? 0;
 }
@@ -91,7 +89,7 @@ export async function createUser(input: NewUser): Promise<number> {
   try {
     const [result] = await pool.query<ResultSetHeader>(
       `INSERT INTO users (username, password_hash, role, display_name, school_code, active) VALUES (?, ?, ?, ?, ?, 1)`,
-      [input.username, hashPassword(input.password), normalizeRole(input.role), input.displayName, schoolCode]
+      [input.username, hashPassword(input.password), normalizeRole(input.role), input.displayName, schoolCode],
     );
     return result.insertId;
   } catch (error) {
@@ -139,10 +137,10 @@ export async function updateUser(id: number, patch: UserUpdate): Promise<boolean
   if (sets.length === 0) return true;
 
   const pool = await getPool();
-  const [result] = await pool.query<ResultSetHeader>(
-    `UPDATE users SET ${sets.join(", ")} WHERE id = ?`,
-    [...values, id]
-  );
+  const [result] = await pool.query<ResultSetHeader>(`UPDATE users SET ${sets.join(", ")} WHERE id = ?`, [
+    ...values,
+    id,
+  ]);
   return result.affectedRows > 0;
 }
 
@@ -154,7 +152,7 @@ function seedPassword(envValue: string | undefined, username: string, devDefault
     const generated = randomBytes(9).toString("base64url"); // ~12 ตัวอักษร คาดเดายาก
     console.warn(
       `[users] ไม่ได้ตั้งรหัสผ่าน seed ของบัญชี "${username}" บน production — สุ่มให้อัตโนมัติ: ${generated}\n` +
-        `        โปรดเข้าสู่ระบบด้วยรหัสนี้แล้วเปลี่ยนทันทีที่หน้า "จัดการผู้ใช้" (ค่านี้จะไม่แสดงอีก)`
+        `        โปรดเข้าสู่ระบบด้วยรหัสนี้แล้วเปลี่ยนทันทีที่หน้า "จัดการผู้ใช้" (ค่านี้จะไม่แสดงอีก)`,
     );
     return generated;
   }
@@ -165,14 +163,24 @@ function seedPassword(envValue: string | undefined, username: string, devDefault
  *  หมายเหตุ: บทบาท school ไม่ seed ที่นี่ — โรงเรียนเข้าสู่ระบบผ่านตาราง `user` เดิม (ดู lib/legacy-users-repo.ts) */
 export async function seedDefaultUsers(pool: Pool): Promise<void> {
   const seeds: { username: string; role: Role; displayName: string; password: string }[] = [
-    { username: "admin", role: "admin", displayName: "ผู้ดูแลระบบ", password: seedPassword(process.env.SEED_ADMIN_PASSWORD, "admin", "admin123") },
-    { username: "ssra_admin", role: "ssra_admin", displayName: "เจ้าหน้าที่ สพฐ.", password: seedPassword(process.env.SEED_SSRA_PASSWORD, "ssra_admin", "ssra123") },
+    {
+      username: "admin",
+      role: "admin",
+      displayName: "ผู้ดูแลระบบ",
+      password: seedPassword(process.env.SEED_ADMIN_PASSWORD, "admin", "admin123"),
+    },
+    {
+      username: "ssra_admin",
+      role: "ssra_admin",
+      displayName: "เจ้าหน้าที่ สพฐ.",
+      password: seedPassword(process.env.SEED_SSRA_PASSWORD, "ssra_admin", "ssra123"),
+    },
   ];
   for (const seed of seeds) {
     // INSERT IGNORE ให้เป็น no-op ถ้าชื่อบัญชีมีอยู่แล้ว (ไม่ทับรหัสผ่านที่ผู้ดูแลอาจเปลี่ยนไปแล้ว)
     await pool.query<ResultSetHeader>(
       `INSERT IGNORE INTO users (username, password_hash, role, display_name, active) VALUES (?, ?, ?, ?, 1)`,
-      [seed.username, hashPassword(seed.password), seed.role, seed.displayName]
+      [seed.username, hashPassword(seed.password), seed.role, seed.displayName],
     );
   }
 }

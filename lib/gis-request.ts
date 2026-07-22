@@ -95,9 +95,7 @@ export function buildGisFromMapRequest(input: unknown, context: GisRequestContex
     throw new GisRequestError("INVALID_GIS", "รูปแบบข้อมูล GIS ไม่ถูกต้อง");
   }
   const body = input as Record<string, unknown>;
-  const center = body.center && typeof body.center === "object"
-    ? (body.center as Record<string, unknown>)
-    : {};
+  const center = body.center && typeof body.center === "object" ? (body.center as Record<string, unknown>) : {};
   const lat = asNum(center.lat);
   const lng = asNum(center.lng);
   if (!(lat >= -90 && lat <= 90) || !(lng >= -180 && lng <= 180)) {
@@ -134,9 +132,8 @@ export function buildGisFromMapRequest(input: unknown, context: GisRequestContex
       confirmedAt: context.now,
       nearestProvinceName: context.provinceName,
     },
-    elevation: body.elevation && typeof body.elevation === "object"
-      ? (body.elevation as GisAnalysis["elevation"])
-      : null,
+    elevation:
+      body.elevation && typeof body.elevation === "object" ? (body.elevation as GisAnalysis["elevation"]) : null,
     routes,
     autoScore: null,
     // placeholder — ผู้เรียก (route handler) เป็นเจ้าของฟิลด์นี้เสมอและเขียนทับค่าจริงทันทีหลังเรียกฟังก์ชันนี้

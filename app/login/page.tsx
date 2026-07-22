@@ -4,11 +4,7 @@ import LoginForm from "@/components/LoginForm";
 
 export const dynamic = "force-dynamic";
 
-export default async function LoginPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ next?: string }>;
-}) {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
   const session = await getSession();
   if (session) redirect("/map");
 
