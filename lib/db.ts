@@ -95,44 +95,49 @@ async function init(): Promise<Pool> {
     idleTimeout: 60_000,
   });
 
-  await pool.query(SCHEMA_SQL);
-  await pool.query(USERS_SCHEMA_SQL);
-
-  // migration สำหรับฐานข้อมูลเดิม — MySQL 8 ไม่มี ADD COLUMN IF NOT EXISTS จึงเช็ค information_schema ก่อน
-  await ensureColumn(pool, "assessments", "owner_user_id",
-    "ALTER TABLE assessments ADD COLUMN owner_user_id INT UNSIGNED NULL, ADD KEY idx_owner (owner_user_id)");
-  await ensureColumn(pool, "assessments", "owner_school_code",
-    "ALTER TABLE assessments ADD COLUMN owner_school_code VARCHAR(16) NULL, ADD KEY idx_owner_school (owner_school_code)");
-  // Phase 4: สรุปจำแนกชุมชน + ลักษณะที่ตั้ง สำหรับรายการ/กรอง (derive จาก state ตอน save)
-  await ensureColumn(pool, "assessments", "community_class_key",
-    "ALTER TABLE assessments ADD COLUMN community_class_key VARCHAR(32) NULL, ADD KEY idx_community_class (community_class_key)");
-  await ensureColumn(pool, "assessments", "community_class_label",
-    "ALTER TABLE assessments ADD COLUMN community_class_label VARCHAR(100) NULL");
-  await ensureColumn(pool, "assessments", "setting_type",
-    "ALTER TABLE assessments ADD COLUMN setting_type VARCHAR(32) NULL");
-  await ensureColumn(pool, "users", "school_code",
-    "ALTER TABLE users ADD COLUMN school_code VARCHAR(16) NULL");
-
-  // บังคับให้เลขที่อ้างอิงการยื่นไม่ซ้ำในระดับฐานข้อมูล (ถ้าฐานเดิมมีเลขซ้ำอยู่แล้ว การ ALTER จะล้ม
-  // — จับ error ไว้แล้วเตือน ให้ผู้ดูแลไป dedupe เอง; แอปยังทำงานต่อได้ด้วยตัวสร้างเลขแบบรันในโค้ด)
-  await ensureUniqueIndex(pool, "assessments", "uq_submitted_ref",
-    "ALTER TABLE assessments ADD UNIQUE KEY uq_submitted_ref (submitted_ref)");
-
-  // บังคับ 1 โรงเรียน/1 ปี พ.ศ. ต่อแบบประเมิน — ตรวจซ้ำก่อนเสมอ (ต่างจาก uq_submitted_ref ด้านบน):
-  // ถ้าเจอแถวซ้ำจริงในฐานเดิม ต้อง throw ทันที ห้าม auto-fix/ลบ/เลือกผู้ชนะเอง (ต้องให้แอดมินตัดสินใจ)
-  await assertNoDuplicateOwnerSchoolYear(pool);
-  await ensureUniqueIndex(pool, "assessments", "uq_owner_school_year",
-    "ALTER TABLE assessments ADD UNIQUE KEY uq_owner_school_year (owner_school_code, assessment_year)");
-
-  // สร้างบัญชีตั้งต้นผู้ดูแล (dynamic import เพื่อเลี่ยง cycle db ↔ users-repo)
   try {
-    const { seedDefaultUsers } = await import("./users-repo");
-    await seedDefaultUsers(pool);
-  } catch (error) {
-    console.warn("[db] seed default users failed:", error instanceof Error ? error.message : error);
-  }
+    await pool.query(SCHEMA_SQL);
+    await pool.query(USERS_SCHEMA_SQL);
 
-  return pool;
+    // migration สำหรับฐานข้อมูลเดิม — MySQL 8 ไม่มี ADD COLUMN IF NOT EXISTS จึงเช็ค information_schema ก่อน
+    await ensureColumn(pool, "assessments", "owner_user_id",
+      "ALTER TABLE assessments ADD COLUMN owner_user_id INT UNSIGNED NULL, ADD KEY idx_owner (owner_user_id)");
+    await ensureColumn(pool, "assessments", "owner_school_code",
+      "ALTER TABLE assessments ADD COLUMN owner_school_code VARCHAR(16) NULL, ADD KEY idx_owner_school (owner_school_code)");
+    // Phase 4: สรุปจำแนกชุมชน + ลักษณะที่ตั้ง สำหรับรายการ/กรอง (derive จาก state ตอน save)
+    await ensureColumn(pool, "assessments", "community_class_key",
+      "ALTER TABLE assessments ADD COLUMN community_class_key VARCHAR(32) NULL, ADD KEY idx_community_class (community_class_key)");
+    await ensureColumn(pool, "assessments", "community_class_label",
+      "ALTER TABLE assessments ADD COLUMN community_class_label VARCHAR(100) NULL");
+    await ensureColumn(pool, "assessments", "setting_type",
+      "ALTER TABLE assessments ADD COLUMN setting_type VARCHAR(32) NULL");
+    await ensureColumn(pool, "users", "school_code",
+      "ALTER TABLE users ADD COLUMN school_code VARCHAR(16) NULL");
+
+    // บังคับให้เลขที่อ้างอิงการยื่นไม่ซ้ำในระดับฐานข้อมูล (ถ้าฐานเดิมมีเลขซ้ำอยู่แล้ว การ ALTER จะล้ม
+    // — จับ error ไว้แล้วเตือน ให้ผู้ดูแลไป dedupe เอง; แอปยังทำงานต่อได้ด้วยตัวสร้างเลขแบบรันในโค้ด)
+    await ensureUniqueIndex(pool, "assessments", "uq_submitted_ref",
+      "ALTER TABLE assessments ADD UNIQUE KEY uq_submitted_ref (submitted_ref)");
+
+    // บังคับ 1 โรงเรียน/1 ปี พ.ศ. ต่อแบบประเมิน — ตรวจซ้ำก่อนเสมอ (ต่างจาก uq_submitted_ref ด้านบน):
+    // ถ้าเจอแถวซ้ำจริงในฐานเดิม ต้อง throw ทันที ห้าม auto-fix/ลบ/เลือกผู้ชนะเอง (ต้องให้แอดมินตัดสินใจ)
+    await assertNoDuplicateOwnerSchoolYear(pool);
+    await ensureUniqueIndex(pool, "assessments", "uq_owner_school_year",
+      "ALTER TABLE assessments ADD UNIQUE KEY uq_owner_school_year (owner_school_code, assessment_year)");
+
+    // สร้างบัญชีตั้งต้นผู้ดูแล (dynamic import เพื่อเลี่ยง cycle db ↔ users-repo)
+    try {
+      const { seedDefaultUsers } = await import("./users-repo");
+      await seedDefaultUsers(pool);
+    } catch (error) {
+      console.warn("[db] seed default users failed:", error instanceof Error ? error.message : error);
+    }
+
+    return pool;
+  } catch (error) {
+    await pool.end().catch(() => {});
+    throw error;
+  }
 }
 
 /** เพิ่มคอลัมน์ถ้ายังไม่มี (เช็ค information_schema เพราะ MySQL 8 ไม่รองรับ ADD COLUMN IF NOT EXISTS) */
