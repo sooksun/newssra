@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SETTING_TYPES, UNIT_TYPES } from "@/lib/types";
 import type { SettingType, UnitInfo } from "@/lib/types";
+import SiteSnapshotGallery from "./SiteSnapshotGallery";
 
 interface Props {
   unit: UnitInfo;
@@ -105,6 +106,10 @@ export default function UnitPanel({ unit, onChange, assessmentId }: Props) {
               {type}
             </button>
           ))}
+        </div>
+        <div className="unit-snapshots">
+          <span className="unit-setting-label">ภาพยืนยันที่ตั้งจากแผนที่ 3 มิติ</span>
+          <SiteSnapshotGallery assessmentId={assessmentId} snapshots={unit.siteSnapshots ?? []} />
         </div>
       </div>
 
