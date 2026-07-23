@@ -33,4 +33,18 @@ describe("SiteSnapshotGallery", () => {
     assert.match(html, /มุมมองจากด้านบน/);
     assert.match(html, /ใกล้–เหนือ/);
   });
+  test("thumbnail เป็นปุ่ม (เปิด lightbox) ไม่ใช่ลิงก์เปิดแท็บใหม่", () => {
+    const html = renderToStaticMarkup(
+      <SiteSnapshotGallery
+        assessmentId={7}
+        snapshots={[snap(), snap({ id: "00000000-0000-4000-8000-000000000001", viewKey: "near-n", viewLabel: "ใกล้–เหนือ" })]}
+      />,
+    );
+    assert.doesNotMatch(html, /target="_blank"/);
+    assert.equal((html.match(/class="site-snapshot-open"/g) ?? []).length, 2);
+  });
+  test("สถานะเริ่มต้นยังไม่เปิด lightbox (ไม่มี dialog)", () => {
+    const html = renderToStaticMarkup(<SiteSnapshotGallery assessmentId={7} snapshots={[snap()]} />);
+    assert.doesNotMatch(html, /role="dialog"/);
+  });
 });

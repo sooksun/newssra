@@ -3249,12 +3249,138 @@ textarea:focus {
   margin: 0;
 }
 
+/* ปุ่มครอบ thumbnail — ไม่มีกรอบปุ่ม ให้ดูเหมือนภาพล้วน แต่กดด้วยคีย์บอร์ดได้ */
+.site-snapshot-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+
 .site-snapshot-item img {
   width: 100%;
   aspect-ratio: 4 / 3;
   object-fit: cover;
   border-radius: 6px;
   border: 1px solid var(--border, #dcdce3);
+  display: block;
+}
+
+/* ── Lightbox: ดูภาพเต็มจอและเลื่อนต่อเนื่องทั้งชุด ── */
+.snapshot-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.snapshot-lightbox-box {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: min(96vw, 1400px);
+  max-height: 94vh;
+}
+
+.snapshot-lightbox-img {
+  max-width: 100%;
+  max-height: 72vh;
+  object-fit: contain;
+  border-radius: 8px;
+  background: #000;
+}
+
+.snapshot-lightbox-nav {
+  position: absolute;
+  top: 36%;
+  font-size: 40px;
+  line-height: 1;
+  width: 52px;
+  height: 64px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.45);
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.snapshot-lightbox-nav:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.snapshot-lightbox-prev {
+  left: -8px;
+}
+
+.snapshot-lightbox-next {
+  right: -8px;
+}
+
+.snapshot-lightbox-close {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.snapshot-lightbox-caption {
+  margin: 0;
+  color: #fff;
+  font-size: 15px;
+}
+
+.snapshot-lightbox-count {
+  color: #cfcfd6;
+  font-size: 13px;
+  margin-left: 6px;
+}
+
+.snapshot-lightbox-strip {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 100%;
+}
+
+.snapshot-lightbox-strip button {
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.snapshot-lightbox-strip button.active {
+  border-color: #fff;
+}
+
+.snapshot-lightbox-strip img {
+  width: 68px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 3px;
+  opacity: 0.65;
+}
+
+.snapshot-lightbox-strip button.active img {
+  opacity: 1;
 }
 
 .site-snapshot-item figcaption {
@@ -3292,6 +3418,7 @@ textarea:focus {
   .gis-actions,
   .gis-summary-empty,
   .unit-snapshots,
+  .snapshot-lightbox,
   .setting-suggestion {
     display: none !important;
   }
