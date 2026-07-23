@@ -20,6 +20,22 @@ function makeFakeViewer(opts: { tilesLoaded: boolean; isDestroyed?: boolean }) {
   } as unknown as Viewer;
 }
 
+// viewer ที่ tilesLoaded สลับ true/false ตามลำดับที่กำหนด (อ่านทีละค่าในแต่ละ poll; ค่าสุดท้ายคงอยู่ต่อ)
+function makeFlappingViewer(sequence: boolean[]) {
+  let i = 0;
+  const globe = {
+    get tilesLoaded() {
+      const v = sequence[Math.min(i, sequence.length - 1)];
+      i++;
+      return v;
+    },
+  };
+  return {
+    isDestroyed: () => false,
+    scene: { requestRender() {}, globe },
+  } as unknown as Viewer;
+}
+
 test("waitForTilesLoaded: resolve ทันทีเมื่อ tilesLoaded เป็น true ตั้งแต่แรก", async () => {
   const viewer = makeFakeViewer({ tilesLoaded: true });
   const start = Date.now();
@@ -38,6 +54,27 @@ test("waitForTilesLoaded: resolve ผ่าน timeout cap เมื่อ tiles
   // ต้อง resolve จริง (ไม่ค้าง) และใช้เวลาอย่างน้อยประมาณ timeoutMs
   assert.ok(elapsed >= timeoutMs - 20, `expected at least ~${timeoutMs}ms, took ${elapsed}ms`);
   // และไม่ควรเกิน timeout มากเกินไป (poll interval ~100ms เท่านั้น)
+  assert.ok(elapsed < timeoutMs + 500, `expected resolve shortly after timeout, took ${elapsed}ms`);
+});
+
+test("waitForTilesLoaded: stableTicks ต้องเห็น tilesLoaded ติดกันครบก่อนจึง resolve", async () => {
+  // true ครั้งเดียวแล้วกลับเป็น false (อาการจริงหลังหมุนกล้อง) → ต้องไม่ resolve ที่ tick แรก
+  const viewer = makeFlappingViewer([true, false, true, true, true]);
+  const start = Date.now();
+  await waitForTilesLoaded(viewer, 4000, 3);
+  const elapsed = Date.now() - start;
+  // ต้องรออย่างน้อย 4 poll (~400ms) กว่าจะได้ true ติดกัน 3 ครั้ง
+  assert.ok(elapsed >= 350, `expected to keep polling until stable, took ${elapsed}ms`);
+  assert.ok(elapsed < 2000, `expected resolve once stable, took ${elapsed}ms`);
+});
+
+test("waitForTilesLoaded: stableTicks ไม่ทำให้ค้างเกิน timeout เมื่อไทล์ไม่นิ่งสักที", async () => {
+  const viewer = makeFlappingViewer([true, false]); // สลับจนหมด sequence แล้วค้างที่ false
+  const timeoutMs = 300;
+  const start = Date.now();
+  await waitForTilesLoaded(viewer, timeoutMs, 3);
+  const elapsed = Date.now() - start;
+  assert.ok(elapsed >= timeoutMs - 20, `expected to wait ~${timeoutMs}ms, took ${elapsed}ms`);
   assert.ok(elapsed < timeoutMs + 500, `expected resolve shortly after timeout, took ${elapsed}ms`);
 });
 

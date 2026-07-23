@@ -21,12 +21,14 @@ const DIRS: { suffix: string; label: string; headingDeg: number }[] = [
 
 export const SNAPSHOT_VIEWS: readonly SnapshotView[] = [
   { key: "top", label: "มุมมองจากด้านบน", pitchDeg: -90, headingDeg: 0, rangeM: 2500 },
+  // ระยะใกล้: 2,200 ม. + ก้ม 42° — ใกล้พอให้เห็นตัวอาคาร/ถนนรอบโรงเรียนชัด และหมุดไม่หลุดขอบภาพ
+  // (ระยะเดิม 4,000 ม./ก้ม 35° ทำให้โรงเรียนเป็นจุดเล็กกลางภาพกว้าง ๆ และดูไม่ออกว่าเป็นพื้นที่แบบใด)
   ...DIRS.map((d) => ({
     key: `near-${d.suffix}`,
     label: `ใกล้–${d.label}`,
-    pitchDeg: -35,
+    pitchDeg: -42,
     headingDeg: d.headingDeg,
-    rangeM: 4000,
+    rangeM: 2200,
   })),
   ...DIRS.map((d) => ({
     key: `far-${d.suffix}`,

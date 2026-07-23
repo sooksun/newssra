@@ -102,6 +102,12 @@ const CENTER_SYNC_TOLERANCE_M = 50;
 const ESRI_MISSING_TILE_URL = `${ESRI_WORLD_IMAGERY_BASE_URL}/tile/21/927815/1629415`;
 // ความคลาดเคลื่อนระดับพิกเซลของ globe: ค่าน้อย = ขอ tile ละเอียดขึ้น = ภาพคมเมื่อ zoom เข้าใกล้ (ค่า default 2)
 const GLOBE_SSE = 1.0;
+// การจับภาพ 3D: เรนเดอร์ละเอียดขึ้นและรอไทล์นานขึ้น เพราะภาพนิ่ง 9 ใบถูกส่งให้ AI วิเคราะห์ภูมิประเทศ
+// (คุณภาพสำคัญกว่าเวลาไม่กี่วินาที) — ค่าเหล่านี้ใช้เฉพาะช่วงจับภาพ แล้วคืนค่าเดิมทันที
+// scale 1.5 ไม่ใช่ 2: ภาพทั้ง 9 ใบถูกแปลงเป็น base64 ส่งเข้า OpenRouter ต่อ ถ้าใหญ่เกินไปคำขอจะอืด/ถูกปฏิเสธ
+const SNAPSHOT_RESOLUTION_SCALE = 1.5;
+const SNAPSHOT_TILE_WAIT_MS = 9000;
+const SNAPSHOT_TILE_STABLE_TICKS = 3;
 const IMAGERY_LAYER_OPTIONS = {
   maximumAnisotropy: 16,
   brightness: 1.02,
@@ -1974,10 +1980,21 @@ export default function CesiumMap({
     const prevHeading = viewer.camera.heading;
     const prevPitch = viewer.camera.pitch;
     const prevRoll = viewer.camera.roll;
+    const prevResolutionScale = viewer.resolutionScale;
 
     try {
+      // เรนเดอร์ละเอียดขึ้น 2 เท่าเฉพาะตอนจับภาพ → ไฟล์ JPEG คมขึ้นมาก (คืนค่าเดิมใน finally)
+      viewer.resolutionScale = SNAPSHOT_RESOLUTION_SCALE;
+
       // เล็งกล้องมาที่หมุดโรงเรียน (center) เสมอ ด้วย lookAt — หมุดจึงอยู่กึ่งกลางภาพทุกมุม ทั้งใกล้/ไกล
-      const pin = Cartesian3.fromDegrees(center.lng, center.lat);
+      // สำคัญ: ต้องเล็งที่ "ผิวภูมิประเทศจริง" ไม่ใช่ผิวทรงรี (ความสูง 0) — หมุดถูก clamp ติดพื้น ถ้าโรงเรียน
+      // อยู่บนดอยสูง ~1,000 ม. การเล็งที่ความสูง 0 จะทำให้หมุดลอยเหนือจุดเล็งจนหลุดออกนอกภาพในมุมใกล้
+      const pinCarto = Cartographic.fromDegrees(center.lng, center.lat);
+      const terrainHeightM = viewer.scene.globe.getHeight(pinCarto);
+      const pinHeightM = Number.isFinite(terrainHeightM)
+        ? (terrainHeightM as number)
+        : (routeElevationProfile?.schoolElevationM ?? 0);
+      const pin = Cartesian3.fromDegrees(center.lng, center.lat, pinHeightM);
       const blobs: { blob: Blob; viewKey: string }[] = [];
       for (let i = 0; i < SNAPSHOT_VIEWS.length; i++) {
         const view = SNAPSHOT_VIEWS[i];
@@ -1989,7 +2006,8 @@ export default function CesiumMap({
             view.rangeM,
           ),
         );
-        await waitForTilesLoaded(viewer);
+        // รอไทล์ของมุมใหม่ให้นิ่งจริง (เห็น tilesLoaded ติดกัน 3 รอบ) ก่อนจับภาพ — กันภาพเบลอ/ไทล์หยาบค้าง
+        await waitForTilesLoaded(viewer, SNAPSHOT_TILE_WAIT_MS, SNAPSHOT_TILE_STABLE_TICKS);
         blobs.push({ blob: dataUrlToBlob(captureCurrentView(viewer)), viewKey: view.key });
         setCaptureProgress(i + 1);
       }
@@ -2018,6 +2036,7 @@ export default function CesiumMap({
       setCaptureErr(e instanceof Error ? e.message : "จับภาพไม่สำเร็จ");
     } finally {
       if (!viewer.isDestroyed()) {
+        viewer.resolutionScale = prevResolutionScale;
         // ปลดล็อก lookAt transform เผื่อ error กลางลูปทำให้ยังค้าง ก่อนคืนมุมกล้องเดิม
         viewer.camera.lookAtTransform(Matrix4.IDENTITY);
         viewer.camera.setView({
@@ -2027,7 +2046,7 @@ export default function CesiumMap({
       }
       setCapturing(false);
     }
-  }, [capturing, national, center, assessment]);
+  }, [capturing, national, center, assessment, routeElevationProfile]);
 
   return (
     <div

@@ -11,10 +11,11 @@ import type { Viewer } from "cesium";
  * เช็คอยู่ใน callback ของ rAF) ค้างตลอดไป — setTimeout ยังคงยิงในแท็บที่ถูกซ่อนอยู่ (แค่ถูก throttle)
  * จึงการันตีว่า timeout จะทำงานเสมอไม่ว่าแท็บจะอยู่ foreground หรือไม่
  */
-export function waitForTilesLoaded(viewer: Viewer, timeoutMs = 4000): Promise<void> {
+export function waitForTilesLoaded(viewer: Viewer, timeoutMs = 4000, stableTicks = 1): Promise<void> {
   return new Promise((resolve) => {
     const start = Date.now();
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let loadedStreak = 0;
 
     const finish = () => {
       if (timer !== undefined) clearTimeout(timer);
@@ -23,7 +24,10 @@ export function waitForTilesLoaded(viewer: Viewer, timeoutMs = 4000): Promise<vo
 
     const tick = () => {
       if (viewer.isDestroyed()) return finish();
-      if (viewer.scene.globe.tilesLoaded || Date.now() - start > timeoutMs) {
+      // ต้องเห็น tilesLoaded ติดกัน stableTicks ครั้งจึงถือว่านิ่งจริง — หลังหมุนกล้อง Cesium มักรายงาน
+      // tilesLoaded=true ชั่วครู่ก่อนจะเริ่มขอไทล์ระดับละเอียดของมุมใหม่ ถ้าจับภาพจังหวะนั้นจะได้ภาพเบลอ
+      loadedStreak = viewer.scene.globe.tilesLoaded ? loadedStreak + 1 : 0;
+      if (loadedStreak >= stableTicks || Date.now() - start > timeoutMs) {
         return finish();
       }
       viewer.scene.requestRender();
@@ -35,9 +39,9 @@ export function waitForTilesLoaded(viewer: Viewer, timeoutMs = 4000): Promise<vo
 }
 
 /** เรนเดอร์เฟรมปัจจุบันแล้วคืน data URL JPEG (ต้องเปิด preserveDrawingBuffer:true ตอนสร้าง Viewer) */
-export function captureCurrentView(viewer: Viewer): string {
+export function captureCurrentView(viewer: Viewer, quality = 0.92): string {
   viewer.scene.render();
-  return viewer.canvas.toDataURL("image/jpeg", 0.85);
+  return viewer.canvas.toDataURL("image/jpeg", quality);
 }
 
 export function dataUrlToBlob(dataUrl: string): Blob {
