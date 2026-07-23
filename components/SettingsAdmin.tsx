@@ -43,15 +43,18 @@ export default function SettingsAdmin({ initialSettings }: Props) {
     <div className="settings-admin">
       {APP_SETTING_DEFS.map((def) => (
         <div key={def.key} className="settings-row">
-          <label className="settings-toggle">
+          <div className="settings-toggle">
             <input
+              id={`setting-${def.key}`}
               type="checkbox"
               checked={settings[def.key] ?? def.defaultValue}
               disabled={savingKey === def.key}
               onChange={(e) => toggle(def.key, e.target.checked)}
             />
-            <span className="settings-label">{def.label}</span>
-          </label>
+            <label className="settings-label" htmlFor={`setting-${def.key}`}>
+              {def.label}
+            </label>
+          </div>
           <p className="settings-desc">{def.description}</p>
         </div>
       ))}
