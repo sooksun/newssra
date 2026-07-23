@@ -4,6 +4,7 @@
 //   2) PUT ต้อง preserve ฟิลด์ที่ server เป็นเจ้าของ — client ปลอม submitted / evidence.files ไม่สำเร็จ
 //   3) POST /gis หลังยื่นแล้ว → 409 (submit-lock)
 //   4) POST /site-snapshots หลังยื่นแล้ว → 409 (submit-lock)
+//   5) POST /site-snapshots/analyze หลังยื่นแล้ว → 409 (submit-lock; ไม่เรียก AI เพราะเช็ค submitted ก่อน)
 
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -18,6 +19,7 @@ const { NextRequest } = await import("next/server");
 let assessmentRoute: typeof import("../../app/api/assessments/[id]/route.ts");
 let gisRoute: typeof import("../../app/api/assessments/[id]/gis/route.ts");
 let siteSnapshotsRoute: typeof import("../../app/api/assessments/[id]/site-snapshots/route.ts");
+let analyzeRoute: typeof import("../../app/api/assessments/[id]/site-snapshots/analyze/route.ts");
 let repo: typeof import("../../lib/repo.ts");
 
 const created: number[] = [];
@@ -65,6 +67,7 @@ before(async () => {
   assessmentRoute = await import("../../app/api/assessments/[id]/route.ts");
   gisRoute = await import("../../app/api/assessments/[id]/gis/route.ts");
   siteSnapshotsRoute = await import("../../app/api/assessments/[id]/site-snapshots/route.ts");
+  analyzeRoute = await import("../../app/api/assessments/[id]/site-snapshots/analyze/route.ts");
   repo = await import("../../lib/repo.ts");
 
   draftAId = await repo.createAssessment(draftState(), { userId: null, schoolCode: "TESTAAAA" });
@@ -245,7 +248,20 @@ test("POST /site-snapshots: แบทช์มีไฟล์ที่ไม่�
   assert.deepEqual(afterIds, seedIds, "siteSnapshots เดิมต้องไม่เปลี่ยนเมื่อแบทช์ใหม่มีไฟล์ที่ไม่ผ่านตรวจ");
 });
 
-// ─────────────── 6) uq_owner_school_year — 1 โรงเรียน/1 ปี ต่อแบบประเมิน ───────────────
+// ─────────────── 6) POST /site-snapshots/analyze submit-lock ───────────────
+// route เช็ค record.state.submitted ก่อนเรียก AI เสมอ (409 คืนก่อนแตะ analyzeTerrainFromImages)
+// จึงไม่ต้อง mock lib/ai/terrainAnalysis ในเทสนี้ — ไม่มีการยิงเครือข่ายจริงเกิดขึ้น
+
+test("POST /site-snapshots/analyze: แบบประเมินที่ยื่นแล้ว → 409 (ห้ามวิเคราะห์ใหม่)", { skip: !DB }, async () => {
+  await actAs(SESSIONS.schoolA);
+  const res = await analyzeRoute.POST(
+    new NextRequest(`${BASE}/${submittedAId}/site-snapshots/analyze`, { method: "POST" }),
+    ctx(submittedAId),
+  );
+  assert.equal(res.status, 409);
+});
+
+// ─────────────── 7) uq_owner_school_year — 1 โรงเรียน/1 ปี ต่อแบบประเมิน ───────────────
 
 test("database rejects a second assessment for the same school and year", { skip: !DB }, async () => {
   const first = draftState();
