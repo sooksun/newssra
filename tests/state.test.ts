@@ -1,7 +1,7 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { makeBlankState, preserveServerOwned, sanitizeState } from "../lib/state";
-import type { AssessmentState, EvidenceFile } from "../lib/types";
+import type { AssessmentState, EvidenceFile, TerrainSuggestion } from "../lib/types";
 
 test("input ที่ไม่ใช่ object → blank state", () => {
   const s = sanitizeState(null);
@@ -180,13 +180,16 @@ describe("siteSnapshots — ภาพยืนยันที่ตั้ง (se
 });
 
 describe("settingSuggestion — คำแนะนำ AI (server-owned)", () => {
-  const sug = (over = {}) => ({
-    settingType: "ภูเขาสูง",
-    rationale: "ยอดเขาสูงชันล้อมรอบ",
-    confidence: "high",
-    analyzedAt: "2026-07-23T00:00:00.000Z",
-    ...over,
-  });
+  // fixture: บาง test จงใจใส่ค่านอก enum (เช่น settingType/confidence ผิด) เพื่อพิสูจน์ว่า sanitize ตัดทิ้ง
+  // จึง cast เป็น TerrainSuggestion เพื่อให้ assign ลง state ได้ ทั้งที่ค่าจริงอาจไม่ถูกต้องตามชนิด
+  const sug = (over: Record<string, unknown> = {}) =>
+    ({
+      settingType: "ภูเขาสูง",
+      rationale: "ยอดเขาสูงชันล้อมรอบ",
+      confidence: "high",
+      analyzedAt: "2026-07-23T00:00:00.000Z",
+      ...over,
+    }) as TerrainSuggestion;
 
   test("แถวไม่มี settingSuggestion → sanitize ไม่งอก key", () => {
     const s = sanitizeState({ unit: { name: "รร" } });
