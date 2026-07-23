@@ -178,3 +178,42 @@ describe("siteSnapshots — ภาพยืนยันที่ตั้ง (se
     assert.equal("siteSnapshots" in merged.unit, false);
   });
 });
+
+describe("settingSuggestion — คำแนะนำ AI (server-owned)", () => {
+  const sug = (over = {}) => ({
+    settingType: "ภูเขาสูง",
+    rationale: "ยอดเขาสูงชันล้อมรอบ",
+    confidence: "high",
+    analyzedAt: "2026-07-23T00:00:00.000Z",
+    ...over,
+  });
+
+  test("แถวไม่มี settingSuggestion → sanitize ไม่งอก key", () => {
+    const s = sanitizeState({ unit: { name: "รร" } });
+    assert.equal("settingSuggestion" in s.unit, false);
+  });
+
+  test("sanitize รับค่าถูกต้อง + ตัด settingType นอก enum ทิ้ง", () => {
+    const ok = sanitizeState({ unit: { settingSuggestion: sug() } });
+    assert.equal(ok.unit.settingSuggestion?.settingType, "ภูเขาสูง");
+    const bad = sanitizeState({ unit: { settingSuggestion: sug({ settingType: "ดาวอังคาร" }) } });
+    assert.equal("settingSuggestion" in bad.unit, false);
+    const badConf = sanitizeState({ unit: { settingSuggestion: sug({ confidence: "x" }) } });
+    assert.equal("settingSuggestion" in badConf.unit, false);
+  });
+
+  test("preserveServerOwned — settingSuggestion มาจาก DB, client แก้ไม่ได้", () => {
+    const existing = makeBlankState();
+    existing.unit.settingSuggestion = sug();
+    const incoming = makeBlankState();
+    incoming.unit.settingSuggestion = sug({ rationale: "ปลอม", settingType: "เกาะ" });
+    const merged = preserveServerOwned(incoming, existing);
+    assert.equal(merged.unit.settingSuggestion?.rationale, "ยอดเขาสูงชันล้อมรอบ");
+    assert.equal(merged.unit.settingSuggestion?.settingType, "ภูเขาสูง");
+  });
+
+  test("preserveServerOwned — existing ไม่มี key → ไม่งอก key", () => {
+    const merged = preserveServerOwned(makeBlankState(), makeBlankState());
+    assert.equal("settingSuggestion" in merged.unit, false);
+  });
+});

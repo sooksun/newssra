@@ -15,6 +15,7 @@ import type {
   SettingType,
   SnapshotFile,
   SubmittedInfo,
+  TerrainSuggestion,
   UnitInfo,
   UnitType,
 } from "./types";
@@ -100,6 +101,24 @@ function cleanSnapshotFiles(value: unknown): SnapshotFile[] {
     .filter((f) => f.id.length > 0);
 }
 
+const CONFIDENCE_SET = ["high", "medium", "low"] as const;
+
+/** ตรวจ metadata คำแนะนำ AI — คืน undefined เมื่อ settingType/confidence ไม่ถูกต้อง (กันปลอม) */
+function cleanSettingSuggestion(value: unknown): TerrainSuggestion | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const v = value as Record<string, unknown>;
+  const settingType = cleanString(v.settingType, 32);
+  if (!(SETTING_TYPES as readonly string[]).includes(settingType)) return undefined;
+  const confidence = cleanString(v.confidence, 10);
+  if (!(CONFIDENCE_SET as readonly string[]).includes(confidence)) return undefined;
+  return {
+    settingType: settingType as SettingType,
+    rationale: cleanString(v.rationale, 500),
+    confidence: confidence as TerrainSuggestion["confidence"],
+    analyzedAt: cleanString(v.analyzedAt, 40),
+  };
+}
+
 /**
  * แปลง payload ที่รับจากภายนอกให้เป็น AssessmentState ที่โครงถูกต้องเสมอ
  * — ตัด key แปลกปลอม, บังคับชนิดข้อมูล, จำกัดความยาวข้อความ
@@ -110,7 +129,7 @@ export function sanitizeState(input: unknown): AssessmentState {
   const raw = input as Record<string, unknown>;
 
   const rawUnit = (raw.unit && typeof raw.unit === "object" ? raw.unit : {}) as Record<string, unknown>;
-  const unitKeys: Exclude<keyof UnitInfo, "unitType" | "settingType" | "siteSnapshots">[] = [
+  const unitKeys: Exclude<keyof UnitInfo, "unitType" | "settingType" | "siteSnapshots" | "settingSuggestion">[] = [
     "name",
     "code",
     "year",
@@ -138,6 +157,9 @@ export function sanitizeState(input: unknown): AssessmentState {
     const cleaned = cleanSnapshotFiles(rawSnapshots);
     if (cleaned.length > 0) state.unit.siteSnapshots = cleaned;
   }
+  const rawSuggestion = (rawUnit as Record<string, unknown>).settingSuggestion;
+  const cleanedSuggestion = cleanSettingSuggestion(rawSuggestion);
+  if (cleanedSuggestion) state.unit.settingSuggestion = cleanedSuggestion;
 
   const rawResponses = (raw.responses && typeof raw.responses === "object" ? raw.responses : {}) as Record<
     string,
@@ -224,6 +246,10 @@ export function preserveServerOwned(incoming: AssessmentState, existing: Assessm
   delete merged.unit.siteSnapshots;
   if (existing.unit.siteSnapshots) {
     merged.unit = { ...merged.unit, siteSnapshots: existing.unit.siteSnapshots };
+  }
+  delete merged.unit.settingSuggestion;
+  if (existing.unit.settingSuggestion) {
+    merged.unit = { ...merged.unit, settingSuggestion: existing.unit.settingSuggestion };
   }
   return merged;
 }

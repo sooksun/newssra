@@ -94,6 +94,8 @@ export interface UnitInfo {
   settingType: SettingType | "";
   /** ภาพจับหน้าจอ 3D ยืนยันที่ตั้ง (server-owned) — optional เพื่อให้แถวเก่า round-trip ไม่งอก key */
   siteSnapshots?: SnapshotFile[];
+  /** คำแนะนำลักษณะที่ตั้งจาก AI (server-owned) — optional เพื่อให้แถวเก่า round-trip ไม่งอก key */
+  settingSuggestion?: TerrainSuggestion;
 }
 
 /** ข้อมูลดิบรายตัวชี้วัด — key ขึ้นกับชนิดตัวชี้วัด (count/langs/frame/actual/rate/minutes/km/unitName/level) */
@@ -122,6 +124,15 @@ export interface SnapshotFile {
   viewKey: string;
   /** ป้ายไทยของมุม เช่น "ใกล้–เหนือ" */
   viewLabel: string;
+}
+
+/** คำแนะนำลักษณะที่ตั้งจาก AI (วิเคราะห์ภาพ 3D) — server-owned, optional (แถวเก่าไม่งอก key) */
+export interface TerrainSuggestion {
+  settingType: SettingType;
+  /** เหตุผลภาษาไทย */
+  rationale: string;
+  confidence: "high" | "medium" | "low";
+  analyzedAt: string;
 }
 
 export interface EvidenceInfo {
