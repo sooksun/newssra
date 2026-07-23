@@ -135,6 +135,11 @@ export async function analyzeTerrainFromImages(images: TerrainImageInput[]): Pro
   } catch {
     throw new TerrainAnalysisError("bad-content", "อ่านผลจาก OpenRouter ไม่ได้");
   }
+
+  if (!data || typeof data !== "object") {
+    throw new TerrainAnalysisError("bad-content", "รูปแบบผลลัพธ์จาก OpenRouter ไม่ถูกต้อง");
+  }
+
   const content = data.choices?.[0]?.message?.content;
   if (typeof content !== "string" || content.trim() === "") {
     throw new TerrainAnalysisError("bad-content", "โมเดลไม่ได้ตอบเนื้อหา");
