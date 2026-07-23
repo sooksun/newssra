@@ -45,6 +45,8 @@ nano .env.production        # กรอก DB_USER / DB_PASSWORD / MYSQL_* เ�
 | `MYSQL_DATABASE` / `MYSQL_USER` / `MYSQL_PASSWORD` / `MYSQL_ROOT_PASSWORD` | ใช้ตอน MySQL container สร้างตัวเองครั้งแรก — ให้ตรงกับ `DB_*` ด้านบน |
 | `AUTH_SECRET` | **บังคับ** — กุญแจลับเซ็น session cookie (ยาว ≥ 16 ตัว) สร้างด้วย `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` |
 | `SEED_ADMIN_PASSWORD` / `SEED_SSRA_PASSWORD` / `SEED_SCHOOL_PASSWORD` | รหัสผ่านเริ่มต้นของบัญชีตั้งต้น 3 บทบาท — เปลี่ยนทันทีหลังติดตั้ง |
+| `OPENROUTER_API_KEY` | ไม่บังคับ — เปิดฟีเจอร์ AI แนะลักษณะที่ตั้งจากภาพ 3D (ปุ่ม "จับภาพ 3D ยืนยันที่ตั้ง" ในหน้า `/map`) ไม่ตั้งก็ได้ ฟีเจอร์อื่นทำงานปกติ แค่ปุ่มจับภาพจะไม่มีคำแนะนำ AI ต่อท้าย |
+| `AI_TERRAIN_MODEL` | ไม่บังคับ — เปลี่ยนรุ่นโมเดลที่ใช้วิเคราะห์ภาพ (ค่าเริ่มต้น `google/gemini-2.5-flash` ผ่าน OpenRouter) |
 
 ### ระบบผู้ใช้และสิทธิ์ (3 บทบาท + เข้าสู่ระบบแบบผสม)
 

@@ -480,6 +480,7 @@ export default function CesiumMap({
   const [capturing, setCapturing] = useState(false);
   const [captureProgress, setCaptureProgress] = useState(0);
   const [captureErr, setCaptureErr] = useState("");
+  const [aiAnalyzing, setAiAnalyzing] = useState(false);
   // ผลบันทึกครั้งล่าสุด (created/updated/locked) — ใช้แสดงข้อความยืนยันก่อน redirect ไปหน้าแบบประเมิน
   const [saveAction, setSaveAction] = useState<MapAssessmentSaveAction | null>(null);
   const assessmentUnitCenter = assessment?.unitCenter ?? null;
@@ -1994,6 +1995,16 @@ export default function CesiumMap({
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(data.error || "อัปโหลดภาพไม่สำเร็จ");
       }
+      // วิเคราะห์ภูมิประเทศด้วย AI ต่อทันที — ถ้าล้มเหลวก็ยังไปหน้าแบบประเมิน (ภาพครบแล้ว)
+      setCaptureProgress(SNAPSHOT_VIEWS.length);
+      setAiAnalyzing(true);
+      try {
+        await fetch(`/api/assessments/${targetId}/site-snapshots/analyze`, { method: "POST" });
+      } catch {
+        /* เงียบ — คำแนะนำ AI เป็นส่วนเสริม */
+      } finally {
+        setAiAnalyzing(false);
+      }
       window.location.assign(`/assessment/${targetId}#unitPanel`);
     } catch (e) {
       setCaptureErr(e instanceof Error ? e.message : "จับภาพไม่สำเร็จ");
@@ -2309,11 +2320,13 @@ export default function CesiumMap({
                         type="button"
                         className="ghost-btn map-snapshot-btn"
                         onClick={captureSiteSnapshots}
-                        disabled={capturing || Boolean(assessment.submitted)}
+                        disabled={capturing || aiAnalyzing || Boolean(assessment.submitted)}
                       >
                         {capturing
                           ? `กำลังจับภาพ ${captureProgress}/${SNAPSHOT_VIEWS.length}…`
-                          : "📸 จับภาพ 3D ยืนยันที่ตั้ง"}
+                          : aiAnalyzing
+                            ? "กำลังวิเคราะห์ภูมิประเทศด้วย AI…"
+                            : "📸 จับภาพ 3D ยืนยันที่ตั้ง"}
                       </button>
                       {captureErr ? <p className="map-snapshot-err">{captureErr}</p> : null}
                       <p className="map-snapshot-hint">
