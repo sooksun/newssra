@@ -133,9 +133,14 @@ export default async function HomePage({
             </>
           ) : null}
           {user.role === "admin" ? (
-            <Link className="ghost-btn" href="/admin/users">
-              จัดการผู้ใช้
-            </Link>
+            <>
+              <Link className="ghost-btn" href="/admin/users">
+                จัดการผู้ใช้
+              </Link>
+              <Link className="ghost-btn" href="/admin/settings">
+                ตั้งค่าระบบ
+              </Link>
+            </>
           ) : null}
           <CreateAssessmentButton />
           <UserMenu name={user.name} roleLabel={ROLE_LABELS[user.role]} />

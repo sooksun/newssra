@@ -1928,6 +1928,57 @@ textarea:focus {
   color: var(--muted);
 }
 
+/* หน้าตั้งค่าระบบ (/admin/settings) */
+.settings-admin {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 720px;
+}
+
+.settings-row {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+
+.settings-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.settings-toggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--blue);
+  cursor: pointer;
+}
+
+.settings-label {
+  font-weight: 600;
+}
+
+.settings-desc {
+  margin: 6px 0 0 28px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.settings-err {
+  color: var(--red);
+  font-size: 13px;
+  margin: 0;
+}
+
+.settings-saved {
+  color: var(--green);
+  font-size: 13px;
+  margin: 0;
+}
+
 .admin-hint code {
   background: var(--soft);
   border: 1px solid var(--line);
