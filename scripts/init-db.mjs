@@ -67,6 +67,16 @@ CREATE TABLE IF NOT EXISTS users (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 `;
 
+// ค่าตั้งค่าส่วนกลางแบบ key/value (admin ตั้งจาก /admin/settings) — ไม่ seed แถว; ไม่มีแถว = ใช้ default ใน lib/settings.ts
+const SETTINGS_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS app_settings (
+  setting_key VARCHAR(64) NOT NULL,
+  setting_value VARCHAR(255) NOT NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (setting_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+`;
+
 console.log(`[db:init] connecting to ${config.host}:${config.port} as ${config.user}`);
 const conn = await createConnection(config);
 await conn.query(
@@ -75,6 +85,7 @@ await conn.query(
 await conn.changeUser({ database: dbName });
 await conn.query(SCHEMA_SQL);
 await conn.query(USERS_SCHEMA_SQL);
+await conn.query(SETTINGS_SCHEMA_SQL);
 
 // migration แถวเดิม (MySQL 8 ไม่มี ADD COLUMN IF NOT EXISTS จึงเช็ค information_schema ก่อน)
 async function ensureColumn(table, column, alterSql) {

@@ -71,6 +71,16 @@ CREATE TABLE IF NOT EXISTS users (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 `;
 
+// ค่าตั้งค่าส่วนกลางแบบ key/value (admin ตั้งจาก /admin/settings) — ไม่ seed แถว; ไม่มีแถว = ใช้ default ใน lib/settings.ts
+export const SETTINGS_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS app_settings (
+  setting_key VARCHAR(64) NOT NULL,
+  setting_value VARCHAR(255) NOT NULL,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (setting_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+`;
+
 let poolPromise: Promise<Pool> | null = null;
 
 async function init(): Promise<Pool> {
@@ -96,6 +106,7 @@ async function init(): Promise<Pool> {
   try {
     await pool.query(SCHEMA_SQL);
     await pool.query(USERS_SCHEMA_SQL);
+    await pool.query(SETTINGS_SCHEMA_SQL);
 
     // migration สำหรับฐานข้อมูลเดิม — MySQL 8 ไม่มี ADD COLUMN IF NOT EXISTS จึงเช็ค information_schema ก่อน
     await ensureColumn(
