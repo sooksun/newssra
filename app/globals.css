@@ -3207,6 +3207,37 @@ textarea:focus {
   margin-top: 12px;
 }
 
+/* ---------- การ์ดแนะนำลักษณะที่ตั้งจาก AI ---------- */
+
+.setting-suggestion {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #dcdce3);
+  border-radius: 8px;
+  background: var(--surface-2, #f7f7fb);
+}
+
+.setting-suggestion-head {
+  margin: 0;
+  font-size: 14px;
+}
+
+.setting-suggestion-conf {
+  color: var(--muted, #667);
+  font-size: 12px;
+}
+
+.setting-suggestion-why {
+  margin: 4px 0 8px;
+  font-size: 13px;
+  color: var(--muted, #445);
+}
+
+.setting-suggestion-matched {
+  font-size: 13px;
+  color: #1a7f37;
+}
+
 .site-snapshot-gallery {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -3260,7 +3291,8 @@ textarea:focus {
   .help-panel-backdrop,
   .gis-actions,
   .gis-summary-empty,
-  .unit-snapshots {
+  .unit-snapshots,
+  .setting-suggestion {
     display: none !important;
   }
 
