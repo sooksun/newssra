@@ -29,7 +29,10 @@ describe("SNAPSHOT_VIEWS — มุมกล้องจับภาพ 3D", () 
   test("ระยะไกล > ระยะใกล้ > 0 และทุกมุมมี label ไทยไม่ว่าง", () => {
     const near = SNAPSHOT_VIEWS.find((v) => v.key === "near-n")!;
     const far = SNAPSHOT_VIEWS.find((v) => v.key === "far-n")!;
-    assert.ok(far.heightM > near.heightM && near.heightM > 0);
+    assert.ok(far.rangeM > near.rangeM && near.rangeM > 0);
     for (const v of SNAPSHOT_VIEWS) assert.ok(v.label.trim().length > 0);
+  });
+  test("ทุกมุมมี rangeM > 0 (ระยะห่างกล้องถึงหมุด สำหรับ lookAt)", () => {
+    for (const v of SNAPSHOT_VIEWS) assert.ok(v.rangeM > 0);
   });
 });

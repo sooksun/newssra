@@ -15,10 +15,12 @@ import {
   CustomDataSource,
   DiscardMissingTileImagePolicy,
   Google2DImageryProvider,
+  HeadingPitchRange,
   HeightReference,
   ImageryLayer,
   IonWorldImageryStyle,
   Math as CesiumMath,
+  Matrix4,
   PolylineDashMaterialProperty,
   ScreenSpaceEventHandler,
   ScreenSpaceEventType,
@@ -1971,21 +1973,24 @@ export default function CesiumMap({
     const prevRoll = viewer.camera.roll;
 
     try {
+      // เล็งกล้องมาที่หมุดโรงเรียน (center) เสมอ ด้วย lookAt — หมุดจึงอยู่กึ่งกลางภาพทุกมุม ทั้งใกล้/ไกล
+      const pin = Cartesian3.fromDegrees(center.lng, center.lat);
       const blobs: { blob: Blob; viewKey: string }[] = [];
       for (let i = 0; i < SNAPSHOT_VIEWS.length; i++) {
         const view = SNAPSHOT_VIEWS[i];
-        viewer.camera.setView({
-          destination: Cartesian3.fromDegrees(center.lng, center.lat, view.heightM),
-          orientation: {
-            heading: CesiumMath.toRadians(view.headingDeg),
-            pitch: CesiumMath.toRadians(view.pitchDeg),
-            roll: 0,
-          },
-        });
+        viewer.camera.lookAt(
+          pin,
+          new HeadingPitchRange(
+            CesiumMath.toRadians(view.headingDeg),
+            CesiumMath.toRadians(view.pitchDeg),
+            view.rangeM,
+          ),
+        );
         await waitForTilesLoaded(viewer);
         blobs.push({ blob: dataUrlToBlob(captureCurrentView(viewer)), viewKey: view.key });
         setCaptureProgress(i + 1);
       }
+      // (transform ของ lookAt ถูกปลดล็อกใน finally เสมอ ก่อนคืนมุมกล้องเดิม)
 
       const fd = new FormData();
       for (const b of blobs) fd.append("files", b.blob, `${b.viewKey}.jpg`);
@@ -2010,6 +2015,8 @@ export default function CesiumMap({
       setCaptureErr(e instanceof Error ? e.message : "จับภาพไม่สำเร็จ");
     } finally {
       if (!viewer.isDestroyed()) {
+        // ปลดล็อก lookAt transform เผื่อ error กลางลูปทำให้ยังค้าง ก่อนคืนมุมกล้องเดิม
+        viewer.camera.lookAtTransform(Matrix4.IDENTITY);
         viewer.camera.setView({
           destination: prevPos,
           orientation: { heading: prevHeading, pitch: prevPitch, roll: prevRoll },
