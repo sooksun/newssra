@@ -17,6 +17,7 @@ export default function CesiumMapLoader({
   assessment = null,
   canSaveAssessment = false,
   currentYearAssessment = null,
+  showPlaceSearch = true,
 }: {
   center: MapCenter;
   national: boolean;
@@ -28,6 +29,8 @@ export default function CesiumMapLoader({
   canSaveAssessment?: boolean;
   /** ฉบับปีปัจจุบันของโรงเรียน แยกจาก assessment ที่เปิดดู — null = ยังไม่มีฉบับปีปัจจุบัน */
   currentYearAssessment?: MapCurrentYearAssessment | null;
+  /** ค่าตั้งค่าส่วนกลาง: แสดงช่องค้นหาสถานที่บนแผนที่หรือไม่ */
+  showPlaceSearch?: boolean;
 }) {
   return (
     <CesiumMap
@@ -38,6 +41,7 @@ export default function CesiumMapLoader({
       assessment={assessment}
       canSaveAssessment={canSaveAssessment}
       currentYearAssessment={currentYearAssessment}
+      showPlaceSearch={showPlaceSearch}
     />
   );
 }

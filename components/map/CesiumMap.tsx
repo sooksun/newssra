@@ -262,6 +262,8 @@ interface Props {
   canSaveAssessment: boolean;
   /** ฉบับปีปัจจุบันของโรงเรียน แยกจาก assessment ที่เปิดดู — null = ยังไม่มีฉบับปีปัจจุบัน (ปุ่มบันทึกจะ "สร้าง" ให้) */
   currentYearAssessment: MapCurrentYearAssessment | null;
+  /** ค่าตั้งค่าส่วนกลาง (/admin/settings) — false = ซ่อนช่องค้นหาสถานที่ (ยังลากหมุดแดงย้ายจุดวิเคราะห์ได้) */
+  showPlaceSearch: boolean;
 }
 
 const fmt = (v: number) => Math.round(v).toLocaleString("th-TH");
@@ -376,6 +378,7 @@ export default function CesiumMap({
   assessment,
   canSaveAssessment,
   currentYearAssessment,
+  showPlaceSearch,
 }: Props) {
   // center/national/province/householdSize เริ่มจาก props แต่เก็บเป็น state เพื่อให้ "ยืนยันใช้พิกัดใหม่"
   // ย้ายจุดวิเคราะห์ได้ (recompute ทุกอย่างที่ผูกกับ center รวมถึงหาจังหวัด/ศาลากลางต้นทางใหม่)
@@ -2080,40 +2083,42 @@ export default function CesiumMap({
             <p className="map-drag-hint">💡 ลากหมุดแดงบนแผนที่เพื่อย้ายจุดวิเคราะห์ แล้วระบบจะคำนวณใหม่ให้อัตโนมัติ</p>
           ) : null}
 
-          <div className="map-search">
-            <input
-              type="text"
-              placeholder="ค้นหาสถานที่ เช่น วัดพระแก้ว, เชียงใหม่ (พิมพ์ ≥3 ตัวอักษร)"
-              value={placeQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && searchResults.length > 0) {
-                  e.preventDefault();
-                  void pickResult(searchResults[0]); // Enter = เลือกผลลัพธ์แรก
-                } else if (e.key === "Escape") {
-                  setSearchResults([]);
-                }
-              }}
-            />
-            {searching ? <span className="map-search-spinner" aria-hidden /> : null}
-            {searchResults.length > 0 ? (
-              <div className="map-search-results" role="listbox">
-                <div className="map-search-source">ผลจาก {searchSource}</div>
-                {searchResults.map((r, i) => (
-                  <button
-                    key={`${r.placeId ?? r.name}-${i}`}
-                    type="button"
-                    role="option"
-                    aria-selected={false}
-                    className="map-search-result"
-                    onClick={() => void pickResult(r)}
-                  >
-                    {r.name}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
+          {showPlaceSearch ? (
+            <div className="map-search">
+              <input
+                type="text"
+                placeholder="ค้นหาสถานที่ เช่น วัดพระแก้ว, เชียงใหม่ (พิมพ์ ≥3 ตัวอักษร)"
+                value={placeQuery}
+                onChange={(e) => onSearchChange(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && searchResults.length > 0) {
+                    e.preventDefault();
+                    void pickResult(searchResults[0]); // Enter = เลือกผลลัพธ์แรก
+                  } else if (e.key === "Escape") {
+                    setSearchResults([]);
+                  }
+                }}
+              />
+              {searching ? <span className="map-search-spinner" aria-hidden /> : null}
+              {searchResults.length > 0 ? (
+                <div className="map-search-results" role="listbox">
+                  <div className="map-search-source">ผลจาก {searchSource}</div>
+                  {searchResults.map((r, i) => (
+                    <button
+                      key={`${r.placeId ?? r.name}-${i}`}
+                      type="button"
+                      role="option"
+                      aria-selected={false}
+                      className="map-search-result"
+                      onClick={() => void pickResult(r)}
+                    >
+                      {r.name}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {placeSearchErr ? <p className="map-note map-note-error">{placeSearchErr}</p> : null}
 
           {pickedCoord ? (

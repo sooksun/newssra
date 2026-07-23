@@ -11,6 +11,8 @@ import {
   schoolLocationByCode,
 } from "@/lib/repo";
 import type { ProvinceInfo } from "@/lib/repo";
+import { getAppSettings } from "@/lib/settings-repo";
+import { SETTING_MAP_SHOW_PLACE_SEARCH } from "@/lib/settings";
 import { ROLE_LABELS } from "@/lib/types";
 import UserMenu from "@/components/UserMenu";
 import CesiumMapLoader from "@/components/map/CesiumMapLoader";
@@ -164,6 +166,10 @@ export default async function MapPage({ searchParams }: { searchParams: Promise<
   // เฉพาะบัญชีโรงเรียนที่มีรหัสจึงบันทึกลงแบบประเมินปีปัจจุบันได้ — แยกจากการมีฉบับอยู่แล้วหรือไม่
   const canSaveAssessment = user.role === "school" && Boolean(user.schoolCode);
 
+  // ค่าตั้งค่าส่วนกลาง (ผู้ดูแลระบบตั้งที่ /admin/settings) — ปิดได้เพื่อไม่ให้ย้ายจุดวิเคราะห์ด้วยการค้นหา
+  const appSettings = await getAppSettings();
+  const showPlaceSearch = appSettings[SETTING_MAP_SHOW_PLACE_SEARCH];
+
   return (
     <div className="app-shell map-shell">
       <header className="topbar">
@@ -200,6 +206,7 @@ export default async function MapPage({ searchParams }: { searchParams: Promise<
         assessment={assessment}
         canSaveAssessment={canSaveAssessment}
         currentYearAssessment={currentYearAssessment}
+        showPlaceSearch={showPlaceSearch}
       />
     </div>
   );
