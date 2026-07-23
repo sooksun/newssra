@@ -6,7 +6,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DIMENSIONS } from "@/lib/criteria";
-import { DEMO_PROFILES, makeDemoState } from "@/lib/demo";
+import { applyDemoCriteria, DEMO_PROFILES } from "@/lib/demo";
 import { computeAll } from "@/lib/scoring";
 import { makeBlankState } from "@/lib/state";
 import type {
@@ -176,11 +176,12 @@ export default function AssessmentForm({ id, initial, user }: Props) {
 
   function handleDemo(profileId: string) {
     const profile = DEMO_PROFILES.find((p) => p.id === profileId);
-    setState(makeDemoState(profileId));
+    // เติมเฉพาะคำตอบตามเกณฑ์ทุกตัวชี้วัด — ข้อมูลโรงเรียนที่กรอกไว้ (ชื่อ/รหัส/พิกัด ฯลฯ) คงเดิม
+    setState((prev) => applyDemoCriteria(prev, profileId));
     showToast(
       profile
-        ? `เติมตัวอย่าง "${profile.name}" แล้ว (${profile.total}/100, ${profile.levelLabel})`
-        : "เติมข้อมูลตัวอย่างแล้ว",
+        ? `เติมข้อมูลตามเกณฑ์ "${profile.name}" แล้ว (${profile.total}/100, ${profile.levelLabel}) — ข้อมูลโรงเรียนคงเดิม`
+        : "เติมข้อมูลตามเกณฑ์แล้ว — ข้อมูลโรงเรียนคงเดิม",
     );
   }
 
@@ -294,7 +295,7 @@ export default function AssessmentForm({ id, initial, user }: Props) {
           </Link>
           <select
             className="ghost-btn demo-select"
-            aria-label="เลือกตัวอย่างโรงเรียนเพื่อทดลองกรอก"
+            aria-label="เติมคำตอบตามเกณฑ์จากชุดตัวอย่าง (ไม่แก้ข้อมูลโรงเรียน)"
             value=""
             onChange={(event) => {
               const profileId = event.target.value;
@@ -303,7 +304,7 @@ export default function AssessmentForm({ id, initial, user }: Props) {
             }}
           >
             <option value="" disabled>
-              เติมตัวอย่าง ▾
+              เติมคำตอบตัวอย่าง ▾
             </option>
             {DEMO_PROFILES.map((profile) => (
               <option key={profile.id} value={profile.id}>

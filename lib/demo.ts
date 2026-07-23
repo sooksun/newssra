@@ -320,3 +320,71 @@ export function makeDemoState(profileId?: string): AssessmentState {
   const def = PROFILE_DEFS.find((p) => p.id === profileId) ?? PROFILE_DEFS[0];
   return def.build();
 }
+
+/**
+ * เติม "เฉพาะข้อมูลตามเกณฑ์" ของโปรไฟล์ตัวอย่างลงบนแบบประเมินที่เปิดอยู่
+ *
+ * ข้อมูลโรงเรียน (unit: ชื่อ/รหัส/สังกัด/จังหวัด/พิกัด/จำนวนนักเรียน/ลักษณะที่ตั้ง) ไม่ถูกแตะเลย —
+ * ผู้ใช้จึงลองคะแนนกับโรงเรียนจริงของตนได้โดยชื่อและพิกัดไม่ถูกทับด้วยโรงเรียนสมมติ
+ *
+ * สิ่งที่ "ไม่" เติมทับด้วยเช่นกัน เพราะเป็นข้อมูลของแถวจริงไม่ใช่คำตอบตามเกณฑ์:
+ * - `evidence[].files` ไฟล์หลักฐานจริงที่อัปโหลดไว้ (ตัวอย่างเติมแค่สถานะพร้อม/หมายเหตุ)
+ * - `gis`/`scoringVersion` ผลวิเคราะห์แผนที่ของโรงเรียนจริง (พิกัดตัวอย่างจะขัดกับ unit จริง)
+ * - `feedback`/`generalFeedback`/`signed`/`submitted` ความเห็นและสถานะการยื่นของผู้ใช้
+ */
+export function applyDemoCriteria(current: AssessmentState, profileId?: string): AssessmentState {
+  const demo = makeDemoState(profileId);
+  const responses = scaleHeadcounts(demo, current.unit.totalStudents);
+  const evidence = {} as AssessmentState["evidence"];
+  (Object.keys(current.evidence) as IndicatorId[]).forEach((id) => {
+    evidence[id] = {
+      ...current.evidence[id],
+      ready: demo.evidence[id]?.ready ?? current.evidence[id].ready,
+      note: demo.evidence[id]?.note ?? current.evidence[id].note,
+      files: current.evidence[id].files, // ไฟล์จริงเป็นของฝั่งเซิร์ฟเวอร์ — ห้ามล้างหรือยัดไฟล์สมมติ
+    };
+  });
+  return { ...current, responses, evidence };
+}
+
+/**
+ * ตัวชี้วัดที่ให้คะแนนจาก "ร้อยละของผู้เรียนทั้งหมด" (ดู `scoreIndicator` ใน lib/scoring.ts)
+ * — ค่าดิบจึงมีความหมายเฉพาะกับจำนวนผู้เรียนของโปรไฟล์นั้น ต้องปรับตามสัดส่วนก่อนใช้กับโรงเรียนอื่น
+ *
+ * ข้อ 1.2 (ผู้เรียนพักนอน) ไม่อยู่ในกลุ่มนี้: แถบคะแนนของมันเป็น "จำนวนคน" ล้วน ๆ (≤10, ≤20, ≤30 …)
+ * ถ้าไปคูณตามสัดส่วนจะเลื่อนแถบคะแนนจนคะแนนรวมไม่ตรงกับที่โปรไฟล์ระบุ
+ */
+const PERCENT_OF_STUDENTS_IDS: IndicatorId[] = ["1.1", "1.3"];
+
+/** ข้อที่นับ "จำนวนคน" ตรง ๆ — คงค่าดิบไว้ เพียงแต่ต้องไม่เกินผู้เรียนทั้งหมดจริง */
+const HEADCOUNT_IDS: IndicatorId[] = ["1.2"];
+
+/**
+ * ปรับจำนวนผู้เรียนในด้านที่ 1 ให้เข้ากับขนาดโรงเรียนจริง
+ *
+ * 1.1/1.3 คิดเป็นร้อยละ การคัดลอกค่าดิบของโรงเรียนสมมติ (เช่น 92 คนจากทั้งหมด 128) ไปวางบนโรงเรียน
+ * ที่มีผู้เรียน 241 คน จะได้ร้อยละคนละแถบคะแนน — ตัวอย่างที่บอกว่า "70 คะแนน" ก็จะไม่ได้ 70 อีกต่อไป
+ * การคูณตามสัดส่วนรักษาร้อยละเดิมไว้ จึงได้แถบคะแนนตามที่โปรไฟล์ระบุไม่ว่าโรงเรียนจะใหญ่หรือเล็ก
+ *
+ * ทุกข้อถูกจำกัดไม่ให้เกินผู้เรียนทั้งหมดจริง มิฉะนั้นธง V00 (จำนวนเกินผู้เรียนทั้งหมด, tone "block")
+ * จะขึ้นจนส่งแบบประเมินไม่ได้ กรณีนี้เกิดกับ 1.2 ของโรงเรียนที่เล็กมาก และคะแนนข้อนั้นจะต่ำกว่า
+ * ที่โปรไฟล์ระบุ — ยอมให้คะแนนเพี้ยนดีกว่าปล่อยให้ตัวอย่างสร้างแบบประเมินที่ส่งไม่ได้
+ *
+ * ผู้เรียนทั้งหมดยังว่างอยู่ (ยังไม่กรอกข้อมูลโรงเรียน) → คัดลอกค่าดิบตามเดิม เพราะไม่มีฐานให้เทียบ
+ */
+function scaleHeadcounts(demo: AssessmentState, realTotalRaw: string): AssessmentState["responses"] {
+  const realTotal = Number.parseFloat(realTotalRaw);
+  const demoTotal = Number.parseFloat(demo.unit.totalStudents);
+  const responses = { ...demo.responses };
+  if (!Number.isFinite(realTotal) || realTotal <= 0 || !Number.isFinite(demoTotal) || demoTotal <= 0) {
+    return responses;
+  }
+  const cap = Math.floor(realTotal);
+  for (const id of [...PERCENT_OF_STUDENTS_IDS, ...HEADCOUNT_IDS]) {
+    const count = Number.parseFloat(demo.responses[id]?.count ?? "");
+    if (!Number.isFinite(count)) continue;
+    const scaled = PERCENT_OF_STUDENTS_IDS.includes(id) ? Math.round((count / demoTotal) * realTotal) : count;
+    responses[id] = { ...responses[id], count: String(Math.min(scaled, cap)) };
+  }
+  return responses;
+}
