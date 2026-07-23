@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { RateLimiter, clientIp } from "../lib/rate-limit";
+import { RateLimiter, clientIp, terrainAnalyzeRateLimiter } from "../lib/rate-limit";
 
 test("RateLimiter — ไม่บล็อกก่อนถึงเพดาน แล้วบล็อกเมื่อถึง", () => {
   const rl = new RateLimiter({ maxFails: 3, windowMs: 1000, blockMs: 1000 });
@@ -60,4 +60,17 @@ test("clientIp — fallback ไป x-real-ip", () => {
 
 test("clientIp — ระบุไม่ได้ → null", () => {
   assert.equal(clientIp(new Headers()), null);
+});
+
+test("terrainAnalyzeRateLimiter — บล็อกหลังครบ 10 ครั้งในหน้าต่างเดียวกัน", () => {
+  const key = `test-terrain-${Date.now()}-${Math.random()}`;
+  const t = 10_000;
+  for (let i = 0; i < 9; i++) {
+    assert.equal(terrainAnalyzeRateLimiter.check(key, t).blocked, false, `ครั้งที่ ${i + 1} ยังไม่บล็อก`);
+    terrainAnalyzeRateLimiter.fail(key, t);
+  }
+  assert.equal(terrainAnalyzeRateLimiter.check(key, t).blocked, false, "ครั้งที่ 9 ยังไม่บล็อก");
+  const status = terrainAnalyzeRateLimiter.fail(key, t); // ครั้งที่ 10
+  assert.equal(status.blocked, true, "ครั้งที่ 10 ต้องบล็อก");
+  assert.ok(status.retryAfterSec > 0, "retryAfterSec ต้องเป็นค่าบวกเมื่อถูกบล็อก");
 });

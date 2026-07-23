@@ -88,6 +88,14 @@ export const buildingsRateLimiter = new RateLimiter({
   blockMs: 60 * 1000,
 });
 
+// ตัวจำกัดการเรียกวิเคราะห์ภูมิประเทศด้วย AI ต่อผู้ใช้ — แต่ละครั้งส่ง 9 ภาพเข้า OpenRouter (มีค่าใช้จ่าย)
+// เพดานต่ำกว่า buildings มาก เพราะเป็นงานหนัก/มีต้นทุน: จับภาพใหม่แล้ววิเคราะห์เป็นการกระทำตั้งใจ ไม่ควรรัว
+export const terrainAnalyzeRateLimiter = new RateLimiter({
+  maxFails: 10, // 10 ครั้ง/ชั่วโมง/ผู้ใช้
+  windowMs: 60 * 60 * 1000,
+  blockMs: 15 * 60 * 1000, // ล็อก 15 นาทีเมื่อเกิน
+});
+
 /** ดึง IP ผู้เรียกจาก header ของ reverse proxy — คืน null ถ้าระบุไม่ได้ (จะได้ไม่ล็อกรวมกันทั้งระบบด้วย key เดียว) */
 export function clientIp(headers: Headers): string | null {
   const xff = headers.get("x-forwarded-for");

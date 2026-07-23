@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getAssessment, saveAssessment } from "@/lib/repo";
 import { requireAssessmentAccess } from "@/lib/api-auth";
+import { terrainAnalyzeRateLimiter } from "@/lib/rate-limit";
 import { readSiteSnapshot } from "@/lib/uploads";
 import { analyzeTerrainFromImages, TerrainAnalysisError } from "@/lib/ai/terrainAnalysis";
 import type { TerrainImageInput } from "@/lib/ai/terrainAnalysis";
@@ -32,6 +33,17 @@ export async function POST(_request: NextRequest, { params }: Ctx) {
 
   const guard = await requireAssessmentAccess(assessmentId);
   if (!guard.ok) return guard.response;
+
+  // จำกัดอัตราต่อผู้ใช้ — แต่ละครั้งส่ง 9 ภาพเข้า Gemini ผ่าน OpenRouter (มีค่าใช้จ่าย) ดู terrainAnalyzeRateLimiter
+  const rlKey = `terrain-analyze:${guard.user.uid}`;
+  const status = terrainAnalyzeRateLimiter.check(rlKey);
+  if (status.blocked) {
+    return NextResponse.json(
+      { error: "เรียกวิเคราะห์ AI ถี่เกินไป กรุณาลองใหม่ภายหลัง" },
+      { status: 429, headers: { "Retry-After": String(status.retryAfterSec) } },
+    );
+  }
+  terrainAnalyzeRateLimiter.fail(rlKey); // นับคำขอนี้เข้าโควตา
 
   const record = await getAssessment(assessmentId);
   if (!record) return NextResponse.json({ error: "ไม่พบแบบประเมิน" }, { status: 404 });
