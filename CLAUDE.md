@@ -18,7 +18,7 @@ npm run db:init    # create database `newssra` + tables + migrations (idempotent
                    # Run this BEFORE deploying: it fails loudly (listing school/year/ids) if existing rows violate
                    # the one-assessment-per-school-per-year rule, which would otherwise block app startup.
 npm run buildings:import  # pre-warm map_buildings with all Thailand MS footprints (one-time ~30-90 min; resumable)
-npm test           # unit tests (node:test + tsx, no DB needed) — 453 cases across: scoring, gis, gis-request, map-assessment, assessment-year, snapshot views/capture, ai terrain analysis (parse), auth, rate-limit, state, uploads, app settings, map/geometry, borders, route elevation, component rendering (incl. SiteSnapshotGallery, SettingSuggestionCard, SettingsAdmin)
+npm test           # unit tests (node:test + tsx, no DB needed) — 455 cases across: scoring, gis, gis-request, map-assessment, assessment-year, snapshot views/capture, ai terrain analysis (parse), auth, rate-limit, state, uploads, app settings, map/geometry, borders, route elevation, component rendering (incl. SiteSnapshotGallery, SettingSuggestionCard, SettingsAdmin)
 npm run borders:fetch     # regenerate public/geo/sea-borders.json from OpenStreetMap (needs network; ~2 min)
 npm run test:integration  # route-level integration tests (needs live MySQL from .env.local; skips gracefully if unreachable)
 ```
