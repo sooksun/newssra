@@ -53,3 +53,34 @@ export const SNAPSHOT_VIEWS: readonly SnapshotView[] = [
     frame: "school-and-province",
   },
 ];
+
+/** เผื่อขอบรอบสองจุดในมุมภาพรวม (1.2 = จุดอยู่ที่ ~83% ของครึ่งเฟรม เหลือขอบให้ป้ายกำกับ) */
+export const OVERVIEW_FIT_MARGIN = 1.2;
+
+/**
+ * ระยะกล้อง (เมตร) ที่ทำให้ BoundingSphere รัศมี `radiusM` (ครอบทั้งสองจุด) อยู่ในเฟรมครบ — pure/ทดสอบได้
+ *
+ * สองจุด (โรงเรียน + ศาลากลาง) อยู่บนผิวทรงกลมที่ขั้วตรงข้าม รัศมี = ครึ่งระยะห่าง กล้องต้องถอยไกลพอให้
+ * ทรงกลม "พอดีกรวยภาพในมิติที่แคบที่สุด" (แนวตั้งเมื่อจอแนวนอน) มิเช่นนั้นจุดบน/ล่างจะหลุดขอบ
+ *
+ * ตัวคูณตายตัวเดิม (2.4) พอเฉพาะจอจัตุรัส แต่จอแผนที่จริงเป็นแนวนอน (aspect 1.5–1.78) ซึ่งต้องใช้ ≥ 2.8–3.2
+ * — จึงคำนวณจาก fov จริงของกล้องแทน ครอบทุก aspect ทั้งแนวนอน/แนวตั้ง
+ *
+ * @param horizontalFovRad ค่า `frustum.fov` ของ Cesium (มุมของมิติที่ "กว้างกว่า" ของ viewport)
+ * @param aspectRatio      กว้าง ÷ สูง ของ canvas
+ */
+export function overviewFitRangeM(
+  radiusM: number,
+  horizontalFovRad: number,
+  aspectRatio: number,
+  margin: number = OVERVIEW_FIT_MARGIN,
+): number {
+  if (!(radiusM > 0) || !(horizontalFovRad > 0) || !(aspectRatio > 0)) return 0;
+  // Cesium เก็บ fov ของมิติที่กว้างกว่า → ครึ่ง fov ของมิติที่แคบกว่า = atan(tan(fov/2) × สัดส่วนด้านที่สั้นกว่า)
+  const minorRatio = Math.min(aspectRatio, 1 / aspectRatio);
+  const minHalfFov = Math.atan(Math.tan(horizontalFovRad / 2) * minorRatio);
+  const half = Math.max(minHalfFov, 1e-4);
+  // range ที่ทรงกลมพอดีขอบ = radius / sin(minHalfFov); คูณ margin เพื่อเผื่อขอบ (ไม่ขึ้นกับการเอียงกล้อง
+  // เพราะทรงกลมสมมาตรทุกทิศ การครอบจึงการันตีไม่ว่ากล้องจะ heading/pitch เท่าใด)
+  return (radiusM / Math.sin(half)) * margin;
+}

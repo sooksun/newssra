@@ -81,7 +81,7 @@ import MapPanelToggle from "@/components/map/MapPanelToggle";
 import type { MapAssessmentSaveAction, MapAssessmentSaveResponse } from "@/lib/map-assessment";
 import { GIS_DESTINATION_LABELS } from "@/lib/types";
 import type { GisAnalysis, GisAreaSummary, GisDestinationType, GisRouteAnalysis } from "@/lib/types";
-import { SNAPSHOT_VIEWS } from "@/lib/map/snapshotViews";
+import { overviewFitRangeM, SNAPSHOT_VIEWS } from "@/lib/map/snapshotViews";
 import { captureCurrentView, dataUrlToBlob, waitForTilesLoaded } from "@/lib/map/snapshotCapture";
 
 // ── ค่าคงที่การวิเคราะห์ ──────────────────────────────────────────────────
@@ -110,7 +110,8 @@ const SNAPSHOT_RESOLUTION_SCALE = 1.5;
 const SNAPSHOT_TILE_WAIT_MS = 9000;
 const SNAPSHOT_TILE_STABLE_TICKS = 3;
 // มุมภาพรวมครอบสองจุด: ระยะกล้อง = รัศมี BoundingSphere × ตัวคูณนี้ (2.4 = เห็นทั้งสองจุดพร้อมขอบพอเหมาะ)
-const SNAPSHOT_OVERVIEW_RANGE_FACTOR = 2.4;
+// เผื่อกรณีอ่าน fov ของกล้องไม่ได้ (เช่น frustum ไม่ใช่ perspective) — ใช้ตัวคูณกว้างพอสำหรับจอแนวนอนทั่วไป
+const SNAPSHOT_OVERVIEW_FALLBACK_FACTOR = 3.4;
 const IMAGERY_LAYER_OPTIONS = {
   maximumAnisotropy: 16,
   brightness: 1.02,
@@ -2014,14 +2015,23 @@ export default function CesiumMap({
             province.lat,
             Number.isFinite(hallHeightM) ? (hallHeightM as number) : 0,
           );
-          // เล็งกึ่งกลางระหว่างสองจุด ด้วยระยะกล้อง = รัศมี BoundingSphere × ตัวคูณ เพื่อให้ทั้งสองจุดอยู่ในเฟรมพร้อมขอบ
+          // เล็งกึ่งกลางระหว่างสองจุด แล้วถอยกล้องด้วยระยะที่คำนวณจาก fov + aspect จริง ให้ทรงกลม (ครอบทั้งสองจุด)
+          // อยู่ในเฟรมครบเสมอ — ตัวคูณตายตัวเดิมไม่พอสำหรับจอแนวนอน ทำให้จุดบน/ล่างหลุดขอบ (ดู overviewFitRangeM)
           const sphere = BoundingSphere.fromPoints([pin, hall]);
+          const frustumFov = (viewer.camera.frustum as { fov?: number }).fov;
+          const canvasW = viewer.canvas.clientWidth || viewer.canvas.width;
+          const canvasH = viewer.canvas.clientHeight || viewer.canvas.height;
+          const aspect = canvasW > 0 && canvasH > 0 ? canvasW / canvasH : 1;
+          const fitRange =
+            typeof frustumFov === "number" && frustumFov > 0
+              ? overviewFitRangeM(sphere.radius, frustumFov, aspect)
+              : sphere.radius * SNAPSHOT_OVERVIEW_FALLBACK_FACTOR;
           viewer.camera.viewBoundingSphere(
             sphere,
             new HeadingPitchRange(
               CesiumMath.toRadians(view.headingDeg),
               CesiumMath.toRadians(view.pitchDeg),
-              sphere.radius * SNAPSHOT_OVERVIEW_RANGE_FACTOR,
+              fitRange,
             ),
           );
         } else {

@@ -31,6 +31,16 @@ test("มุมภาพรวมครอบสองจุดใช้ Boundin
   assert.match(component, /if \(!province\)\s*\{[\s\S]{0,120}continue;/);
 });
 
+test("ระยะกล้องมุมภาพรวมคำนวณจาก fov + aspect จริง ไม่ใช่ตัวคูณตายตัวที่ทำให้จุดหลุดเฟรม", () => {
+  // ต้องเรียก overviewFitRangeM ด้วยรัศมีทรงกลม + fov ของ frustum + aspect ของ canvas
+  assert.match(component, /overviewFitRangeM\(sphere\.radius, frustumFov, aspect\)/);
+  assert.match(component, /viewer\.camera\.frustum as \{ fov\?: number \}/);
+  assert.match(component, /viewer\.canvas\.clientWidth/);
+  // ตัวคูณตายตัวเดิม 2.4 ต้องหายไปแล้ว (เหลือ fallback ที่กว้างพอสำหรับจอแนวนอนเท่านั้น)
+  assert.doesNotMatch(component, /sphere\.radius \* SNAPSHOT_OVERVIEW_RANGE_FACTOR/);
+  assert.doesNotMatch(component, /SNAPSHOT_OVERVIEW_RANGE_FACTOR = 2\.4/);
+});
+
 test("มุมใกล้ต้องใกล้กว่ามุมไกลอย่างมีนัยสำคัญ และก้มพอจะเห็นพื้นที่รอบโรงเรียน", () => {
   const near = SNAPSHOT_VIEWS.filter((v) => v.key.startsWith("near-"));
   const far = SNAPSHOT_VIEWS.filter((v) => v.key.startsWith("far-"));
