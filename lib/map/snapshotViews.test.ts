@@ -3,12 +3,21 @@ import assert from "node:assert/strict";
 import { SNAPSHOT_VIEWS } from "./snapshotViews";
 
 describe("SNAPSHOT_VIEWS — มุมกล้องจับภาพ 3D", () => {
-  test("มี 9 มุมพอดี", () => {
-    assert.equal(SNAPSHOT_VIEWS.length, 9);
+  test("มี 10 มุมพอดี (9 มุมรอบโรงเรียน + 1 ภาพรวมถึงศาลากลาง)", () => {
+    assert.equal(SNAPSHOT_VIEWS.length, 10);
   });
   test("key ไม่ซ้ำกัน", () => {
     const keys = SNAPSHOT_VIEWS.map((v) => v.key);
-    assert.equal(new Set(keys).size, 9);
+    assert.equal(new Set(keys).size, 10);
+  });
+  test("มุมภาพรวมครอบสองจุด: key/frame/label ถูกต้อง และเป็นมุมสุดท้าย", () => {
+    const ov = SNAPSHOT_VIEWS.find((v) => v.key === "overview-province")!;
+    assert.ok(ov, "ต้องมีมุม overview-province");
+    assert.equal(ov.frame, "school-and-province");
+    assert.match(ov.label, /ศาลากลาง/);
+    assert.equal(SNAPSHOT_VIEWS[SNAPSHOT_VIEWS.length - 1].key, "overview-province");
+    // มีมุม frame แบบครอบสองจุดเพียงมุมเดียว
+    assert.equal(SNAPSHOT_VIEWS.filter((v) => v.frame === "school-and-province").length, 1);
   });
   test("มุมแรกเป็น top-down (pitch −90)", () => {
     assert.equal(SNAPSHOT_VIEWS[0].key, "top");
@@ -32,7 +41,10 @@ describe("SNAPSHOT_VIEWS — มุมกล้องจับภาพ 3D", () 
     assert.ok(far.rangeM > near.rangeM && near.rangeM > 0);
     for (const v of SNAPSHOT_VIEWS) assert.ok(v.label.trim().length > 0);
   });
-  test("ทุกมุมมี rangeM > 0 (ระยะห่างกล้องถึงหมุด สำหรับ lookAt)", () => {
-    for (const v of SNAPSHOT_VIEWS) assert.ok(v.rangeM > 0);
+  test("ทุกมุม lookAt (ไม่มี frame) มี rangeM > 0 — มุม frame ครอบสองจุดคำนวณระยะเอง จึง rangeM = 0 ได้", () => {
+    for (const v of SNAPSHOT_VIEWS) {
+      if (v.frame) assert.equal(v.rangeM, 0, `มุม frame ${v.key} ไม่ใช้ rangeM`);
+      else assert.ok(v.rangeM > 0, `มุม ${v.key} ต้องมี rangeM > 0`);
+    }
   });
 });

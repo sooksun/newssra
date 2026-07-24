@@ -22,6 +22,15 @@ test("จับภาพด้วยความละเอียดสูง�
   assert.match(component, /await waitForTilesLoaded\(viewer, SNAPSHOT_TILE_WAIT_MS, SNAPSHOT_TILE_STABLE_TICKS\)/);
 });
 
+test("มุมภาพรวมครอบสองจุดใช้ BoundingSphere ของโรงเรียน+ศาลากลาง ไม่ใช่ lookAt รอบโรงเรียน", () => {
+  // แยกสาขา frame ออกจาก lookAt และครอบทั้งหมุดโรงเรียน (pin) กับพิกัดศาลากลาง (province)
+  assert.match(component, /view\.frame === "school-and-province"/);
+  assert.match(component, /BoundingSphere\.fromPoints\(\[pin, hall\]\)/);
+  assert.match(component, /viewer\.camera\.viewBoundingSphere\(/);
+  // ต้องมีพิกัดศาลากลางจึงจับได้ — ไม่มี province ให้ข้ามมุมนี้ (ไม่พังทั้งชุด)
+  assert.match(component, /if \(!province\)\s*\{[\s\S]{0,120}continue;/);
+});
+
 test("มุมใกล้ต้องใกล้กว่ามุมไกลอย่างมีนัยสำคัญ และก้มพอจะเห็นพื้นที่รอบโรงเรียน", () => {
   const near = SNAPSHOT_VIEWS.filter((v) => v.key.startsWith("near-"));
   const far = SNAPSHOT_VIEWS.filter((v) => v.key.startsWith("far-"));

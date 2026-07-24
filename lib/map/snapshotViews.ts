@@ -8,8 +8,13 @@ export interface SnapshotView {
   pitchDeg: number;
   /** ทิศหันกล้อง (องศาจากทิศเหนือ ตามเข็ม) */
   headingDeg: number;
-  /** ระยะห่างกล้องถึงหมุด (เมตร) ตามแนวเล็งของ lookAt — ยิ่งมาก = เห็นกว้าง/ไกล */
+  /** ระยะห่างกล้องถึงหมุด (เมตร) ตามแนวเล็งของ lookAt — ยิ่งมาก = เห็นกว้าง/ไกล; ไม่ใช้เมื่อ frame ถูกกำหนด */
   rangeM: number;
+  /**
+   * เมื่อกำหนด: จับภาพแบบ "ครอบ 2 จุด" (โรงเรียน + ศาลากลางจังหวัด) ด้วย BoundingSphere แทน lookAt รอบโรงเรียน
+   * — ใช้ระยะกล้องที่คำนวณจากระยะห่างจริงของสองจุด (rangeM จึงไม่มีผล); ถ้าไม่มีพิกัดศาลากลางให้ข้ามมุมนี้ไป
+   */
+  frame?: "school-and-province";
 }
 
 const DIRS: { suffix: string; label: string; headingDeg: number }[] = [
@@ -37,4 +42,14 @@ export const SNAPSHOT_VIEWS: readonly SnapshotView[] = [
     headingDeg: d.headingDeg,
     rangeM: 13000,
   })),
+  // มุมที่ 10: ครอบทั้งที่ตั้งโรงเรียนและศาลากลางจังหวัดในเฟรมเดียว เพื่อยืนยันความสัมพันธ์เชิงพื้นที่ของสองจุด
+  // (กล้องเล็งกึ่งกลางระหว่างสองจุด ระยะคำนวณจากระยะห่างจริง) — ถ้าไม่มีพิกัดศาลากลาง (โหมดทั้งประเทศ) จะข้ามไป
+  {
+    key: "overview-province",
+    label: "ภาพรวม–โรงเรียนถึงศาลากลางจังหวัด",
+    pitchDeg: -55,
+    headingDeg: 0,
+    rangeM: 0,
+    frame: "school-and-province",
+  },
 ];

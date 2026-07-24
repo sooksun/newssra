@@ -34,7 +34,7 @@ export async function POST(_request: NextRequest, { params }: Ctx) {
   const guard = await requireAssessmentAccess(assessmentId);
   if (!guard.ok) return guard.response;
 
-  // จำกัดอัตราต่อผู้ใช้ — แต่ละครั้งส่ง 9 ภาพเข้า Gemini ผ่าน OpenRouter (มีค่าใช้จ่าย) ดู terrainAnalyzeRateLimiter
+  // จำกัดอัตราต่อผู้ใช้ — แต่ละครั้งส่งภาพชุด 3D ทั้งหมดเข้า Gemini ผ่าน OpenRouter (มีค่าใช้จ่าย) ดู terrainAnalyzeRateLimiter
   const rlKey = `terrain-analyze:${guard.user.uid}`;
   const status = terrainAnalyzeRateLimiter.check(rlKey);
   if (status.blocked) {

@@ -154,12 +154,12 @@ describe("siteSnapshots — ภาพยืนยันที่ตั้ง (se
     assert.equal("siteSnapshots" in s.unit, false);
   });
 
-  test("sanitize รับ array + cap ที่ 9 และกรองรายการไม่มี id ทิ้ง", () => {
-    const many = Array.from({ length: 12 }, (_, i) => snap({ id: `123e4567-e89b-12d3-a456-42661417400${i % 10}` }));
+  test("sanitize รับ array + cap ที่ 10 และกรองรายการไม่มี id ทิ้ง", () => {
+    const many = Array.from({ length: 13 }, (_, i) => snap({ id: `123e4567-e89b-12d3-a456-42661417400${i % 10}` }));
     many.push({ viewKey: "x" } as never); // ไม่มี id → ถูกกรอง
     const s = sanitizeState({ unit: { siteSnapshots: many } });
     assert.ok(Array.isArray(s.unit.siteSnapshots));
-    assert.equal(s.unit.siteSnapshots!.length, 9);
+    assert.equal(s.unit.siteSnapshots!.length, 10);
     assert.equal(s.unit.siteSnapshots![0].viewLabel, "มุมมองจากด้านบน");
   });
 

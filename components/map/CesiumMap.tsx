@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Viewer,
+  BoundingSphere,
   Cartesian3,
   Cartographic,
   Color,
@@ -108,6 +109,8 @@ const GLOBE_SSE = 1.0;
 const SNAPSHOT_RESOLUTION_SCALE = 1.5;
 const SNAPSHOT_TILE_WAIT_MS = 9000;
 const SNAPSHOT_TILE_STABLE_TICKS = 3;
+// มุมภาพรวมครอบสองจุด: ระยะกล้อง = รัศมี BoundingSphere × ตัวคูณนี้ (2.4 = เห็นทั้งสองจุดพร้อมขอบพอเหมาะ)
+const SNAPSHOT_OVERVIEW_RANGE_FACTOR = 2.4;
 const IMAGERY_LAYER_OPTIONS = {
   maximumAnisotropy: 16,
   brightness: 1.02,
@@ -1998,14 +2001,40 @@ export default function CesiumMap({
       const blobs: { blob: Blob; viewKey: string }[] = [];
       for (let i = 0; i < SNAPSHOT_VIEWS.length; i++) {
         const view = SNAPSHOT_VIEWS[i];
-        viewer.camera.lookAt(
-          pin,
-          new HeadingPitchRange(
-            CesiumMath.toRadians(view.headingDeg),
-            CesiumMath.toRadians(view.pitchDeg),
-            view.rangeM,
-          ),
-        );
+        if (view.frame === "school-and-province") {
+          // มุมภาพรวมครอบทั้งโรงเรียนและศาลากลางจังหวัด — ต้องมีพิกัดศาลากลาง (province) ไม่งั้นข้ามมุมนี้ไป
+          if (!province) {
+            setCaptureProgress(i + 1);
+            continue;
+          }
+          const hallCarto = Cartographic.fromDegrees(province.lng, province.lat);
+          const hallHeightM = viewer.scene.globe.getHeight(hallCarto);
+          const hall = Cartesian3.fromDegrees(
+            province.lng,
+            province.lat,
+            Number.isFinite(hallHeightM) ? (hallHeightM as number) : 0,
+          );
+          // เล็งกึ่งกลางระหว่างสองจุด ด้วยระยะกล้อง = รัศมี BoundingSphere × ตัวคูณ เพื่อให้ทั้งสองจุดอยู่ในเฟรมพร้อมขอบ
+          const sphere = BoundingSphere.fromPoints([pin, hall]);
+          viewer.camera.viewBoundingSphere(
+            sphere,
+            new HeadingPitchRange(
+              CesiumMath.toRadians(view.headingDeg),
+              CesiumMath.toRadians(view.pitchDeg),
+              sphere.radius * SNAPSHOT_OVERVIEW_RANGE_FACTOR,
+            ),
+          );
+        } else {
+          // เล็งกล้องมาที่หมุดโรงเรียนเสมอ ด้วย lookAt — หมุดจึงอยู่กึ่งกลางภาพทุกมุม ทั้งใกล้/ไกล
+          viewer.camera.lookAt(
+            pin,
+            new HeadingPitchRange(
+              CesiumMath.toRadians(view.headingDeg),
+              CesiumMath.toRadians(view.pitchDeg),
+              view.rangeM,
+            ),
+          );
+        }
         // รอไทล์ของมุมใหม่ให้นิ่งจริง (เห็น tilesLoaded ติดกัน 3 รอบ) ก่อนจับภาพ — กันภาพเบลอ/ไทล์หยาบค้าง
         await waitForTilesLoaded(viewer, SNAPSHOT_TILE_WAIT_MS, SNAPSHOT_TILE_STABLE_TICKS);
         blobs.push({ blob: dataUrlToBlob(captureCurrentView(viewer)), viewKey: view.key });
@@ -2046,7 +2075,7 @@ export default function CesiumMap({
       }
       setCapturing(false);
     }
-  }, [capturing, national, center, assessment, routeElevationProfile]);
+  }, [capturing, national, center, assessment, routeElevationProfile, province]);
 
   return (
     <div
