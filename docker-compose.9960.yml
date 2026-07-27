@@ -1,0 +1,41 @@
+# ชุด deploy ที่ 2 — รันคู่ขนานกับชุดหลัก (พอร์ต 9950) โดยไม่แตะชุดเดิม
+#
+#   docker compose -p newssra-9960 -f docker-compose.9960.yml up -d --build
+#
+# แอปเปิดที่พอร์ต 9960 • ใช้ .env.production, ฐานข้อมูล และ data/uploads "ร่วมกับชุด 9950"
+#
+# ทำไมต้องแยกไฟล์ + แยก project name (-p newssra-9960):
+#   Compose ใช้ชื่อโฟลเดอร์เป็น project name โดยอัตโนมัติ ถ้าไม่แยก การสั่ง up ชุดนี้จะไป
+#   "แทนที่" คอนเทนเนอร์ของ 9950 แทนที่จะรันเพิ่ม — แยก project จึงทำให้สองชุดอยู่ร่วมกันได้จริง
+#   และ down/restart/rebuild ชุดใดชุดหนึ่งได้โดยอีกชุดไม่สะดุด
+#
+# ข้อควรรู้เมื่อรัน 2 ชุดบนฐานข้อมูลเดียวกัน:
+#   - ต้อง mount ./data/uploads โฟลเดอร์เดียวกันทั้งสองชุด เพราะ metadata ของไฟล์หลักฐานอยู่ใน DB
+#     ที่แชร์กัน ถ้าแยกโฟลเดอร์ ไฟล์ที่อัปโหลดผ่าน 9950 จะเปิดไม่ได้เมื่อเข้าทาง 9960 (และกลับกัน)
+#   - ใช้ .env.production ไฟล์เดียวกัน → AUTH_SECRET ตรงกัน session cookie จึงใช้ข้ามพอร์ตได้
+#     และ DB_* ตรงกันแน่นอนตามที่ต้องการ (ไม่มีโอกาส drift เพราะไม่ได้ก๊อปค่ามาไว้สองที่)
+#   - rate-limit การ login เก็บใน process (ตาม CLAUDE.md) จึงนับ "แยกกัน" ต่อชุด — สองชุดรวมกัน
+#     ผู้โจมตีมีโควตาเป็น 2 เท่า ถ้าเปิดสู่อินเทอร์เน็ตควรจำกัดที่ reverse proxy/WAF ด้านหน้า
+
+services:
+  app:
+    build: .
+    container_name: newssra-app-9960
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT_9960:-9960}:3000"
+    env_file:
+      # ไฟล์เดียวกับชุด 9950 — DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD และ AUTH_SECRET
+      # จึงเป็นค่าเดียวกันเสมอ (ชี้ MariaDB ตัวเดิม เช่น 192.168.1.4:3306)
+      - .env.production
+    volumes:
+      - ./data/uploads:/app/uploads
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      # liveness: ให้ node เรียก /api/health เอง (image node:alpine ไม่มี curl; node มี global fetch)
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s

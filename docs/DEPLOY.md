@@ -169,9 +169,55 @@ docker compose restart app
 
 > แนะนำให้ทำ 8.1–8.2 เป็น cron รายวันแล้ว `rsync`/อัปโหลดไฟล์สำรองไปเก็บนอกเครื่อง (offsite) พร้อมหมุนเวียนลบของเก่าตามนโยบายเก็บรักษา; ทดสอบขั้นตอน 8.3 กับข้อมูลจริงเป็นระยะเพื่อยืนยันว่าไฟล์สำรองกู้คืนได้จริง
 
+## 9. ชุด deploy ที่ 2 บนพอร์ต 9960 (รันคู่ขนานกับ 9950)
+
+`docker-compose.9960.yml` เป็นชุดแยกที่รัน **เพิ่ม** จากชุดหลัก โดยไม่แตะชุด 9950 เลย — ใช้ `.env.production`, ฐานข้อมูล และ `data/uploads` **ร่วมกัน** ต่างกันแค่พอร์ตที่เปิดออกกับชื่อคอนเทนเนอร์ (`newssra-app-9960`)
+
+**ก่อนรันครั้งแรก — ยืนยันว่า `.env.production` ชี้ MariaDB ตัวจริง** (ค่านี้ใช้ร่วมกันทั้งสองชุด แก้ที่เดียวมีผลทั้งคู่ จึงไม่มีโอกาสหลุดคนละค่า; ถ้าเดิมตั้ง `DB_HOST=host.docker.internal` แล้วใช้งานได้อยู่ ไม่ต้องแก้):
+
+```bash
+DB_HOST=192.168.1.4
+DB_PORT=3306
+```
+
+**รันชุด 9960:**
+
+```bash
+cd /DATA/AppData/www/newssra
+docker compose -p newssra-9960 -f docker-compose.9960.yml up -d --build
+```
+
+ไม่ต้องรัน `npm run db:init` ซ้ำ — ใช้ฐานข้อมูลเดียวกับ 9950 ที่ migrate ไปแล้ว
+
+**คำสั่งดูแลชุด 9960** (ต้องใส่ `-p newssra-9960 -f docker-compose.9960.yml` **ทุกครั้ง** ไม่งั้นจะไปสั่งชุด 9950 แทน):
+
+```bash
+docker compose -p newssra-9960 -f docker-compose.9960.yml logs -f app
+docker compose -p newssra-9960 -f docker-compose.9960.yml restart app
+docker compose -p newssra-9960 -f docker-compose.9960.yml down
+```
+
+**อัปเดตเวอร์ชันทั้งสองชุด:**
+
+```bash
+cd /DATA/AppData/www/newssra
+git pull
+set -a && . ./.env.production && set +a && DB_HOST=192.168.1.4 npm run db:init   # ครั้งเดียวพอ (DB เดียวกัน)
+docker compose up -d --build                                                     # 9950
+docker compose -p newssra-9960 -f docker-compose.9960.yml up -d --build          # 9960
+```
+
+**ข้อควรรู้ของโหมด 2 ชุดบนฐานข้อมูลเดียว:**
+
+- ต้อง mount `./data/uploads` โฟลเดอร์เดียวกันทั้งสองชุด (ตั้งไว้แล้วในไฟล์) เพราะ metadata ของไฟล์หลักฐานอยู่ใน DB ที่แชร์กัน — ถ้าแยกโฟลเดอร์ ไฟล์ที่อัปโหลดผ่าน 9950 จะเปิดไม่ได้เมื่อเข้าทาง 9960 และกลับกัน
+- ใช้ `.env.production` ไฟล์เดียวกัน → `AUTH_SECRET` ตรงกัน session cookie จึงใช้ข้ามพอร์ตได้ ไม่ต้อง login ใหม่
+- **rate-limit การ login เก็บใน process** (ดู CLAUDE.md) จึงนับแยกกันต่อชุด — สองชุดรวมกันเท่ากับผู้โจมตีมีโควตาเดา 2 เท่า ถ้าเปิดสู่อินเทอร์เน็ตควรจำกัดที่ reverse proxy/WAF ด้านหน้า
+- ต้องแยก project name (`-p newssra-9960`) เสมอ เพราะ Compose ใช้ชื่อโฟลเดอร์เป็น project โดยอัตโนมัติ ถ้าไม่แยกจะกลายเป็น "แทนที่" คอนเทนเนอร์ 9950 แทนที่จะรันเพิ่ม
+- MariaDB ใช้ได้: schema มีแค่ `state JSON` และ SQL ใช้ `JSON_EXTRACT`/`JSON_UNQUOTE`/`ON DUPLICATE KEY UPDATE`/`SELECT … FOR UPDATE` ซึ่ง MariaDB รองรับทั้งหมด ไม่มี collation `utf8mb4_0900_*` หรือ window function เฉพาะ MySQL 8
+
 ## ข้อควรทราบ
 
 - ระบบมีการยืนยันตัวตนแบบ 3 บทบาท (ดูหัวข้อ "ระบบผู้ใช้และสิทธิ์" ในข้อ 3) — **ต้องตั้ง `AUTH_SECRET` และเปลี่ยนรหัสผ่านบัญชีตั้งต้นทันที** ก่อนเปิดใช้จริง
 - แผนที่ 3 มิติ (`/map`, หน้าแรกหลัง login) ทำงานแบบ keyless — ไม่ต้องตั้งค่าเพิ่ม ไฟล์ static ของ Cesium ถูกคัดลอกเข้า `public/cesium` อัตโนมัติตอน `npm run build` (ผ่าน `scripts/copy-cesium.mjs`) และรวมอยู่ใน Docker image แล้ว (ใส่ `NEXT_PUBLIC_CESIUM_ION_TOKEN` เพิ่มได้ถ้าต้องการ terrain/ภาพคุณภาพสูง)
-- พอร์ต 9950 เปลี่ยนได้ที่ `ports` ใน `docker-compose.yml` เช่น `"8080:3000"` (หรือกำหนด `APP_PORT` ตอนรัน)
+- พอร์ต 9950 เปลี่ยนได้ที่ `ports` ใน `docker-compose.yml` เช่น `"8080:3000"` (หรือกำหนด `APP_PORT` ตอนรัน — ต้องเป็น shell env หรือไฟล์ `.env` ที่รากโปรเจกต์ **ไม่ใช่** `.env.production` เพราะ Compose ไม่ได้อ่านค่าจาก `env_file:` มาแทนใน `ports:`) — ถ้าต้องการ *เพิ่ม* อีกชุดคู่ขนานแทนการย้ายพอร์ต ดูข้อ 9
 - **Health check:** `GET /api/health` เป็น liveness (ตอบเร็ว ไม่แตะ DB) — ใช้โดย healthcheck ของ compose; เพิ่ม `?deep=1` (`GET /api/health?deep=1`) เพื่อ readiness ที่ ping ฐานข้อมูลด้วย (ตอบ 503 ถ้า DB ล่ม) เหมาะสำหรับ monitor ภายนอกที่ต้องการรู้ว่า DB ใช้งานได้จริง
