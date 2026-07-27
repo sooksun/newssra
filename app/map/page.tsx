@@ -216,6 +216,7 @@ export default async function MapPage({ searchParams }: { searchParams: Promise<
       </header>
 
       <CesiumMapLoader
+        key={assessment?.id ?? "national"}
         center={center}
         national={national}
         province={province}

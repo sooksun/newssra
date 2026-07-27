@@ -19,3 +19,7 @@ test("มีปุ่มกลับแผนที่รวมเมื่อ a
   assert.match(page, /กลับแผนที่รวม/);
   assert.match(page, /href="\/map"/);
 });
+
+test("สลับ drill-in กลับภาพรวมแล้ว remount แผนที่เพื่อไม่ค้าง state โรงเรียนเดิม", () => {
+  assert.match(page, /key=\{assessment\?\.id \?\? "national"\}/);
+});

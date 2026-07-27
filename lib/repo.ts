@@ -16,7 +16,7 @@ import { COMMUNITY_LIST_UNINDEXED_KEY, isCommunityCompositeKey } from "./communi
 import { computeCommunityClass } from "./gis";
 import { applyMapGisToState, fillBlankUnitFromMaster } from "./map-assessment";
 import type { MapAssessmentSaveResult, SaveAssessmentFromMapInput, SchoolAssessmentMaster } from "./map-assessment";
-import { resolvePinCoord, schoolPinStatus, type SchoolPin } from "./school-pins";
+import { isSchoolPinSubmitted, resolvePinCoord, schoolPinStatus, type SchoolPin } from "./school-pins";
 import { sanitizeState } from "./state";
 
 export type { SchoolPin } from "./school-pins";
@@ -56,13 +56,12 @@ interface SchoolPinRow extends RowDataPacket {
 }
 
 function toSchoolPin(row: SchoolPinRow, coord: { lat: number; lng: number }): SchoolPin {
-  const submitted = row.submitted === true || row.submitted === 1 || row.submitted === "true";
   return {
     id: row.id,
     name: row.state_name || row.unit_name || `แบบประเมิน #${row.id}`,
     lat: coord.lat,
     lng: coord.lng,
-    status: schoolPinStatus({ submitted, levelKey: row.level_key ?? "" }),
+    status: schoolPinStatus({ submitted: isSchoolPinSubmitted(row.submitted), levelKey: row.level_key ?? "" }),
   };
 }
 

@@ -3,7 +3,14 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { schoolPinStatus, resolvePinCoord } from "../lib/school-pins";
+import { isSchoolPinSubmitted, schoolPinStatus, resolvePinCoord } from "../lib/school-pins";
+
+test("isSchoolPinSubmitted: submitted object from stored AssessmentState counts as submitted", () => {
+  const submitted = { ref: "PSS-2569-001", at: "2026-07-27T10:00:00.000Z" };
+  assert.equal(isSchoolPinSubmitted(submitted), true);
+  assert.equal(isSchoolPinSubmitted(JSON.stringify(submitted)), true);
+  assert.equal(isSchoolPinSubmitted(null), false);
+});
 
 test("schoolPinStatus: ยังไม่ส่ง = draft ไม่ว่าระดับใด", () => {
   assert.equal(schoolPinStatus({ submitted: false, levelKey: "level-3" }), "draft");

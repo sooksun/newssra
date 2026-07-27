@@ -12,6 +12,21 @@ export interface SchoolPin {
   status: SchoolPinStatus;
 }
 
+/** MySQL JSON_EXTRACT อาจคืน object หรือ JSON string ตาม driver; แถว legacy อาจเป็น boolean/1 */
+export function isSchoolPinSubmitted(value: unknown): boolean {
+  if (value === true || value === 1 || value === "true") return true;
+  if (typeof value === "string") {
+    try {
+      return isSchoolPinSubmitted(JSON.parse(value));
+    } catch {
+      return false;
+    }
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const submitted = value as { ref?: unknown; at?: unknown };
+  return typeof submitted.ref === "string" && submitted.ref.length > 0 && typeof submitted.at === "string";
+}
+
 /** สถานะหมุดจาก "ส่งแล้วหรือยัง" + ระดับคะแนน (คอลัมน์สรุป level_key)
  *  - ยังไม่ส่ง                       → draft (เทา)
  *  - ส่งแล้ว + คะแนน ≥50 (ไม่ใช่ neutral) → pass  (เขียว, ขึ้นทะเบียนได้)
