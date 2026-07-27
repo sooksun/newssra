@@ -18,7 +18,7 @@ npm run db:init    # create database `newssra` + tables + migrations (idempotent
                    # Run this BEFORE deploying: it fails loudly (listing school/year/ids) if existing rows violate
                    # the one-assessment-per-school-per-year rule, which would otherwise block app startup.
 npm run buildings:import  # pre-warm map_buildings with all Thailand MS footprints (one-time ~30-90 min; resumable)
-npm test           # unit tests (node:test + tsx, no DB needed) — 459 cases across: scoring, gis, gis-request, map-assessment, assessment-year, snapshot views/capture, ai terrain analysis (parse), auth, rate-limit, state, uploads, app settings, map/geometry, borders, route elevation, component rendering (incl. SiteSnapshotGallery, SettingSuggestionCard, SettingsAdmin)
+npm test           # unit tests (node:test + tsx, no DB needed) — 473 cases across: scoring, gis, gis-request, map-assessment, assessment-year, snapshot views/capture, school overview pins, ai terrain analysis (parse), auth, rate-limit, state, uploads, app settings, map/geometry, borders, route elevation, component rendering (incl. SiteSnapshotGallery, SettingSuggestionCard, SettingsAdmin)
 npm run borders:fetch     # regenerate public/geo/sea-borders.json from OpenStreetMap (needs network; ~2 min)
 npm run test:integration  # route-level integration tests (needs live MySQL from .env.local; skips gracefully if unreachable)
 ```
@@ -57,6 +57,8 @@ Data flow: client form state → debounced PUT → server recomputes scores → 
 - `app/globals.css` — plain CSS with custom properties (no CSS framework); Sarabun via `next/font/google`. The `@media print` block (used by the "พิมพ์" button / browser print-to-PDF) is styled to resemble a formal Thai government form: colored section-header bands, fill-in-the-blank underlines instead of input boxes, level options rendered as a ☐/☑ checkbox list (pure CSS on the same `.level-option` buttons — no separate print template), and a signature block (`.print-signoff` in `SummaryPanel.tsx`, hidden on screen) at the end. When changing indicator/unit markup, re-check these print overrides still target the right selectors.
 
 `legacy/` holds the original static prototype (localStorage version) — reference only, excluded from tsconfig and Docker.
+
+- **Admin school-overview pins:** the national `/map` view for `admin`/`ssra_admin` loads one pin from the latest assessment row per school via `listSchoolPins`; gray is draft, green is submitted with score ≥50, and red is submitted below 50. Labels are always shown, clicking drills into the existing authorized read-only `?assessment=ID` view, and the header provides **"กลับแผนที่รวม"**; school users and drill-in views never receive this overview layer.
 
 ## Domain Rules (from the spec — do not violate when touching scoring)
 
