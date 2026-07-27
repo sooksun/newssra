@@ -175,12 +175,9 @@ docker compose restart app
 
 > **พอร์ต 9960 ใช้ไม่ได้บนเซิร์ฟเวอร์นี้** — เป็นของคอนเทนเนอร์ `armay-web` ที่รันอยู่จริง (`Bind for 0.0.0.0:9960 failed: port is already allocated`) จึงเลือก 9951 ซึ่งติดกับ 9950 ของ newssra เอง ตรวจพอร์ตที่ว่างก่อนเพิ่มชุดใหม่ได้ด้วย `ss -tln | grep -oE ':(99[0-9]{2})' | sort -u`
 
-**ก่อนรันครั้งแรก — ยืนยันว่า `.env.production` ชี้ MariaDB ตัวจริง** (ค่านี้ใช้ร่วมกันทั้งสองชุด แก้ที่เดียวมีผลทั้งคู่ จึงไม่มีโอกาสหลุดคนละค่า; ถ้าเดิมตั้ง `DB_HOST=host.docker.internal` แล้วใช้งานได้อยู่ ไม่ต้องแก้):
+**ไม่ต้องแก้ `.env.production` เลย** — ชุด 9951 อ่านไฟล์เดิมทั้งก้อน ค่า `DB_*` จึงตรงกับ 9950 เสมอ
 
-```bash
-DB_HOST=192.168.1.4
-DB_PORT=3306
-```
+**เงื่อนไข: ชุดหลัก (project `newssra`) ต้อง `up` อยู่ก่อน** เพราะ 9951 join เข้า network `newssra_default` แบบ `external: true` เพื่อให้ `DB_HOST=db` resolve ไปที่คอนเทนเนอร์ฐานข้อมูลได้ ถ้าชุดหลักยังไม่ขึ้น คำสั่งจะ error ทันทีว่าไม่พบ network (ตั้งใจให้ดังกว่าการต่อ DB ไม่ติดแบบเงียบ ๆ)
 
 **รันชุด 9951:**
 
@@ -204,10 +201,11 @@ docker compose -p newssra-9951 -f docker-compose.9951.yml down
 ```bash
 cd /DATA/AppData/www/newssra
 git pull
-set -a && . ./.env.production && set +a && DB_HOST=192.168.1.4 npm run db:init   # ครั้งเดียวพอ (DB เดียวกัน)
-docker compose up -d --build                                                     # 9950
-docker compose -p newssra-9951 -f docker-compose.9951.yml up -d --build          # 9951
+docker compose up -d --build                                              # 9950 (ต้องขึ้นก่อน — เป็นเจ้าของ network + db)
+docker compose -p newssra-9951 -f docker-compose.9951.yml up -d --build    # 9951
 ```
+
+⚠️ ขั้นตอน `npm run db:init` ในข้อ 5 **รันจาก host ไม่ได้ใน topology นี้** เพราะคอนเทนเนอร์ `newssra-db` ไม่ได้ publish 3306 ออกมาที่ host (ดู `docker ps` — เห็นเป็น `3306/tcp` เฉย ๆ ไม่มี `0.0.0.0:`) การตรวจ/migrate จึงเกิดตอนแอปเชื่อมต่อครั้งแรกแทน ซึ่งแปลว่า **ถ้าข้อมูลมีแบบประเมินซ้ำโรงเรียน+ปี จะรู้ตอนแอปเวอร์ชันใหม่ขึ้นแล้ว** (แอป throw ทุก request) ไม่ใช่รู้ล่วงหน้า — ถ้าต้องการตรวจก่อนจริง ๆ ให้ publish พอร์ต db ชั่วคราวหรือรัน `SELECT owner_school_code, assessment_year, COUNT(*) FROM assessments GROUP BY 1,2 HAVING COUNT(*) > 1` ผ่าน `docker exec newssra-db mysql …` ก่อนสลับเวอร์ชัน
 
 **ข้อควรรู้ของโหมด 2 ชุดบนฐานข้อมูลเดียว:**
 
@@ -215,7 +213,8 @@ docker compose -p newssra-9951 -f docker-compose.9951.yml up -d --build         
 - ใช้ `.env.production` ไฟล์เดียวกัน → `AUTH_SECRET` ตรงกัน session cookie จึงใช้ข้ามพอร์ตได้ ไม่ต้อง login ใหม่
 - **rate-limit การ login เก็บใน process** (ดู CLAUDE.md) จึงนับแยกกันต่อชุด — สองชุดรวมกันเท่ากับผู้โจมตีมีโควตาเดา 2 เท่า ถ้าเปิดสู่อินเทอร์เน็ตควรจำกัดที่ reverse proxy/WAF ด้านหน้า
 - ต้องแยก project name (`-p newssra-9951`) เสมอ เพราะ Compose ใช้ชื่อโฟลเดอร์เป็น project โดยอัตโนมัติ ถ้าไม่แยกจะกลายเป็น "แทนที่" คอนเทนเนอร์ 9950 แทนที่จะรันเพิ่ม
-- MariaDB ใช้ได้: schema มีแค่ `state JSON` และ SQL ใช้ `JSON_EXTRACT`/`JSON_UNQUOTE`/`ON DUPLICATE KEY UPDATE`/`SELECT … FOR UPDATE` ซึ่ง MariaDB รองรับทั้งหมด ไม่มี collation `utf8mb4_0900_*` หรือ window function เฉพาะ MySQL 8
+- **ฐานข้อมูลจริงของเครื่องนี้คือคอนเทนเนอร์ `newssra-db` (mysql:8.4, service `db` ของชุดหลัก)** — ไม่ใช่ MariaDB ภายนอกที่ `192.168.1.4` (ตรวจแล้วด้วย `docker inspect`: `newssra-app` กับ `newssra-db` อยู่บน `newssra_default` ด้วยกัน และ `DB_HOST=db`) การสำรองข้อมูลจึงต้องใช้แบบ **ข)** ของข้อ 8 (ผ่าน container) เสมอ
+- เผื่ออนาคตถ้าย้ายไป MariaDB: schema มีแค่ `state JSON` และ SQL ใช้ `JSON_EXTRACT`/`JSON_UNQUOTE`/`ON DUPLICATE KEY UPDATE`/`SELECT … FOR UPDATE` ซึ่ง MariaDB รองรับทั้งหมด ไม่มี collation `utf8mb4_0900_*` หรือ window function เฉพาะ MySQL 8
 
 ## ข้อควรทราบ
 

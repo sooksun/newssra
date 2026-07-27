@@ -29,8 +29,13 @@ services:
       - "${APP_PORT_9951:-9951}:3000"
     env_file:
       # ไฟล์เดียวกับชุด 9950 — DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASSWORD และ AUTH_SECRET
-      # จึงเป็นค่าเดียวกันเสมอ (ชี้ MariaDB ตัวเดิม เช่น 192.168.1.4:3306)
+      # จึงเป็นค่าเดียวกันเสมอ ไม่ต้องแก้อะไรใน .env.production เพื่อชุดนี้
       - .env.production
+    networks:
+      # ต้องเข้าไปอยู่บน network ของ project หลัก ไม่งั้น DB_HOST=db (ชื่อ DNS ภายใน Docker
+      # ที่ชี้คอนเทนเนอร์ newssra-db) จะ resolve ไม่ได้ → "getaddrinfo EAI_AGAIN db" แล้ว
+      # /api/health?deep=1 ตอบ 503 ทั้งที่คอนเทนเนอร์ขึ้นปกติ
+      - newssra-main
     volumes:
       - ./data/uploads:/app/uploads
     extra_hosts:
@@ -42,3 +47,11 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+
+networks:
+  # network ที่ docker-compose.yml (project "newssra") สร้างไว้ และเป็นที่อยู่ของคอนเทนเนอร์
+  # ฐานข้อมูล newssra-db — external จึงหมายถึง "ต้องมีอยู่ก่อน" ถ้าชุดหลักยังไม่ได้ up
+  # คำสั่งนี้จะ error ทันทีแทนที่จะเงียบ ๆ สร้าง network เปล่าแล้วต่อ DB ไม่ติด
+  newssra-main:
+    external: true
+    name: newssra_default
