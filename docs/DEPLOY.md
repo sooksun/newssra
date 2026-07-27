@@ -169,9 +169,11 @@ docker compose restart app
 
 > แนะนำให้ทำ 8.1–8.2 เป็น cron รายวันแล้ว `rsync`/อัปโหลดไฟล์สำรองไปเก็บนอกเครื่อง (offsite) พร้อมหมุนเวียนลบของเก่าตามนโยบายเก็บรักษา; ทดสอบขั้นตอน 8.3 กับข้อมูลจริงเป็นระยะเพื่อยืนยันว่าไฟล์สำรองกู้คืนได้จริง
 
-## 9. ชุด deploy ที่ 2 บนพอร์ต 9960 (รันคู่ขนานกับ 9950)
+## 9. ชุด deploy ที่ 2 บนพอร์ต 9951 (รันคู่ขนานกับ 9950)
 
-`docker-compose.9960.yml` เป็นชุดแยกที่รัน **เพิ่ม** จากชุดหลัก โดยไม่แตะชุด 9950 เลย — ใช้ `.env.production`, ฐานข้อมูล และ `data/uploads` **ร่วมกัน** ต่างกันแค่พอร์ตที่เปิดออกกับชื่อคอนเทนเนอร์ (`newssra-app-9960`)
+`docker-compose.9951.yml` เป็นชุดแยกที่รัน **เพิ่ม** จากชุดหลัก โดยไม่แตะชุด 9950 เลย — ใช้ `.env.production`, ฐานข้อมูล และ `data/uploads` **ร่วมกัน** ต่างกันแค่พอร์ตที่เปิดออกกับชื่อคอนเทนเนอร์ (`newssra-app-9951`)
+
+> **พอร์ต 9960 ใช้ไม่ได้บนเซิร์ฟเวอร์นี้** — เป็นของคอนเทนเนอร์ `armay-web` ที่รันอยู่จริง (`Bind for 0.0.0.0:9960 failed: port is already allocated`) จึงเลือก 9951 ซึ่งติดกับ 9950 ของ newssra เอง ตรวจพอร์ตที่ว่างก่อนเพิ่มชุดใหม่ได้ด้วย `ss -tln | grep -oE ':(99[0-9]{2})' | sort -u`
 
 **ก่อนรันครั้งแรก — ยืนยันว่า `.env.production` ชี้ MariaDB ตัวจริง** (ค่านี้ใช้ร่วมกันทั้งสองชุด แก้ที่เดียวมีผลทั้งคู่ จึงไม่มีโอกาสหลุดคนละค่า; ถ้าเดิมตั้ง `DB_HOST=host.docker.internal` แล้วใช้งานได้อยู่ ไม่ต้องแก้):
 
@@ -180,21 +182,21 @@ DB_HOST=192.168.1.4
 DB_PORT=3306
 ```
 
-**รันชุด 9960:**
+**รันชุด 9951:**
 
 ```bash
 cd /DATA/AppData/www/newssra
-docker compose -p newssra-9960 -f docker-compose.9960.yml up -d --build
+docker compose -p newssra-9951 -f docker-compose.9951.yml up -d --build
 ```
 
 ไม่ต้องรัน `npm run db:init` ซ้ำ — ใช้ฐานข้อมูลเดียวกับ 9950 ที่ migrate ไปแล้ว
 
-**คำสั่งดูแลชุด 9960** (ต้องใส่ `-p newssra-9960 -f docker-compose.9960.yml` **ทุกครั้ง** ไม่งั้นจะไปสั่งชุด 9950 แทน):
+**คำสั่งดูแลชุด 9951** (ต้องใส่ `-p newssra-9951 -f docker-compose.9951.yml` **ทุกครั้ง** ไม่งั้นจะไปสั่งชุด 9950 แทน):
 
 ```bash
-docker compose -p newssra-9960 -f docker-compose.9960.yml logs -f app
-docker compose -p newssra-9960 -f docker-compose.9960.yml restart app
-docker compose -p newssra-9960 -f docker-compose.9960.yml down
+docker compose -p newssra-9951 -f docker-compose.9951.yml logs -f app
+docker compose -p newssra-9951 -f docker-compose.9951.yml restart app
+docker compose -p newssra-9951 -f docker-compose.9951.yml down
 ```
 
 **อัปเดตเวอร์ชันทั้งสองชุด:**
@@ -204,15 +206,15 @@ cd /DATA/AppData/www/newssra
 git pull
 set -a && . ./.env.production && set +a && DB_HOST=192.168.1.4 npm run db:init   # ครั้งเดียวพอ (DB เดียวกัน)
 docker compose up -d --build                                                     # 9950
-docker compose -p newssra-9960 -f docker-compose.9960.yml up -d --build          # 9960
+docker compose -p newssra-9951 -f docker-compose.9951.yml up -d --build          # 9951
 ```
 
 **ข้อควรรู้ของโหมด 2 ชุดบนฐานข้อมูลเดียว:**
 
-- ต้อง mount `./data/uploads` โฟลเดอร์เดียวกันทั้งสองชุด (ตั้งไว้แล้วในไฟล์) เพราะ metadata ของไฟล์หลักฐานอยู่ใน DB ที่แชร์กัน — ถ้าแยกโฟลเดอร์ ไฟล์ที่อัปโหลดผ่าน 9950 จะเปิดไม่ได้เมื่อเข้าทาง 9960 และกลับกัน
+- ต้อง mount `./data/uploads` โฟลเดอร์เดียวกันทั้งสองชุด (ตั้งไว้แล้วในไฟล์) เพราะ metadata ของไฟล์หลักฐานอยู่ใน DB ที่แชร์กัน — ถ้าแยกโฟลเดอร์ ไฟล์ที่อัปโหลดผ่าน 9950 จะเปิดไม่ได้เมื่อเข้าทาง 9951 และกลับกัน
 - ใช้ `.env.production` ไฟล์เดียวกัน → `AUTH_SECRET` ตรงกัน session cookie จึงใช้ข้ามพอร์ตได้ ไม่ต้อง login ใหม่
 - **rate-limit การ login เก็บใน process** (ดู CLAUDE.md) จึงนับแยกกันต่อชุด — สองชุดรวมกันเท่ากับผู้โจมตีมีโควตาเดา 2 เท่า ถ้าเปิดสู่อินเทอร์เน็ตควรจำกัดที่ reverse proxy/WAF ด้านหน้า
-- ต้องแยก project name (`-p newssra-9960`) เสมอ เพราะ Compose ใช้ชื่อโฟลเดอร์เป็น project โดยอัตโนมัติ ถ้าไม่แยกจะกลายเป็น "แทนที่" คอนเทนเนอร์ 9950 แทนที่จะรันเพิ่ม
+- ต้องแยก project name (`-p newssra-9951`) เสมอ เพราะ Compose ใช้ชื่อโฟลเดอร์เป็น project โดยอัตโนมัติ ถ้าไม่แยกจะกลายเป็น "แทนที่" คอนเทนเนอร์ 9950 แทนที่จะรันเพิ่ม
 - MariaDB ใช้ได้: schema มีแค่ `state JSON` และ SQL ใช้ `JSON_EXTRACT`/`JSON_UNQUOTE`/`ON DUPLICATE KEY UPDATE`/`SELECT … FOR UPDATE` ซึ่ง MariaDB รองรับทั้งหมด ไม่มี collation `utf8mb4_0900_*` หรือ window function เฉพาะ MySQL 8
 
 ## ข้อควรทราบ
