@@ -6,11 +6,12 @@ import {
   getAssessment,
   latestOwnerCoords,
   listProvinces,
+  listSchoolPins,
   provinceHouseholdSize,
   resolveSchoolProvince,
   schoolLocationByCode,
 } from "@/lib/repo";
-import type { ProvinceInfo } from "@/lib/repo";
+import type { ProvinceInfo, SchoolPin } from "@/lib/repo";
 import { getAppSettings } from "@/lib/settings-repo";
 import { SETTING_MAP_SHOW_PLACE_SEARCH } from "@/lib/settings";
 import { ROLE_LABELS } from "@/lib/types";
@@ -170,6 +171,17 @@ export default async function MapPage({ searchParams }: { searchParams: Promise<
   const appSettings = await getAppSettings();
   const showPlaceSearch = appSettings[SETTING_MAP_SHOW_PLACE_SEARCH];
 
+  // หมุดภาพรวมโรงเรียน — เฉพาะ admin/ssra ที่เปิดแผนที่มุมมองทั้งประเทศ (ไม่มี ?assessment=ID)
+  // โหมดนี้ไม่รันการวิเคราะห์รายพิกัดอยู่แล้ว จึงตรงกับ "แสดงแค่หมุด ดูรายละเอียดเมื่อคลิก"
+  let schoolPins: SchoolPin[] = [];
+  if (canSeeAll && !assessment) {
+    try {
+      schoolPins = await listSchoolPins();
+    } catch (error) {
+      console.error("[map] school pins lookup failed:", error);
+    }
+  }
+
   return (
     <div className="app-shell map-shell">
       <header className="topbar">
@@ -184,6 +196,11 @@ export default async function MapPage({ searchParams }: { searchParams: Promise<
           {assessment ? (
             <Link className="ghost-btn" href={`/assessment/${assessment.id}`}>
               กลับไปที่แบบประเมิน
+            </Link>
+          ) : null}
+          {canSeeAll && assessment ? (
+            <Link className="ghost-btn" href="/map">
+              กลับแผนที่รวม
             </Link>
           ) : null}
           <Link className="ghost-btn" href="/">
@@ -207,6 +224,7 @@ export default async function MapPage({ searchParams }: { searchParams: Promise<
         canSaveAssessment={canSaveAssessment}
         currentYearAssessment={currentYearAssessment}
         showPlaceSearch={showPlaceSearch}
+        schoolPins={schoolPins}
       />
     </div>
   );
