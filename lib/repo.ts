@@ -16,7 +16,10 @@ import { COMMUNITY_LIST_UNINDEXED_KEY, isCommunityCompositeKey } from "./communi
 import { computeCommunityClass } from "./gis";
 import { applyMapGisToState, fillBlankUnitFromMaster } from "./map-assessment";
 import type { MapAssessmentSaveResult, SaveAssessmentFromMapInput, SchoolAssessmentMaster } from "./map-assessment";
+import { resolvePinCoord, schoolPinStatus, type SchoolPin } from "./school-pins";
 import { sanitizeState } from "./state";
+
+export type { SchoolPin } from "./school-pins";
 
 interface AssessmentRow extends RowDataPacket {
   id: number;
@@ -39,6 +42,28 @@ interface AssessmentRow extends RowDataPacket {
   owner_school_code: string | null;
   created_at: Date | string;
   updated_at: Date | string;
+}
+
+interface SchoolPinRow extends RowDataPacket {
+  id: number;
+  owner_school_code: string | null;
+  unit_name: string | null;
+  level_key: string | null;
+  state_name: string | null;
+  lat: string | null;
+  lng: string | null;
+  submitted: unknown; // JSON_EXTRACT(state,'$.submitted') → boolean/1/0/"true" ตาม driver
+}
+
+function toSchoolPin(row: SchoolPinRow, coord: { lat: number; lng: number }): SchoolPin {
+  const submitted = row.submitted === true || row.submitted === 1 || row.submitted === "true";
+  return {
+    id: row.id,
+    name: row.state_name || row.unit_name || `แบบประเมิน #${row.id}`,
+    lat: coord.lat,
+    lng: coord.lng,
+    status: schoolPinStatus({ submitted, levelKey: row.level_key ?? "" }),
+  };
 }
 
 function toIso(value: Date | string | null): string | null {
@@ -272,6 +297,53 @@ export async function countAssessments(viewer: Viewer, communityClassKey?: strin
     cf.args,
   );
   return rows[0]?.n ?? 0;
+}
+
+/** หมุดภาพรวมโรงเรียนทุกแห่งที่มีแบบประเมิน (สำหรับ admin/ssra บนแผนที่มุมมองทั้งประเทศ):
+ *  แถวล่าสุดต่อ owner_school_code → พิกัดจากแบบประเมิน (fallback ทะเบียนโรงเรียน) + สถานะร่าง/ผ่าน/ไม่ผ่าน
+ *  ใช้ level_key (คอลัมน์สรุป cache) เพื่อความเร็ว — สอดคล้องกับหน้า list; dashboard คือที่ recompute สด */
+export async function listSchoolPins(): Promise<SchoolPin[]> {
+  const pool = await getPool();
+  const [rows] = await pool.query<SchoolPinRow[]>(
+    `SELECT a.id, a.owner_school_code, a.unit_name, a.level_key,
+            JSON_UNQUOTE(JSON_EXTRACT(a.state, '$.unit.name')) AS state_name,
+            JSON_UNQUOTE(JSON_EXTRACT(a.state, '$.unit.lat'))  AS lat,
+            JSON_UNQUOTE(JSON_EXTRACT(a.state, '$.unit.lng'))  AS lng,
+            JSON_EXTRACT(a.state, '$.submitted')               AS submitted
+       FROM assessments a
+       JOIN (
+         SELECT owner_school_code, MAX(updated_at) AS mx
+           FROM assessments
+          WHERE owner_school_code IS NOT NULL AND owner_school_code <> ''
+          GROUP BY owner_school_code
+       ) t ON t.owner_school_code = a.owner_school_code AND t.mx = a.updated_at
+      ORDER BY a.id`,
+  );
+
+  // de-dup ต่อโรงเรียน (กัน MAX(updated_at) เสมอกัน 2 แถว) — ORDER BY a.id → แถว id สูงกว่าทับ = เลือกเสถียร
+  const byCode = new Map<string, SchoolPinRow>();
+  for (const row of rows) {
+    if (row.owner_school_code) byCode.set(row.owner_school_code, row);
+  }
+
+  const pins: SchoolPin[] = [];
+  const needFallback: { code: string; row: SchoolPinRow }[] = [];
+  for (const [code, row] of byCode) {
+    const coord = resolvePinCoord(row.lat, row.lng, null);
+    if (coord) pins.push(toSchoolPin(row, coord));
+    else needFallback.push({ code, row });
+  }
+
+  // แบบร่างที่ยังไม่กรอกพิกัด → fallback พิกัดทะเบียนโรงเรียน (school_location); หาไม่ได้ = ไม่แสดงหมุด
+  await Promise.all(
+    needFallback.map(async ({ code, row }) => {
+      const loc = await schoolLocationByCode(code);
+      const coord = resolvePinCoord(loc?.lat, loc?.lng, null);
+      if (coord) pins.push(toSchoolPin(row, coord));
+    }),
+  );
+
+  return pins;
 }
 
 export async function getAssessment(id: number): Promise<AssessmentRecord | null> {
