@@ -118,12 +118,21 @@ export function verifySession(token: string): SessionUser | null {
 
 // ---------- cookie ----------
 
+/** ค่า Secure ของ session cookie — ปกติเปิดบน production (บังคับส่งผ่าน https เท่านั้น)
+ *  แต่ deployment ที่เปิดผ่าน http ล้วน (เช่น IP ภายในองค์กร ไม่มี TLS) browser จะ "ปฏิเสธเก็บ"
+ *  Secure cookie → login สำเร็จแต่เด้งกลับหน้า login ทุกครั้ง จึงเปิดช่องให้ปิดได้ชัดแจ้ง
+ *  ด้วย AUTH_COOKIE_SECURE=0 (ตั้งใน .env.production) — ค่าอื่น/ไม่ตั้ง = พฤติกรรมเดิมทุกประการ */
+function cookieSecureFlag(): boolean {
+  if (process.env.AUTH_COOKIE_SECURE === "0") return false;
+  return process.env.NODE_ENV === "production";
+}
+
 export function sessionCookieOptions() {
   return {
     httpOnly: true,
     sameSite: "lax" as const,
     path: "/",
-    secure: process.env.NODE_ENV === "production",
+    secure: cookieSecureFlag(),
     maxAge: SESSION_TTL_SECONDS,
   };
 }

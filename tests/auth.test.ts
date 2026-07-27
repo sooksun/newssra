@@ -83,3 +83,32 @@ test("sessionCookieOptions — httpOnly + sameSite lax + path /", () => {
   assert.equal(opts.path, "/");
   assert.ok(opts.maxAge > 0);
 });
+
+test("sessionCookieOptions — Secure ตาม NODE_ENV, ปิดได้ด้วย AUTH_COOKIE_SECURE=0 (deploy ผ่าน http ล้วน)", () => {
+  const prevNodeEnv = process.env.NODE_ENV;
+  const prevOverride = process.env.AUTH_COOKIE_SECURE;
+  try {
+    // production ปกติ → Secure เปิด (พฤติกรรมเดิม)
+    (process.env as Record<string, string>).NODE_ENV = "production";
+    delete process.env.AUTH_COOKIE_SECURE;
+    assert.equal(sessionCookieOptions().secure, true);
+
+    // production + AUTH_COOKIE_SECURE=0 → ปิด Secure (browser จึงเก็บ cookie บน http ได้)
+    process.env.AUTH_COOKIE_SECURE = "0";
+    assert.equal(sessionCookieOptions().secure, false);
+
+    // ค่าอื่นที่ไม่ใช่ "0" ไม่ถือเป็นการปิด — fail-safe เข้าหา Secure
+    process.env.AUTH_COOKIE_SECURE = "false";
+    assert.equal(sessionCookieOptions().secure, true);
+
+    // นอก production → ไม่ Secure เหมือนเดิม
+    (process.env as Record<string, string>).NODE_ENV = "test";
+    delete process.env.AUTH_COOKIE_SECURE;
+    assert.equal(sessionCookieOptions().secure, false);
+  } finally {
+    if (prevNodeEnv === undefined) delete (process.env as Record<string, string | undefined>).NODE_ENV;
+    else (process.env as Record<string, string>).NODE_ENV = prevNodeEnv;
+    if (prevOverride === undefined) delete process.env.AUTH_COOKIE_SECURE;
+    else process.env.AUTH_COOKIE_SECURE = prevOverride;
+  }
+});
