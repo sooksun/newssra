@@ -2226,6 +2226,42 @@ textarea:focus {
   margin-bottom: 12px;
 }
 
+.map-pin-legend {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  background: rgba(148, 163, 184, 0.08);
+  font-size: 13px;
+}
+
+.map-pin-legend-title {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.map-pin-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.9;
+}
+
+.map-pin-legend-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+  flex: 0 0 auto;
+}
+
+.map-pin-legend-hint {
+  margin: 6px 0 0;
+  color: var(--muted, #6b7280);
+}
+
 .map-search {
   position: relative;
   margin: 0 0 8px;

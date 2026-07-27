@@ -2,6 +2,7 @@
 
 // โหลด CesiumMap แบบ client-only (ssr:false) — cesium ใช้ WebGL/window จึงรันบน server ไม่ได้
 import dynamic from "next/dynamic";
+import type { SchoolPin } from "@/lib/school-pins";
 import type { MapAssessment, MapCenter, MapCurrentYearAssessment, MapProvince } from "./CesiumMap";
 
 const CesiumMap = dynamic(() => import("./CesiumMap"), {
@@ -18,6 +19,7 @@ export default function CesiumMapLoader({
   canSaveAssessment = false,
   currentYearAssessment = null,
   showPlaceSearch = true,
+  schoolPins = [],
 }: {
   center: MapCenter;
   national: boolean;
@@ -31,6 +33,8 @@ export default function CesiumMapLoader({
   currentYearAssessment?: MapCurrentYearAssessment | null;
   /** ค่าตั้งค่าส่วนกลาง: แสดงช่องค้นหาสถานที่บนแผนที่หรือไม่ */
   showPlaceSearch?: boolean;
+  /** หมุดภาพรวมโรงเรียน (เฉพาะ admin/ssra โหมดทั้งประเทศ) */
+  schoolPins?: SchoolPin[];
 }) {
   return (
     <CesiumMap
@@ -42,6 +46,7 @@ export default function CesiumMapLoader({
       canSaveAssessment={canSaveAssessment}
       currentYearAssessment={currentYearAssessment}
       showPlaceSearch={showPlaceSearch}
+      schoolPins={schoolPins}
     />
   );
 }

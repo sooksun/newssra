@@ -29,6 +29,7 @@ import {
   VerticalOrigin,
   LabelStyle,
   Cartesian2,
+  NearFarScalar,
   createWorldImageryAsync,
 } from "cesium";
 import type { Entity, ImageryProvider, TerrainProvider } from "cesium";
@@ -83,6 +84,7 @@ import { GIS_DESTINATION_LABELS } from "@/lib/types";
 import type { GisAnalysis, GisAreaSummary, GisDestinationType, GisRouteAnalysis } from "@/lib/types";
 import { overviewFitRangeM, SNAPSHOT_VIEWS } from "@/lib/map/snapshotViews";
 import { captureCurrentView, dataUrlToBlob, waitForTilesLoaded } from "@/lib/map/snapshotCapture";
+import type { SchoolPin } from "@/lib/school-pins";
 
 // ── ค่าคงที่การวิเคราะห์ ──────────────────────────────────────────────────
 // รัศมีวิเคราะห์ภูมิประเทศรอบจุดตั้งโรงเรียน (เส้นรัศมีจริง วัดจากจุดศูนย์กลางแบบวงกลม ไม่ใช่ขอบสี่เหลี่ยม)
@@ -274,9 +276,18 @@ interface Props {
   currentYearAssessment: MapCurrentYearAssessment | null;
   /** ค่าตั้งค่าส่วนกลาง (/admin/settings) — false = ซ่อนช่องค้นหาสถานที่ (ยังลากหมุดแดงย้ายจุดวิเคราะห์ได้) */
   showPlaceSearch: boolean;
+  /** หมุดภาพรวมโรงเรียน (เฉพาะ admin/ssra โหมดทั้งประเทศ) — [] = ไม่แสดงชั้นนี้ */
+  schoolPins: SchoolPin[];
 }
 
 const fmt = (v: number) => Math.round(v).toLocaleString("th-TH");
+
+// สีหมุดภาพรวมโรงเรียนตามสถานะ: เทา=ร่าง, เขียว=ส่งแล้วผ่าน (≥50), แดง=ส่งแล้วไม่ผ่าน (<50)
+function schoolPinColor(status: SchoolPin["status"]): Color {
+  if (status === "pass") return Color.fromCssColorString("#22c55e");
+  if (status === "fail") return Color.fromCssColorString("#ef4444");
+  return Color.fromCssColorString("#6b7280");
+}
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -389,6 +400,7 @@ export default function CesiumMap({
   canSaveAssessment,
   currentYearAssessment,
   showPlaceSearch,
+  schoolPins = [],
 }: Props) {
   // center/national/province/householdSize เริ่มจาก props แต่เก็บเป็น state เพื่อให้ "ยืนยันใช้พิกัดใหม่"
   // ย้ายจุดวิเคราะห์ได้ (recompute ทุกอย่างที่ผูกกับ center รวมถึงหาจังหวัด/ศาลากลางต้นทางใหม่)
@@ -405,6 +417,7 @@ export default function CesiumMap({
   const buildingsDsRef = useRef<CustomDataSource | null>(null);
   const ringsDsRef = useRef<CustomDataSource | null>(null); // วงรัศมี 500/1000/1500 ม. รอบจุดวิเคราะห์
   const bordersDsRef = useRef<CustomDataSource | null>(null); // แนวชายแดน + ป้ายชื่อประเทศ
+  const schoolPinsDsRef = useRef<CustomDataSource | null>(null); // หมุดภาพรวมโรงเรียน (admin โหมดทั้งประเทศ)
   const routeCoordsRef = useRef<[number, number][] | null>(null); // [lng,lat][] เก็บไว้ให้ runAnalysis สุ่มความสูง 5 กม.สุดท้าย
   const imageryLayerRef = useRef<ImageryLayer | null>(null);
   const esriMaxLevelRef = useRef(ESRI_MAX_REQUEST_LEVEL);
@@ -613,6 +626,10 @@ export default function CesiumMap({
     void viewer.dataSources.add(bordersDs);
     bordersDsRef.current = bordersDs;
 
+    const schoolPinsDs = new CustomDataSource("schoolPins");
+    void viewer.dataSources.add(schoolPinsDs);
+    schoolPinsDsRef.current = schoolPinsDs;
+
     // เข็มทิศทิศเหนือ: อัปเดต transform ตรงๆ ทุกเฟรม (ไม่ผ่าน React state — กล้องหมุนได้ทุก frame ระหว่างลากกล้อง)
     const updateCompass = () => {
       const el = compassNeedleRef.current;
@@ -648,6 +665,7 @@ export default function CesiumMap({
       gisDsRef.current = null;
       ringsDsRef.current = null;
       bordersDsRef.current = null;
+      schoolPinsDsRef.current = null;
       imageryLayerRef.current = null;
       viewerRef.current = null;
       drawHandlerRef.current?.destroy();
@@ -779,6 +797,46 @@ export default function CesiumMap({
       });
     }
   }, [center.lat, center.lng, center.name, national, status, routeElevationProfile, routeElevationStatus]);
+
+  // ── หมุดภาพรวมโรงเรียนทุกแห่งที่มีแบบประเมิน (เฉพาะ admin/ssra โหมดทั้งประเทศ) ──
+  // แสดงเฉพาะหมุด+ป้ายชื่อ ไม่รันการวิเคราะห์ใด ๆ ของแต่ละพิกัด (ดูรายละเอียดเมื่อคลิกหมุด)
+  useEffect(() => {
+    const ds = schoolPinsDsRef.current;
+    if (!ds || status !== "ready") return;
+    ds.entities.removeAll();
+    if (!national || schoolPins.length === 0) return;
+    for (const pin of schoolPins) {
+      ds.entities.add({
+        id: `school-pin:${pin.id}`,
+        position: Cartesian3.fromDegrees(pin.lng, pin.lat),
+        point: {
+          pixelSize: 11,
+          color: schoolPinColor(pin.status),
+          outlineColor: Color.WHITE,
+          outlineWidth: 2,
+          heightReference: HeightReference.CLAMP_TO_GROUND,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+        label: {
+          text: pin.name,
+          font: "600 13px 'Sarabun', sans-serif",
+          fillColor: Color.WHITE,
+          style: LabelStyle.FILL_AND_OUTLINE,
+          outlineColor: Color.fromCssColorString("#111827"),
+          outlineWidth: 3,
+          showBackground: true,
+          backgroundColor: Color.fromCssColorString("#111827").withAlpha(0.72),
+          backgroundPadding: new Cartesian2(7, 4),
+          verticalOrigin: VerticalOrigin.BOTTOM,
+          pixelOffset: new Cartesian2(0, -14),
+          heightReference: HeightReference.CLAMP_TO_GROUND,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          scaleByDistance: new NearFarScalar(2.0e5, 1.0, 2.0e6, 0.5),
+          translucencyByDistance: new NearFarScalar(1.5e6, 1.0, 3.0e6, 0.0),
+        },
+      });
+    }
+  }, [schoolPins, national, status]);
 
   // แยกกล้องจาก effect ของหมุด เพื่อไม่ให้กล้องบินซ้ำตอน terrain ส่งค่าความสูงกลับมา
   useEffect(() => {
@@ -1123,6 +1181,27 @@ export default function CesiumMap({
       }
     };
   }, [status, national, drawing, applyNewCenter, assessment]);
+
+  // ── คลิกหมุดภาพรวมโรงเรียน → เปิดมุมมองแบบประเมินของโรงเรียนนั้น (โหมดทั้งประเทศเท่านั้น) ──
+  // ผูกเฉพาะ national → ไม่ชนกับ handler ลากหมุด/วาด polygon (ผูกเฉพาะ !national)
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || status !== "ready" || !national) return;
+    const scene = viewer.scene;
+    const handler = new ScreenSpaceEventHandler(scene.canvas);
+    handler.setInputAction((e: { position: Cartesian2 }) => {
+      const picked = scene.pick(e.position) as { id?: Entity | string } | undefined;
+      const raw = picked && typeof picked.id === "object" ? picked.id.id : picked?.id;
+      if (typeof raw !== "string" || !raw.startsWith("school-pin:")) return;
+      const schoolPinId = raw.slice("school-pin:".length);
+      // full navigation → server โหลด+ตรวจสิทธิ์ (canAccessAssessment) แล้วแสดง read-only เหมือน user โรงเรียนนั้น
+      window.location.assign(`/map?assessment=${schoolPinId}`);
+    }, ScreenSpaceEventType.LEFT_CLICK);
+    scene.canvas.style.cursor = "";
+    return () => {
+      handler.destroy();
+    };
+  }, [status, national]);
 
   // ── วาด polygon เอง: render จุด/เส้น/รูปที่วาดไว้บนแผนที่ ─────────────────────
   useEffect(() => {
@@ -2137,6 +2216,21 @@ export default function CesiumMap({
           <div className="map-coord">
             พิกัด: {center.lat.toFixed(5)}, {center.lng.toFixed(5)}
           </div>
+          {national && schoolPins.length > 0 ? (
+            <div className="map-pin-legend">
+              <div className="map-pin-legend-title">โรงเรียนที่บันทึกแบบประเมิน ({fmt(schoolPins.length)} แห่ง)</div>
+              <div className="map-pin-legend-row">
+                <span className="map-pin-legend-dot" style={{ background: "#6b7280" }} /> ยังร่าง
+              </div>
+              <div className="map-pin-legend-row">
+                <span className="map-pin-legend-dot" style={{ background: "#22c55e" }} /> ส่งแล้ว ผ่านเกณฑ์ (≥50)
+              </div>
+              <div className="map-pin-legend-row">
+                <span className="map-pin-legend-dot" style={{ background: "#ef4444" }} /> ส่งแล้ว ไม่ผ่านเกณฑ์ (&lt;50)
+              </div>
+              <p className="map-pin-legend-hint">💡 คลิกที่หมุดเพื่อดูข้อมูลวิเคราะห์ของโรงเรียนนั้น</p>
+            </div>
+          ) : null}
           {!national ? (
             <p className="map-drag-hint">💡 ลากหมุดแดงบนแผนที่เพื่อย้ายจุดวิเคราะห์ แล้วระบบจะคำนวณใหม่ให้อัตโนมัติ</p>
           ) : null}
