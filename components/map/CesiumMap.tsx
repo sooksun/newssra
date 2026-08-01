@@ -23,6 +23,7 @@ import {
   Math as CesiumMath,
   Matrix4,
   PolylineDashMaterialProperty,
+  SceneTransforms,
   ScreenSpaceEventHandler,
   ScreenSpaceEventType,
   UrlTemplateImageryProvider,
@@ -57,6 +58,8 @@ import {
 import { pointInPolygon, polygonAreaM2, polygonCentroid, polygonBoundingRadiusM } from "@/lib/map/geometry";
 import { parseSharedBorders, type SharedBordersDoc } from "@/lib/map/borders";
 import { createLabelImage } from "@/lib/map/labelImage";
+import { borderBlockedMessage, filterDomesticRoutes } from "@/lib/map/borderCrossing";
+import { labelBox, pickVisibleLabels, type LabelBox, type LabelPlacement } from "@/lib/map/labelDeclutter";
 import { fetchBuildings, fetchNearestProvince, fetchOsrmRoutes } from "@/lib/map/mapApi";
 import { searchPlaces, resolvePlaceHit, reverseProvince, type PlaceHit } from "@/lib/map/placeSearch";
 import {
@@ -100,6 +103,9 @@ const GRID_N = 41;
 const ANALYSIS_WIDTH_M = AREA_KM * 1000;
 const KEYLESS_SAMPLE_LEVEL = 14;
 const VERTICAL_EXAGGERATION = 2.0;
+
+// รอบตรวจการทับซ้อนของป้าย (มิลลิวินาที) — ถี่พอให้ตามการซูม/หมุนกล้องได้ แต่ไม่ต้องคำนวณทุกเฟรม
+const LABEL_DECLUTTER_INTERVAL_MS = 120;
 const ANALYSIS_TIMEOUT_MS = 25_000;
 const CENTER_SYNC_TOLERANCE_M = 50;
 // Esri World Imagery: ระดับภาพจริงต่างกันตามพื้นที่ (เมืองใหญ่ ~L19–20, ชนบท/ภูเขา ~L17–18)
@@ -155,6 +161,20 @@ const MANUAL_HIGH_FLAG_ICON = `data:image/svg+xml;charset=utf-8,${encodeURICompo
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 44"><path d="M9 41V4" stroke="white" stroke-width="5" stroke-linecap="round"/><path d="M9 5h22l-6 8 6 8H9z" fill="#ea580c" stroke="white" stroke-width="2" stroke-linejoin="round"/><circle cx="9" cy="41" r="3" fill="#7c2d12" stroke="white" stroke-width="2"/></svg>',
 )}`;
 
+// ทะเบียนป้ายทั้งหมดบนแผนที่ (คีย์ = entity id) ใช้โดยรอบตรวจการทับซ้อนเพื่อคำนวณกล่องบนจอ
+// เก็บระดับโมดูลเพราะหน้า /map มีแผนที่เดียวเสมอ และ entity id ก็ไม่ซ้ำข้ามชนิดป้ายอยู่แล้ว
+const labelPlacements = new Map<string, LabelPlacement>();
+
+/** ลำดับความสำคัญของป้ายเมื่อทับกัน — เลขน้อยได้แสดงก่อน */
+const LABEL_PRIORITY = {
+  school: 0, // จุดที่ตั้งโรงเรียน (จุดหลักของการวิเคราะห์)
+  elevation: 1, // จุดสูงสุดบนเส้นทาง / จุดที่ชี้เอง
+  place: 2, // ศาลากลางจังหวัด, หมุดผลค้นหา
+  destination: 3, // จุดหมายวิเคราะห์ (อำเภอ/รพ.)
+  overviewSchool: 4, // ชื่อโรงเรียนในมุมมองทั้งประเทศ (มีจำนวนมาก)
+  country: 5, // ชื่อประเทศเพื่อนบ้าน
+} as const;
+
 /** ป้ายข้อความของหมุดบนแผนที่ — วาดเป็นรูปเดียวแล้วแปะเป็น billboard
  *  ห้ามกลับไปใช้ Cesium `label` กับข้อความไทย: Cesium แยก glyph ทีละตัวอักษร ทำให้สระ/วรรณยุกต์
  *  ถูกฉีกออกจากพยัญชนะ (เห็นเป็น "ระดั" แล้วขึ้นบรรทัดใหม่เป็น "บ" หรือสระหายไปเลย) */
@@ -168,6 +188,8 @@ function addPinLabel(
     background: string;
     offsetY: number;
     fontPx?: number;
+    /** ลำดับความสำคัญเมื่อป้ายทับกันบนจอ (LABEL_PRIORITY) — เลขน้อยได้แสดงก่อน */
+    priority: number;
     /** ค่าเริ่มต้น BOTTOM = ป้ายลอยเหนือหมุด; ป้ายชื่อประเทศใช้ CENTER เพราะไม่มีหมุดคู่กัน */
     verticalOrigin?: VerticalOrigin;
     /** ย่อ/จางตามระยะกล้อง — ใช้กับป้ายจำนวนมาก (หมุดภาพรวมโรงเรียน) ไม่ให้ทับกันจนอ่านไม่ออก */
@@ -177,6 +199,13 @@ function addPinLabel(
 ): Entity | null {
   const image = createLabelImage(options.lines, { background: options.background, fontPx: options.fontPx });
   if (!image) return null;
+  labelPlacements.set(options.id, {
+    width: image.width,
+    height: image.height,
+    offsetY: options.offsetY,
+    verticalCenter: options.verticalOrigin === VerticalOrigin.CENTER,
+    priority: options.priority,
+  });
   return ds.entities.add({
     id: options.id,
     position: Cartesian3.fromDegrees(options.lng, options.lat),
@@ -495,6 +524,7 @@ export default function CesiumMap({
   const [route, setRoute] = useState<{ distanceM: number; durationS: number } | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeErr, setRouteErr] = useState("");
+  const [routeBorderNote, setRouteBorderNote] = useState(""); // แจ้งเมื่อมีเส้นทางข้ามพรมแดนถูกคัดออก
   // เส้นทางทางเลือกจาก OSRM (alternatives) + เส้นที่ผู้ใช้เลือกไว้ — ผู้ใช้กดปุ่มสลับได้ และ routeCoordsRef ใช้เส้นที่เลือก
   const [routeAlternatives, setRouteAlternatives] = useState<RouteAlt[]>([]);
   const [selectedRouteIdx, setSelectedRouteIdx] = useState(0);
@@ -839,6 +869,7 @@ export default function CesiumMap({
       // ป้ายเป็น entity แยก (หนึ่ง entity มี billboard ได้ตัวเดียว) — ต้องย้ายตามหมุดตอนลากด้วย
       centerPinLabelRef.current = addPinLabel(pinDs, {
         id: "center-pin-label",
+        priority: LABEL_PRIORITY.school,
         lat: center.lat,
         lng: center.lng,
         lines: [center.name, schoolElevationText],
@@ -871,6 +902,7 @@ export default function CesiumMap({
       // ป้ายชื่อโรงเรียนเป็น entity แยก — id ยังขึ้นต้น "school-pin:" เพื่อให้คลิกที่ป้ายก็ยังเข้าโรงเรียนนั้นได้
       addPinLabel(ds, {
         id: `school-pin:${pin.id}:label`,
+        priority: LABEL_PRIORITY.overviewSchool,
         lat: pin.lat,
         lng: pin.lng,
         lines: [pin.name],
@@ -923,13 +955,35 @@ export default function CesiumMap({
 
     const controller = new AbortController();
     setRouteLoading(true);
-    fetchOsrmRoutes(province.lng, province.lat, center.lng, center.lat, { alternatives: 3, signal: controller.signal })
-      .then((alts) => {
+    setRouteBorderNote("");
+    // ขอเส้นทางพร้อมแนวชายแดนไปด้วย เพื่อคัดเส้นที่วิ่งเข้าประเทศเพื่อนบ้านออกก่อนนำไปคิดคะแนน
+    // (โหลดแนวชายแดนไม่สำเร็จ → doc = null → filterDomesticRoutes ปล่อยผ่าน ไม่ทำให้แผนที่ใช้ไม่ได้)
+    Promise.all([
+      fetchOsrmRoutes(province.lng, province.lat, center.lng, center.lat, {
+        alternatives: 3,
+        signal: controller.signal,
+      }),
+      loadBorders().catch(() => null),
+    ])
+      .then(([alts, bordersDoc]) => {
         if (controller.signal.aborted) return;
-        setRouteAlternatives(alts);
+        const { domestic, blocked } = filterDomesticRoutes(alts, bordersDoc);
+        if (domestic.length === 0) {
+          setRouteAlternatives([]);
+          setSelectedRouteIdx(0);
+          routeCoordsRef.current = null;
+          setRoute(null);
+          setRouteErr(borderBlockedMessage(blocked.map((b) => b.crossing)));
+          return;
+        }
+        if (blocked.length > 0) {
+          const countries = Array.from(new Set(blocked.map((b) => b.crossing.countryTh))).join(" / ");
+          setRouteBorderNote(`ตัดเส้นทางที่ผ่านพรมแดน${countries} ออก ${blocked.length} เส้น — ใช้เฉพาะเส้นทางในประเทศ`);
+        }
+        setRouteAlternatives(domestic);
         setSelectedRouteIdx(0);
-        routeCoordsRef.current = alts[0].coords; // เส้นแรกเป็นค่าเริ่มต้นให้ runAnalysis สุ่มความสูง 5 กม.สุดท้าย
-        setRoute({ distanceM: alts[0].distanceM, durationS: alts[0].durationS });
+        routeCoordsRef.current = domestic[0].coords; // เส้นแรกเป็นค่าเริ่มต้นให้ runAnalysis สุ่มความสูง 5 กม.สุดท้าย
+        setRoute({ distanceM: domestic[0].distanceM, durationS: domestic[0].durationS });
       })
       .catch((e: unknown) => {
         if (controller.signal.aborted) return;
@@ -965,6 +1019,7 @@ export default function CesiumMap({
     });
     addPinLabel(routeDs, {
       id: "province-hall-label",
+      priority: LABEL_PRIORITY.place,
       lat: province.lat,
       lng: province.lng,
       lines: [`ศาลากลางจังหวัด${province.name}`],
@@ -1015,6 +1070,7 @@ export default function CesiumMap({
       });
       addPinLabel(routeDs, {
         id: "route-highest-point-label",
+        priority: LABEL_PRIORITY.elevation,
         lat: highestPoint.lat,
         lng: highestPoint.lng,
         lines: formatRouteHighestLabel(highestPoint.elevationM).split("\n"),
@@ -1167,6 +1223,70 @@ export default function CesiumMap({
     };
   }, [status, set_high_point_manaual]);
 
+  // ── ซ่อนป้ายที่ทับกันบนจอ (ธง/หมุดยังแสดงครบ) — คำนวณใหม่เมื่อกล้องขยับ ────────────────
+  // ตอนซูมออก ป้ายหลายอันตกมาอยู่ที่เดียวกันจนอ่านไม่ออก; ซูมเข้าจนแยกกันได้ ป้ายจะกลับมาเอง
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || status !== "ready") return;
+    const scene = viewer.scene;
+    const anchor = new Cartesian2();
+    const cameraToPoint = new Cartesian3();
+    let lastRunMs = 0;
+
+    const declutter = () => {
+      const now = performance.now();
+      if (now - lastRunMs < LABEL_DECLUTTER_INTERVAL_MS) return;
+      lastRunMs = now;
+
+      const time = viewer.clock.currentTime;
+      const boxes: LabelBox[] = [];
+      const labeled: Entity[] = [];
+      for (const dsRef of [
+        pinDsRef,
+        routeDsRef,
+        searchDsRef,
+        gisDsRef,
+        schoolPinsDsRef,
+        bordersDsRef,
+        manualHighDsRef,
+      ]) {
+        const ds = dsRef.current;
+        if (!ds) continue;
+        for (const entity of ds.entities.values) {
+          const id = String(entity.id);
+          const placement = labelPlacements.get(id);
+          if (!placement) continue;
+          labeled.push(entity);
+          const position = entity.position?.getValue(time);
+          if (!position) continue;
+          // จุดที่อยู่หลังกล้องยังถูกฉายเป็นพิกัดจอได้ (กลับด้าน) — ต้องคัดออก ไม่งั้นไปบังป้ายที่มองเห็นจริง
+          const toPoint = Cartesian3.subtract(position, scene.camera.positionWC, cameraToPoint);
+          if (Cartesian3.dot(toPoint, scene.camera.directionWC) <= 0) continue;
+          // drawing-buffer pixel — หน่วยเดียวกับ billboard.width/height/pixelOffset ของ Cesium
+          const screen = SceneTransforms.worldToDrawingBufferCoordinates(scene, position, anchor);
+          if (!screen || !Number.isFinite(screen.x) || !Number.isFinite(screen.y)) continue;
+          const box = labelBox(id, screen.x, screen.y, placement);
+          // ป้ายที่อยู่นอกจอไม่ต้องนำมาคิด — ไม่มีใครเห็น และไม่ควรไปกันป้ายที่อยู่ในจอ
+          if (box.right < 0 || box.bottom < 0 || box.left > scene.drawingBufferWidth) continue;
+          if (box.top > scene.drawingBufferHeight) continue;
+          boxes.push(box);
+        }
+      }
+      if (labeled.length === 0) return;
+
+      const visible = pickVisibleLabels(boxes);
+      for (const entity of labeled) {
+        const show = visible.has(String(entity.id));
+        if (entity.show !== show) entity.show = show;
+      }
+    };
+
+    scene.postRender.addEventListener(declutter);
+    return () => {
+      scene.postRender.removeEventListener(declutter);
+    };
+  }, [status]);
+
   // หมุด + ป้ายของจุดสูงสุดที่ชี้เอง — วาดใหม่ทั้งชุดทุกครั้ง จึงเหลือหมุดล่าสุดเพียงจุดเดียวเสมอ
   useEffect(() => {
     const ds = manualHighDsRef.current;
@@ -1188,6 +1308,7 @@ export default function CesiumMap({
     });
     addPinLabel(ds, {
       id: "manual-high-point-label",
+      priority: LABEL_PRIORITY.elevation,
       lat: manualHighPoint.lat,
       lng: manualHighPoint.lng,
       lines: formatManualHighPointLabel(manualHighPoint).split("\n"),
@@ -1467,6 +1588,7 @@ export default function CesiumMap({
     });
     addPinLabel(searchDs, {
       id: "search-pin-label",
+      priority: LABEL_PRIORITY.place,
       lat,
       lng,
       lines: [title],
@@ -1686,6 +1808,7 @@ export default function CesiumMap({
           }
           addPinLabel(bordersDs, {
             id: `border-label:${border.name}`,
+            priority: LABEL_PRIORITY.country,
             lat: border.label[1],
             lng: border.label[0],
             lines: [border.nameTh],
@@ -1857,8 +1980,15 @@ export default function CesiumMap({
       let route: RouteAlt | null = null;
       let error = "";
       try {
-        const routes = await fetchOsrmRoutes(center.lng, center.lat, lng, lat);
-        route = routes[0];
+        // ขอหลายเส้นเพื่อให้ยังเหลือเส้นในประเทศให้เลือกหลังคัดเส้นที่ข้ามพรมแดนออก
+        const routes = await fetchOsrmRoutes(center.lng, center.lat, lng, lat, { alternatives: 3 });
+        const bordersDoc = await loadBorders().catch(() => null);
+        const { domestic, blocked } = filterDomesticRoutes(routes, bordersDoc);
+        if (domestic.length === 0) {
+          error = borderBlockedMessage(blocked.map((b) => b.crossing));
+        } else {
+          route = domestic[0];
+        }
       } catch {
         error = "โหลดเส้นทางไปจุดหมายไม่สำเร็จ";
       }
@@ -1930,6 +2060,7 @@ export default function CesiumMap({
       });
       addPinLabel(gisDs, {
         id: `gis-dest-label:${d.key}`,
+        priority: LABEL_PRIORITY.destination,
         lat: d.lat,
         lng: d.lng,
         lines: [`${GIS_DESTINATION_LABELS[d.destinationType]}: ${d.name}`],
@@ -2473,6 +2604,8 @@ export default function CesiumMap({
                   </dd>
                 </div>
               </dl>
+
+              {routeBorderNote ? <p className="map-note map-note-sync">🛂 {routeBorderNote}</p> : null}
 
               {routeAlternatives.length > 1 ? (
                 <div className="map-route-picker">
