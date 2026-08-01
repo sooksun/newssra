@@ -36,6 +36,16 @@ test("box size follows the rendered size at the current camera distance", () => 
   assert.match(component, /translucencyByDistance: options\.translucencyByDistance/);
 });
 
+// entity เก็บพิกัดที่ความสูง 0 แต่ billboard ตั้ง CLAMP_TO_GROUND จึงถูกวาดที่ผิวภูมิประเทศจริง
+// (คูณ verticalExaggeration อีกชั้น) ถ้ากล่องชนคำนวณจากพิกัดดิบ จุดยึดจะต่ำกว่าธงจริงเป็นกิโลเมตร
+// พอซูมเข้ากล่องจะหลุดนอกจอแล้วป้ายถูกซ่อนทั้งที่หมุดแยกห่างกันชัดเจน
+test("collision boxes use the position where the label is actually drawn, not the raw entity height", () => {
+  assert.match(component, /const renderedPositionOf = \(position: Cartesian3\): Cartesian3 =>/);
+  assert.match(component, /const height = scene\.globe\.getHeight\(carto\)/);
+  assert.match(component, /Cartesian3\.fromRadians\(carto\.longitude, carto\.latitude, height, undefined, groundPosition\)/);
+  assert.match(component, /const position = renderedPositionOf\(rawPosition\)/);
+});
+
 test("labels behind the camera or off screen never block the visible ones", () => {
   assert.match(component, /Cartesian3\.dot\(toPoint, scene\.camera\.directionWC\) <= 0/);
   assert.match(component, /box\.right < 0 \|\| box\.bottom < 0 \|\| box\.left > scene\.drawingBufferWidth/);

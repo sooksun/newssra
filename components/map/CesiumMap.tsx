@@ -1254,7 +1254,20 @@ export default function CesiumMap({
     const scene = viewer.scene;
     const anchor = new Cartesian2();
     const cameraToPoint = new Cartesian3();
+    const groundCarto = new Cartographic();
+    const groundPosition = new Cartesian3();
     let lastRunMs = 0;
+
+    // ตำแหน่งที่ป้าย "ถูกวาดจริง" — entity เก็บพิกัดที่ความสูง 0 แต่ billboard ตั้ง CLAMP_TO_GROUND
+    // จึงไปเกาะผิวภูมิประเทศ (และถูกคูณด้วย verticalExaggeration อีก) ถ้าใช้พิกัดดิบมาฉายลงจอ
+    // จุดยึดจะต่ำกว่าธงจริงมากเมื่อซูมเข้า จนกล่องหลุดนอกจอและป้ายถูกซ่อนทั้งที่ควรแสดง
+    const renderedPositionOf = (position: Cartesian3): Cartesian3 => {
+      const carto = Cartographic.fromCartesian(position, undefined, groundCarto);
+      if (!carto) return position;
+      const height = scene.globe.getHeight(carto); // คืนความสูงหลังคูณ exaggeration แล้ว
+      if (typeof height !== "number" || !Number.isFinite(height)) return position;
+      return Cartesian3.fromRadians(carto.longitude, carto.latitude, height, undefined, groundPosition);
+    };
 
     const declutter = () => {
       const now = performance.now();
@@ -1280,8 +1293,9 @@ export default function CesiumMap({
           const placement = labelPlacements.get(id);
           if (!placement) continue;
           labeled.push(entity);
-          const position = entity.position?.getValue(time);
-          if (!position) continue;
+          const rawPosition = entity.position?.getValue(time);
+          if (!rawPosition) continue;
+          const position = renderedPositionOf(rawPosition);
           // จุดที่อยู่หลังกล้องยังถูกฉายเป็นพิกัดจอได้ (กลับด้าน) — ต้องคัดออก ไม่งั้นไปบังป้ายที่มองเห็นจริง
           const toPoint = Cartesian3.subtract(position, scene.camera.positionWC, cameraToPoint);
           if (Cartesian3.dot(toPoint, scene.camera.directionWC) <= 0) continue;
