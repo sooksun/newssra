@@ -7,11 +7,16 @@ import { formatManualHighPointLabel } from "@/lib/map/routeElevation";
 
 const component = readFileSync("components/map/CesiumMap.tsx", "utf8");
 
-test("label shows the elevation and the coordinates of the clicked point", () => {
-  const label = formatManualHighPointLabel({ lat: 19.12345, lng: 99.6789, elevationM: 1234.6 });
-  assert.match(label, /จุดสูงสุด \(ชี้เอง — ไม่บันทึก\)/);
-  assert.match(label, /ระดับความสูง 1,235 ม\./);
-  assert.match(label, /19\.12345, 99\.67890/);
+test("label shows only the title and the elevation — no coordinates, no disclaimer text", () => {
+  const label = formatManualHighPointLabel({ lat: 20.32407, lng: 99.61637, elevationM: 1072.4 });
+  assert.equal(label, "จุดสูงสุด\nระดับความสูง 1,072 ม.");
+  assert.doesNotMatch(label, /ไม่บันทึก|ชี้เอง/);
+  assert.doesNotMatch(label, /20\.32407|99\.61637/);
+});
+
+test("label says it is still reading while the terrain sample is in flight", () => {
+  const label = formatManualHighPointLabel({ lat: 19, lng: 99, elevationM: null, sampling: true });
+  assert.match(label, /กำลังอ่านระดับความสูง…/);
 });
 
 test("label says so plainly when the terrain height is unavailable — never a stand-in number", () => {
@@ -27,10 +32,31 @@ test("non-finite elevation is treated as missing, not rendered as NaN", () => {
 });
 
 test("right-click handler is wired to the manual high-point setter", () => {
-  assert.match(component, /const set_high_point_manaual = useCallback\(/);
+  assert.match(component, /const set_high_point_manaual = useCallback\(async /);
   assert.match(component, /ScreenSpaceEventType\.RIGHT_CLICK/);
   assert.match(component, /canvas\.addEventListener\("contextmenu", suppressContextMenu\)/);
   assert.match(component, /canvas\.removeEventListener\("contextmenu", suppressContextMenu\)/);
+});
+
+// ฉากตั้ง verticalExaggeration ไว้ 2 เท่า — ความสูงจาก globe.getHeight()/pickPosition จึงเป็นค่าที่คูณแล้ว
+// (เคยทำให้ป้ายขึ้น 2,125 ม. ที่จุดซึ่งจริง ๆ สูงราว 1,062 ม.) ต้องสุ่มจาก terrain provider เท่านั้น
+test("elevation comes from the terrain provider, not from the exaggerated render space", () => {
+  const start = component.indexOf("const set_high_point_manaual");
+  assert.ok(start > 0, "ไม่พบ set_high_point_manaual");
+  const body = component
+    .slice(start, component.indexOf("useEffect(", start))
+    .split(/\r?\n/)
+    .filter((line) => !line.trim().startsWith("//")) // คอมเมนต์อธิบายเหตุผลพูดถึงชื่อ API เหล่านี้ได้
+    .join("\n");
+  assert.match(body, /sampleCesiumPoints\(provider, \[\{ lat, lng \}\], KEYLESS_SAMPLE_LEVEL\)/);
+  // pickPosition ใช้ได้เฉพาะหาละติจูด/ลองจิจูดในตัว handler — ความสูงต้องไม่มาจากพื้นที่เรนเดอร์
+  assert.doesNotMatch(body, /globe\.getHeight|carto\.height/);
+  assert.match(component, /scene\.verticalExaggeration = VERTICAL_EXAGGERATION/);
+});
+
+test("a later right-click wins when samples resolve out of order", () => {
+  assert.match(component, /const manualHighSeqRef = useRef\(0\)/);
+  assert.match(component, /if \(seq !== manualHighSeqRef\.current\) return/);
 });
 
 test("the manual pin is view-only: never sent to the server and only one pin at a time", () => {

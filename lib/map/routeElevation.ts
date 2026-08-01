@@ -71,15 +71,18 @@ export function formatRouteHighestLabel(value: number): string {
 export interface ManualHighPoint {
   lat: number;
   lng: number;
-  /** null = อ่านระดับความสูงจากภูมิประเทศตรงจุดนั้นไม่ได้ (tile ยังไม่โหลด/นอกขอบข้อมูล) */
+  /** null = อ่านระดับความสูงจากภูมิประเทศตรงจุดนั้นไม่ได้ (นอกขอบข้อมูล/หมดเวลา) */
   elevationM: number | null;
+  /** กำลังสุ่มความสูงจาก terrain provider อยู่ — แยกจากกรณีสุ่มแล้วไม่ได้ค่า */
+  sampling?: boolean;
 }
 
-/** ข้อความบนป้ายหมุดจุดสูงสุดที่ชี้เอง — บรรทัดแรกบอกที่มา บรรทัดถัดไปคือค่าและพิกัด */
+/** ข้อความบนป้ายหมุดจุดสูงสุดที่ชี้เอง — ระดับความสูงใช้แหล่งเดียวกับหมุดโรงเรียน/จุดสูงสุดเส้นทาง */
 export function formatManualHighPointLabel(point: ManualHighPoint): string {
+  if (point.sampling) return "จุดสูงสุด\nกำลังอ่านระดับความสูง…";
   const elevation =
     point.elevationM !== null && Number.isFinite(point.elevationM)
       ? `ระดับความสูง ${formatElevationMeters(point.elevationM)}`
       : "ไม่มีข้อมูลระดับความสูงตรงจุดนี้";
-  return `จุดสูงสุด (ชี้เอง — ไม่บันทึก)\n${elevation}\n${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`;
+  return `จุดสูงสุด\n${elevation}`;
 }

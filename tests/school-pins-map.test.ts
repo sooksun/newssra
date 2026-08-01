@@ -20,7 +20,9 @@ test("หมุดโรงเรียนวาดเป็น point สีต�
   assert.match(map, /#22c55e/);
   assert.match(map, /#ef4444/);
   assert.match(map, /id: `school-pin:\$\{pin\.id\}`/);
-  assert.match(map, /text: pin\.name/);
+  // ชื่อโรงเรียนวาดผ่าน addPinLabel (รูปเดียว) ไม่ใช่ Cesium label — ดู tests/map-thai-labels.test.ts
+  assert.match(map, /lines: \[pin\.name\]/);
+  assert.match(map, /id: `school-pin:\$\{pin\.id\}:label`/);
 });
 
 test("คลิกหมุดโรงเรียน → เปิดมุมมองแบบประเมินของโรงเรียนนั้น (read-only)", () => {

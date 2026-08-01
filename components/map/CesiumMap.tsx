@@ -56,6 +56,7 @@ import {
 } from "@/lib/map/morphology";
 import { pointInPolygon, polygonAreaM2, polygonCentroid, polygonBoundingRadiusM } from "@/lib/map/geometry";
 import { parseSharedBorders, type SharedBordersDoc } from "@/lib/map/borders";
+import { createLabelImage } from "@/lib/map/labelImage";
 import { fetchBuildings, fetchNearestProvince, fetchOsrmRoutes } from "@/lib/map/mapApi";
 import { searchPlaces, resolvePlaceHit, reverseProvince, type PlaceHit } from "@/lib/map/placeSearch";
 import {
@@ -153,6 +154,45 @@ const RED_FLAG_ICON = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
 const MANUAL_HIGH_FLAG_ICON = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 44"><path d="M9 41V4" stroke="white" stroke-width="5" stroke-linecap="round"/><path d="M9 5h22l-6 8 6 8H9z" fill="#ea580c" stroke="white" stroke-width="2" stroke-linejoin="round"/><circle cx="9" cy="41" r="3" fill="#7c2d12" stroke="white" stroke-width="2"/></svg>',
 )}`;
+
+/** ป้ายข้อความของหมุดบนแผนที่ — วาดเป็นรูปเดียวแล้วแปะเป็น billboard
+ *  ห้ามกลับไปใช้ Cesium `label` กับข้อความไทย: Cesium แยก glyph ทีละตัวอักษร ทำให้สระ/วรรณยุกต์
+ *  ถูกฉีกออกจากพยัญชนะ (เห็นเป็น "ระดั" แล้วขึ้นบรรทัดใหม่เป็น "บ" หรือสระหายไปเลย) */
+function addPinLabel(
+  ds: CustomDataSource,
+  options: {
+    id: string;
+    lat: number;
+    lng: number;
+    lines: string[];
+    background: string;
+    offsetY: number;
+    fontPx?: number;
+    /** ค่าเริ่มต้น BOTTOM = ป้ายลอยเหนือหมุด; ป้ายชื่อประเทศใช้ CENTER เพราะไม่มีหมุดคู่กัน */
+    verticalOrigin?: VerticalOrigin;
+    /** ย่อ/จางตามระยะกล้อง — ใช้กับป้ายจำนวนมาก (หมุดภาพรวมโรงเรียน) ไม่ให้ทับกันจนอ่านไม่ออก */
+    scaleByDistance?: NearFarScalar;
+    translucencyByDistance?: NearFarScalar;
+  },
+): Entity | null {
+  const image = createLabelImage(options.lines, { background: options.background, fontPx: options.fontPx });
+  if (!image) return null;
+  return ds.entities.add({
+    id: options.id,
+    position: Cartesian3.fromDegrees(options.lng, options.lat),
+    billboard: {
+      image: image.url,
+      width: image.width,
+      height: image.height,
+      verticalOrigin: options.verticalOrigin ?? VerticalOrigin.BOTTOM,
+      pixelOffset: new Cartesian2(0, options.offsetY),
+      heightReference: HeightReference.CLAMP_TO_GROUND,
+      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      scaleByDistance: options.scaleByDistance,
+      translucencyByDistance: options.translucencyByDistance,
+    },
+  });
+}
 
 // ลดจำนวนจุดแบบกระจายสม่ำเสมอ (ไม่เอาแค่ N ตัวแรก) — ใช้กับจุดตามเส้นทางที่อาจมีหนาแน่นไม่เท่ากัน
 function downsample<T>(arr: T[], maxCount: number): T[] {
@@ -435,6 +475,7 @@ export default function CesiumMap({
   // ── ลากหมุดจุดวิเคราะห์บนแผนที่ ──
   const dragHandlerRef = useRef<ScreenSpaceEventHandler | null>(null);
   const centerPinRef = useRef<Entity | null>(null); // อ้างอิงหมุดแดง (จุดวิเคราะห์) เพื่อย้ายตำแหน่งระหว่างลาก
+  const centerPinLabelRef = useRef<Entity | null>(null); // ป้ายของหมุดแดง (entity แยก) — ย้ายตามหมุดตอนลาก
   const draggingPinRef = useRef(false);
   const dragLatLngRef = useRef<{ lat: number; lng: number } | null>(null);
   const searchDsRef = useRef<CustomDataSource | null>(null); // หมุดค้นหาชั่วคราว แยกจาก pinDs (หมุดโรงเรียน)
@@ -774,6 +815,7 @@ export default function CesiumMap({
 
     pinDs.entities.removeAll();
     centerPinRef.current = null;
+    centerPinLabelRef.current = null;
     if (!national) {
       const schoolElevationText =
         routeElevationProfile?.schoolElevationM != null
@@ -793,21 +835,15 @@ export default function CesiumMap({
           heightReference: HeightReference.CLAMP_TO_GROUND,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
-        label: {
-          text: `${center.name}\n${schoolElevationText}`,
-          font: "600 14px 'Sarabun', sans-serif",
-          fillColor: Color.WHITE,
-          style: LabelStyle.FILL_AND_OUTLINE,
-          outlineColor: Color.fromCssColorString("#111827"),
-          outlineWidth: 3,
-          showBackground: true,
-          backgroundColor: Color.fromCssColorString("#b91c1c").withAlpha(0.88),
-          backgroundPadding: new Cartesian2(9, 6),
-          verticalOrigin: VerticalOrigin.BOTTOM,
-          pixelOffset: new Cartesian2(0, -48),
-          heightReference: HeightReference.CLAMP_TO_GROUND,
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
-        },
+      });
+      // ป้ายเป็น entity แยก (หนึ่ง entity มี billboard ได้ตัวเดียว) — ต้องย้ายตามหมุดตอนลากด้วย
+      centerPinLabelRef.current = addPinLabel(pinDs, {
+        id: "center-pin-label",
+        lat: center.lat,
+        lng: center.lng,
+        lines: [center.name, schoolElevationText],
+        background: "rgba(185, 28, 28, 0.92)",
+        offsetY: -48,
       });
     }
   }, [center.lat, center.lng, center.name, national, status, routeElevationProfile, routeElevationStatus]);
@@ -831,23 +867,18 @@ export default function CesiumMap({
           heightReference: HeightReference.CLAMP_TO_GROUND,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
-        label: {
-          text: pin.name,
-          font: "600 13px 'Sarabun', sans-serif",
-          fillColor: Color.WHITE,
-          style: LabelStyle.FILL_AND_OUTLINE,
-          outlineColor: Color.fromCssColorString("#111827"),
-          outlineWidth: 3,
-          showBackground: true,
-          backgroundColor: Color.fromCssColorString("#111827").withAlpha(0.72),
-          backgroundPadding: new Cartesian2(7, 4),
-          verticalOrigin: VerticalOrigin.BOTTOM,
-          pixelOffset: new Cartesian2(0, -14),
-          heightReference: HeightReference.CLAMP_TO_GROUND,
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
-          scaleByDistance: new NearFarScalar(2.0e5, 1.0, 2.0e6, 0.5),
-          translucencyByDistance: new NearFarScalar(1.5e6, 1.0, 3.0e6, 0.0),
-        },
+      });
+      // ป้ายชื่อโรงเรียนเป็น entity แยก — id ยังขึ้นต้น "school-pin:" เพื่อให้คลิกที่ป้ายก็ยังเข้าโรงเรียนนั้นได้
+      addPinLabel(ds, {
+        id: `school-pin:${pin.id}:label`,
+        lat: pin.lat,
+        lng: pin.lng,
+        lines: [pin.name],
+        background: "rgba(17, 24, 39, 0.78)",
+        offsetY: -14,
+        fontPx: 13,
+        scaleByDistance: new NearFarScalar(2.0e5, 1.0, 2.0e6, 0.5),
+        translucencyByDistance: new NearFarScalar(1.5e6, 1.0, 3.0e6, 0.0),
       });
     }
   }, [schoolPins, national, status]);
@@ -931,21 +962,15 @@ export default function CesiumMap({
         outlineWidth: 2,
         heightReference: HeightReference.CLAMP_TO_GROUND,
       },
-      label: {
-        text: `ศาลากลางจังหวัด${province.name}`,
-        font: "600 13px 'Sarabun', sans-serif",
-        fillColor: Color.WHITE,
-        style: LabelStyle.FILL_AND_OUTLINE,
-        outlineColor: Color.fromCssColorString("#111827"),
-        outlineWidth: 3,
-        showBackground: true,
-        backgroundColor: Color.fromCssColorString("#2563eb").withAlpha(0.85),
-        backgroundPadding: new Cartesian2(8, 5),
-        verticalOrigin: VerticalOrigin.BOTTOM,
-        pixelOffset: new Cartesian2(0, -16),
-        heightReference: HeightReference.CLAMP_TO_GROUND,
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
-      },
+    });
+    addPinLabel(routeDs, {
+      id: "province-hall-label",
+      lat: province.lat,
+      lng: province.lng,
+      lines: [`ศาลากลางจังหวัด${province.name}`],
+      background: "rgba(37, 99, 235, 0.9)",
+      offsetY: -16,
+      fontPx: 13,
     });
 
     // วาดเส้นอื่นก่อน (จาง) แล้วค่อยวาดเส้นที่เลือกทับ (เข้ม) เพื่อให้เส้นที่เลือกอยู่บนสุด
@@ -987,21 +1012,14 @@ export default function CesiumMap({
           heightReference: HeightReference.CLAMP_TO_GROUND,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         },
-        label: {
-          text: formatRouteHighestLabel(highestPoint.elevationM),
-          font: "600 13px 'Sarabun', sans-serif",
-          fillColor: Color.WHITE,
-          style: LabelStyle.FILL_AND_OUTLINE,
-          outlineColor: Color.fromCssColorString("#111827"),
-          outlineWidth: 3,
-          showBackground: true,
-          backgroundColor: Color.fromCssColorString("#b91c1c").withAlpha(0.88),
-          backgroundPadding: new Cartesian2(8, 5),
-          verticalOrigin: VerticalOrigin.BOTTOM,
-          pixelOffset: new Cartesian2(0, -48),
-          heightReference: HeightReference.CLAMP_TO_GROUND,
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
-        },
+      });
+      addPinLabel(routeDs, {
+        id: "route-highest-point-label",
+        lat: highestPoint.lat,
+        lng: highestPoint.lng,
+        lines: formatRouteHighestLabel(highestPoint.elevationM).split("\n"),
+        background: "rgba(185, 28, 28, 0.92)",
+        offsetY: -48,
       });
     }
 
@@ -1085,14 +1103,41 @@ export default function CesiumMap({
   // ดูค่าอย่างเดียว: ไม่บันทึกลงฐานข้อมูล ไม่เข้าไปใน state.gis ที่ส่งขึ้นเซิร์ฟเวอร์ และไม่กระทบคะแนนใด ๆ
   // คลิกขวาซ้ำได้ไม่จำกัด — มีหมุดได้ทีละจุดเดียว ย้ายไปจุดที่คลิกขวาล่าสุดเสมอ
   const [manualHighPoint, setManualHighPoint] = useState<ManualHighPoint | null>(null);
+  const manualHighSeqRef = useRef(0); // คลิกขวารัว ๆ: ผลที่มาช้ากว่าคลิกล่าสุดต้องถูกทิ้ง
 
-  const set_high_point_manaual = useCallback((lat: number, lng: number, elevationM: number | null) => {
+  const set_high_point_manaual = useCallback(async (lat: number, lng: number) => {
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
-    setManualHighPoint({
-      lat,
-      lng,
-      elevationM: elevationM !== null && Number.isFinite(elevationM) ? elevationM : null,
-    });
+    const seq = manualHighSeqRef.current + 1;
+    manualHighSeqRef.current = seq;
+    setManualHighPoint({ lat, lng, elevationM: null, sampling: true });
+
+    // ต้องสุ่มจาก terrain provider ตรง ๆ ไม่ใช่ scene.globe.getHeight()/pickPosition —
+    // ฉากตั้ง verticalExaggeration ไว้ VERTICAL_EXAGGERATION เท่า ความสูงในระบบพิกัดที่เรนเดอร์
+    // จึงถูกคูณไว้แล้ว (เคยทำให้ป้ายขึ้น ~2 เท่าของค่าจริง) แหล่งนี้คือแหล่งเดียวกับที่หมุดโรงเรียน
+    // และจุดสูงสุดบนเส้นทางใช้ (sampleCesiumPoints + KEYLESS_SAMPLE_LEVEL) ค่าจึงเทียบกันได้ตรง ๆ
+    const provider = terrainRef.current;
+    if (!provider) {
+      setManualHighPoint({ lat, lng, elevationM: null, sampling: false });
+      return;
+    }
+    try {
+      const heights = await withTimeout(
+        sampleCesiumPoints(provider, [{ lat, lng }], KEYLESS_SAMPLE_LEVEL),
+        ANALYSIS_TIMEOUT_MS,
+        "อ่านระดับความสูงของจุดที่ชี้ใช้เวลานานเกินไป",
+      );
+      if (seq !== manualHighSeqRef.current) return; // มีคลิกขวาใหม่แล้ว
+      const elevationM = heights[0];
+      setManualHighPoint({
+        lat,
+        lng,
+        elevationM: Number.isFinite(elevationM) ? elevationM : null,
+        sampling: false,
+      });
+    } catch {
+      if (seq !== manualHighSeqRef.current) return;
+      setManualHighPoint({ lat, lng, elevationM: null, sampling: false });
+    }
   }, []);
 
   useEffect(() => {
@@ -1108,11 +1153,8 @@ export default function CesiumMap({
       const carto = Cartographic.fromCartesian(cartesian);
       // คลิกเฉียดขอบฟ้า/นอกโลกอาจได้พิกัด NaN — ต้องกันไว้เหมือนตอนวาด polygon
       if (!carto || !Number.isFinite(carto.latitude) || !Number.isFinite(carto.longitude)) return;
-      // ความสูงจากภูมิประเทศที่โหลดไว้ก่อน (ตรงกับที่จุดโรงเรียน/จุดสูงสุดเส้นทางใช้) แล้วค่อยตกมาที่ค่าจาก pickPosition
-      const terrainHeight = scene.globe.getHeight(carto);
-      const elevationM =
-        typeof terrainHeight === "number" && Number.isFinite(terrainHeight) ? terrainHeight : carto.height;
-      set_high_point_manaual(CesiumMath.toDegrees(carto.latitude), CesiumMath.toDegrees(carto.longitude), elevationM);
+      // ใช้เฉพาะละติจูด/ลองจิจูดของจุดที่คลิก — ความสูงไปสุ่มจาก terrain provider ใน set_high_point_manaual
+      void set_high_point_manaual(CesiumMath.toDegrees(carto.latitude), CesiumMath.toDegrees(carto.longitude));
     }, ScreenSpaceEventType.RIGHT_CLICK);
 
     // กันเมนูคลิกขวาของเบราว์เซอร์ขึ้นมาบังป้ายหมุดที่เพิ่งวาง
@@ -1143,21 +1185,14 @@ export default function CesiumMap({
         heightReference: HeightReference.CLAMP_TO_GROUND,
         disableDepthTestDistance: Number.POSITIVE_INFINITY,
       },
-      label: {
-        text: formatManualHighPointLabel(manualHighPoint),
-        font: "600 13px 'Sarabun', sans-serif",
-        fillColor: Color.WHITE,
-        style: LabelStyle.FILL_AND_OUTLINE,
-        outlineColor: Color.fromCssColorString("#111827"),
-        outlineWidth: 3,
-        showBackground: true,
-        backgroundColor: Color.fromCssColorString("#ea580c").withAlpha(0.9),
-        backgroundPadding: new Cartesian2(9, 6),
-        verticalOrigin: VerticalOrigin.BOTTOM,
-        pixelOffset: new Cartesian2(0, -44),
-        heightReference: HeightReference.CLAMP_TO_GROUND,
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
-      },
+    });
+    addPinLabel(ds, {
+      id: "manual-high-point-label",
+      lat: manualHighPoint.lat,
+      lng: manualHighPoint.lng,
+      lines: formatManualHighPointLabel(manualHighPoint).split("\n"),
+      background: "rgba(234, 88, 12, 0.94)",
+      offsetY: -44,
     });
   }, [manualHighPoint, status]);
 
@@ -1243,9 +1278,9 @@ export default function CesiumMap({
       const ll = toLatLng(e.endPosition);
       if (!ll) return;
       dragLatLngRef.current = ll;
-      if (centerPinRef.current) {
-        centerPinRef.current.position = new ConstantPositionProperty(Cartesian3.fromDegrees(ll.lng, ll.lat));
-      }
+      const draggedPosition = new ConstantPositionProperty(Cartesian3.fromDegrees(ll.lng, ll.lat));
+      if (centerPinRef.current) centerPinRef.current.position = draggedPosition;
+      if (centerPinLabelRef.current) centerPinLabelRef.current.position = draggedPosition;
       scene.requestRender();
     }, ScreenSpaceEventType.MOUSE_MOVE);
 
@@ -1287,7 +1322,8 @@ export default function CesiumMap({
       const picked = scene.pick(e.position) as { id?: Entity | string } | undefined;
       const raw = picked && typeof picked.id === "object" ? picked.id.id : picked?.id;
       if (typeof raw !== "string" || !raw.startsWith("school-pin:")) return;
-      const schoolPinId = raw.slice("school-pin:".length);
+      // คลิกได้ทั้งจุดหมุดและป้ายชื่อ (ป้ายเป็น entity แยก id ลงท้าย ":label")
+      const schoolPinId = raw.slice("school-pin:".length).replace(/:label$/, "");
       // full navigation → server โหลด+ตรวจสิทธิ์ (canAccessAssessment) แล้วแสดง read-only เหมือน user โรงเรียนนั้น
       window.location.assign(`/map?assessment=${schoolPinId}`);
     }, ScreenSpaceEventType.LEFT_CLICK);
@@ -1428,21 +1464,15 @@ export default function CesiumMap({
         outlineWidth: 2,
         heightReference: HeightReference.CLAMP_TO_GROUND,
       },
-      label: {
-        text: title,
-        font: "600 13px 'Sarabun', sans-serif",
-        fillColor: Color.WHITE,
-        style: LabelStyle.FILL_AND_OUTLINE,
-        outlineColor: Color.fromCssColorString("#111827"),
-        outlineWidth: 3,
-        showBackground: true,
-        backgroundColor: Color.fromCssColorString("#7c3aed").withAlpha(0.85),
-        backgroundPadding: new Cartesian2(8, 5),
-        verticalOrigin: VerticalOrigin.BOTTOM,
-        pixelOffset: new Cartesian2(0, -16),
-        heightReference: HeightReference.CLAMP_TO_GROUND,
-        disableDepthTestDistance: Number.POSITIVE_INFINITY,
-      },
+    });
+    addPinLabel(searchDs, {
+      id: "search-pin-label",
+      lat,
+      lng,
+      lines: [title],
+      background: "rgba(124, 58, 237, 0.9)",
+      offsetY: -16,
+      fontPx: 13,
     });
     viewer.camera.flyTo({
       destination: Cartesian3.fromDegrees(lng, lat - 0.03, 4200),
@@ -1654,21 +1684,15 @@ export default function CesiumMap({
               },
             });
           }
-          bordersDs.entities.add({
-            position: Cartesian3.fromDegrees(border.label[0], border.label[1]),
-            label: {
-              text: border.nameTh,
-              font: "600 13px 'Sarabun', sans-serif",
-              fillColor: Color.WHITE,
-              style: LabelStyle.FILL_AND_OUTLINE,
-              outlineColor: Color.fromCssColorString("#0f172a"),
-              outlineWidth: 3,
-              showBackground: true,
-              backgroundColor: Color.fromCssColorString("#0f172a").withAlpha(0.72),
-              backgroundPadding: new Cartesian2(8, 4),
-              verticalOrigin: VerticalOrigin.CENTER,
-              disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            },
+          addPinLabel(bordersDs, {
+            id: `border-label:${border.name}`,
+            lat: border.label[1],
+            lng: border.label[0],
+            lines: [border.nameTh],
+            background: "rgba(15, 23, 42, 0.78)",
+            offsetY: 0,
+            fontPx: 13,
+            verticalOrigin: VerticalOrigin.CENTER,
           });
         }
       })
@@ -1903,21 +1927,15 @@ export default function CesiumMap({
           outlineWidth: 2,
           heightReference: HeightReference.CLAMP_TO_GROUND,
         },
-        label: {
-          text: `${GIS_DESTINATION_LABELS[d.destinationType]}: ${d.name}`,
-          font: "600 12px 'Sarabun', sans-serif",
-          fillColor: Color.WHITE,
-          style: LabelStyle.FILL_AND_OUTLINE,
-          outlineColor: Color.fromCssColorString("#064e3b"),
-          outlineWidth: 3,
-          showBackground: true,
-          backgroundColor: Color.fromCssColorString("#059669").withAlpha(0.85),
-          backgroundPadding: new Cartesian2(7, 4),
-          verticalOrigin: VerticalOrigin.BOTTOM,
-          pixelOffset: new Cartesian2(0, -14),
-          heightReference: HeightReference.CLAMP_TO_GROUND,
-          disableDepthTestDistance: Number.POSITIVE_INFINITY,
-        },
+      });
+      addPinLabel(gisDs, {
+        id: `gis-dest-label:${d.key}`,
+        lat: d.lat,
+        lng: d.lng,
+        lines: [`${GIS_DESTINATION_LABELS[d.destinationType]}: ${d.name}`],
+        background: "rgba(5, 150, 105, 0.9)",
+        offsetY: -14,
+        fontPx: 12,
       });
       if (d.route) {
         gisDs.entities.add({
