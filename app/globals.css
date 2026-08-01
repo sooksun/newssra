@@ -2492,6 +2492,61 @@ textarea:focus {
   color: #1d4ed8;
 }
 
+/* หัวข้อขั้นตอนในแผงแผนที่ (MapStep) — เส้นคั่นด้านบนทำให้เห็นกลุ่มของแต่ละขั้นตอนเรียงบนลงล่าง */
+.map-step {
+  margin: 14px 0 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.map-step:first-of-type {
+  margin-top: 8px;
+}
+
+.map-step-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: #1d4ed8;
+}
+
+.map-step-num {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #1d4ed8;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.map-step-text {
+  min-width: 0;
+}
+
+.map-step-hint {
+  margin: 6px 0 0;
+  padding-left: 30px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: #475467;
+}
+
+/* หัวข้อส่วนข้อมูลประกอบ (ไม่มีหมายเลข) — วางต่อจากขั้นตอนสุดท้าย */
+.map-info-title {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
 .map-drag-hint {
   margin: 0 0 10px;
   padding: 7px 9px;

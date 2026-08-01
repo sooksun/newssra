@@ -99,6 +99,20 @@ git pull                      # หรือ rsync ไฟล์ใหม่ท�
 docker compose up -d --build
 ```
 
+### Index ผังอาคาร (ทำครั้งเดียว ถ้า `map_buildings` มีข้อมูลอยู่แล้ว)
+
+ตาราง `map_buildings` ถูกสร้างแบบ lazy โดย `lib/map/msBuildings.ts` — สคีมาปัจจุบันมี covering index
+`idx_qk_lat_lng (quadkey, lat, lng, area_m2)` แล้ว แต่ **ฐานข้อมูลที่สร้างตารางไว้ก่อนหน้านี้จะยังมีแค่
+`idx_qk_lat (quadkey, lat)`** ซึ่งบังคับให้ MySQL อ่านแถวจริงมากรอง `lng` ทิ้ง (วัดบนข้อมูล 27 ล้านแถว:
+1,808 ms ต่อคำขอ เทียบกับ 241 ms หลังเพิ่ม index) เพิ่มเองครั้งเดียวด้วย:
+
+```sql
+ALTER TABLE map_buildings ADD INDEX idx_qk_lat_lng (quadkey, lat, lng, area_m2), ALGORITHM=INPLACE, LOCK=NONE;
+```
+
+ใช้เวลาราว 2 นาทีต่อ 27 ล้านแถว และ `LOCK=NONE` ทำให้แผนที่ยังใช้งานได้ระหว่างสร้าง index
+(index เก่า `idx_qk_lat` ลบทิ้งได้หลังยืนยันว่า `EXPLAIN` เลือกตัวใหม่แล้ว)
+
 ## 6. กรณีใช้ MySQL ที่มีอยู่แล้วบนเครื่อง host (ไม่ใช้ container db)
 
 1. คอมเมนต์ service `db` และบล็อก `depends_on` ของ `app` ใน `docker-compose.yml`

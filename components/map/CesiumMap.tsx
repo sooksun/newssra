@@ -61,8 +61,10 @@ import { searchPlaces, resolvePlaceHit, reverseProvince, type PlaceHit } from "@
 import {
   buildRouteElevationProfile,
   formatElevationMeters,
+  formatManualHighPointLabel,
   formatRouteHighestLabel,
   routeElevationSampleCoordinates,
+  type ManualHighPoint,
   type RouteElevationProfile,
 } from "@/lib/map/routeElevation";
 import {
@@ -79,6 +81,7 @@ import { landformAppLabelNoteTh, officialElevBandTh } from "@/lib/landform-legen
 import LandformLegendTip from "@/components/LandformLegendTip";
 import GisAssessmentPanel, { GisDestAddBar, MAX_GIS_DESTINATIONS } from "@/components/map/GisAssessmentPanel";
 import MapPanelToggle from "@/components/map/MapPanelToggle";
+import MapStep from "@/components/map/MapStep";
 import type { MapAssessmentSaveAction, MapAssessmentSaveResponse } from "@/lib/map-assessment";
 import { GIS_DESTINATION_LABELS } from "@/lib/types";
 import type { GisAnalysis, GisAreaSummary, GisDestinationType, GisRouteAnalysis } from "@/lib/types";
@@ -143,6 +146,12 @@ const MAX_ROUTE_SAMPLE_POINTS = 40; // จำกัดจำนวนจุด�
 const MAX_GAIN_SAMPLE_POINTS = 120;
 const RED_FLAG_ICON = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 44"><path d="M9 41V4" stroke="white" stroke-width="5" stroke-linecap="round"/><path d="M9 5h22l-6 8 6 8H9z" fill="#dc2626" stroke="white" stroke-width="2" stroke-linejoin="round"/><circle cx="9" cy="41" r="3" fill="#7f1d1d" stroke="white" stroke-width="2"/></svg>',
+)}`;
+
+// หมุดจุดสูงสุดที่ผู้ใช้ชี้เอง — ธงส้มเข้ม แยกจากธงแดง (จุดโรงเรียน/จุดสูงสุดของเส้นทางที่ระบบคำนวณ)
+// เพื่อไม่ให้เข้าใจผิดว่าเป็นค่าที่บันทึกลงแบบประเมิน
+const MANUAL_HIGH_FLAG_ICON = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 44"><path d="M9 41V4" stroke="white" stroke-width="5" stroke-linecap="round"/><path d="M9 5h22l-6 8 6 8H9z" fill="#ea580c" stroke="white" stroke-width="2" stroke-linejoin="round"/><circle cx="9" cy="41" r="3" fill="#7c2d12" stroke="white" stroke-width="2"/></svg>',
 )}`;
 
 // ลดจำนวนจุดแบบกระจายสม่ำเสมอ (ไม่เอาแค่ N ตัวแรก) — ใช้กับจุดตามเส้นทางที่อาจมีหนาแน่นไม่เท่ากัน
@@ -418,6 +427,7 @@ export default function CesiumMap({
   const ringsDsRef = useRef<CustomDataSource | null>(null); // วงรัศมี 500/1000/1500 ม. รอบจุดวิเคราะห์
   const bordersDsRef = useRef<CustomDataSource | null>(null); // แนวชายแดน + ป้ายชื่อประเทศ
   const schoolPinsDsRef = useRef<CustomDataSource | null>(null); // หมุดภาพรวมโรงเรียน (admin โหมดทั้งประเทศ)
+  const manualHighDsRef = useRef<CustomDataSource | null>(null); // หมุดจุดสูงสุดที่ผู้ใช้คลิกขวาชี้เอง (ดูค่าอย่างเดียว)
   const routeCoordsRef = useRef<[number, number][] | null>(null); // [lng,lat][] เก็บไว้ให้ runAnalysis สุ่มความสูง 5 กม.สุดท้าย
   const imageryLayerRef = useRef<ImageryLayer | null>(null);
   const esriMaxLevelRef = useRef(ESRI_MAX_REQUEST_LEVEL);
@@ -629,6 +639,10 @@ export default function CesiumMap({
     const schoolPinsDs = new CustomDataSource("schoolPins");
     void viewer.dataSources.add(schoolPinsDs);
     schoolPinsDsRef.current = schoolPinsDs;
+
+    const manualHighDs = new CustomDataSource("manualHigh");
+    void viewer.dataSources.add(manualHighDs);
+    manualHighDsRef.current = manualHighDs;
 
     // เข็มทิศทิศเหนือ: อัปเดต transform ตรงๆ ทุกเฟรม (ไม่ผ่าน React state — กล้องหมุนได้ทุก frame ระหว่างลากกล้อง)
     const updateCompass = () => {
@@ -1066,6 +1080,86 @@ export default function CesiumMap({
       drawHandlerRef.current = null;
     };
   }, [status, drawing]);
+
+  // ── set_high_point_manaual: คลิกขวาบนแผนที่เพื่อ "ดู" ระดับความสูงของจุดที่ชี้เอง ──────────
+  // ดูค่าอย่างเดียว: ไม่บันทึกลงฐานข้อมูล ไม่เข้าไปใน state.gis ที่ส่งขึ้นเซิร์ฟเวอร์ และไม่กระทบคะแนนใด ๆ
+  // คลิกขวาซ้ำได้ไม่จำกัด — มีหมุดได้ทีละจุดเดียว ย้ายไปจุดที่คลิกขวาล่าสุดเสมอ
+  const [manualHighPoint, setManualHighPoint] = useState<ManualHighPoint | null>(null);
+
+  const set_high_point_manaual = useCallback((lat: number, lng: number, elevationM: number | null) => {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    setManualHighPoint({
+      lat,
+      lng,
+      elevationM: elevationM !== null && Number.isFinite(elevationM) ? elevationM : null,
+    });
+  }, []);
+
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || status !== "ready") return;
+    const scene = viewer.scene;
+    const canvas = scene.canvas;
+
+    const handler = new ScreenSpaceEventHandler(canvas);
+    handler.setInputAction((click: { position: Cartesian2 }) => {
+      const cartesian = scene.pickPosition(click.position);
+      if (!cartesian) return; // คลิกพลาดพื้นโลก
+      const carto = Cartographic.fromCartesian(cartesian);
+      // คลิกเฉียดขอบฟ้า/นอกโลกอาจได้พิกัด NaN — ต้องกันไว้เหมือนตอนวาด polygon
+      if (!carto || !Number.isFinite(carto.latitude) || !Number.isFinite(carto.longitude)) return;
+      // ความสูงจากภูมิประเทศที่โหลดไว้ก่อน (ตรงกับที่จุดโรงเรียน/จุดสูงสุดเส้นทางใช้) แล้วค่อยตกมาที่ค่าจาก pickPosition
+      const terrainHeight = scene.globe.getHeight(carto);
+      const elevationM =
+        typeof terrainHeight === "number" && Number.isFinite(terrainHeight) ? terrainHeight : carto.height;
+      set_high_point_manaual(CesiumMath.toDegrees(carto.latitude), CesiumMath.toDegrees(carto.longitude), elevationM);
+    }, ScreenSpaceEventType.RIGHT_CLICK);
+
+    // กันเมนูคลิกขวาของเบราว์เซอร์ขึ้นมาบังป้ายหมุดที่เพิ่งวาง
+    const suppressContextMenu = (e: MouseEvent) => e.preventDefault();
+    canvas.addEventListener("contextmenu", suppressContextMenu);
+
+    return () => {
+      canvas.removeEventListener("contextmenu", suppressContextMenu);
+      handler.destroy();
+    };
+  }, [status, set_high_point_manaual]);
+
+  // หมุด + ป้ายของจุดสูงสุดที่ชี้เอง — วาดใหม่ทั้งชุดทุกครั้ง จึงเหลือหมุดล่าสุดเพียงจุดเดียวเสมอ
+  useEffect(() => {
+    const ds = manualHighDsRef.current;
+    if (!ds || status !== "ready") return;
+    ds.entities.removeAll();
+    if (!manualHighPoint) return;
+
+    ds.entities.add({
+      id: "manual-high-point",
+      position: Cartesian3.fromDegrees(manualHighPoint.lng, manualHighPoint.lat),
+      billboard: {
+        image: MANUAL_HIGH_FLAG_ICON,
+        width: 32,
+        height: 40,
+        verticalOrigin: VerticalOrigin.BOTTOM,
+        heightReference: HeightReference.CLAMP_TO_GROUND,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+      label: {
+        text: formatManualHighPointLabel(manualHighPoint),
+        font: "600 13px 'Sarabun', sans-serif",
+        fillColor: Color.WHITE,
+        style: LabelStyle.FILL_AND_OUTLINE,
+        outlineColor: Color.fromCssColorString("#111827"),
+        outlineWidth: 3,
+        showBackground: true,
+        backgroundColor: Color.fromCssColorString("#ea580c").withAlpha(0.9),
+        backgroundPadding: new Cartesian2(9, 6),
+        verticalOrigin: VerticalOrigin.BOTTOM,
+        pixelOffset: new Cartesian2(0, -44),
+        heightReference: HeightReference.CLAMP_TO_GROUND,
+        disableDepthTestDistance: Number.POSITIVE_INFINITY,
+      },
+    });
+  }, [manualHighPoint, status]);
 
   // ── ย้ายจุดวิเคราะห์ไปพิกัดใหม่: หาจังหวัด/ศาลากลางต้นทางใหม่ → ย้าย center → คำนวณใหม่ทั้งหมด ──
   // ใช้ร่วมกันทั้งปุ่ม "ยืนยันใช้พิกัดใหม่นี้" (จากการค้นหา) และการลากหมุดบนแผนที่
@@ -2166,6 +2260,10 @@ export default function CesiumMap({
     }
   }, [capturing, national, center, assessment, routeElevationProfile, province]);
 
+  // ขั้นตอนในแผงด้านซ้ายเรียงบนลงล่าง 1→5 และจบที่ปุ่มบันทึก (ขั้นตอนที่ 5) เสมอ
+  // ซ่อนขั้นตอนที่ 5 เมื่อผู้ใช้บันทึกไม่ได้และยังไม่มีฉบับให้เปิดดู — เป็นขั้นตอนสุดท้ายอยู่แล้ว เลขจึงไม่ขาดช่วง
+  const showSaveStep = !national && (canSaveAssessment || Boolean(assessment));
+
   return (
     <div
       className="map-stage"
@@ -2232,7 +2330,11 @@ export default function CesiumMap({
             </div>
           ) : null}
           {!national ? (
-            <p className="map-drag-hint">💡 ลากหมุดแดงบนแผนที่เพื่อย้ายจุดวิเคราะห์ แล้วระบบจะคำนวณใหม่ให้อัตโนมัติ</p>
+            <MapStep
+              step={1}
+              title="ยืนยันจุดที่ตั้งโรงเรียน"
+              hint="💡 ลากหมุดแดงบนแผนที่เพื่อย้ายจุดวิเคราะห์ หรือค้นหาสถานที่ด้านล่าง แล้วระบบจะคำนวณใหม่ให้อัตโนมัติ"
+            />
           ) : null}
 
           {showPlaceSearch ? (
@@ -2325,20 +2427,6 @@ export default function CesiumMap({
             </div>
           ) : null}
 
-          <div className={`map-imagery-status map-imagery-status-${imageryStatus.tone}`}>
-            <span>{imageryStatus.label}</span>
-            <strong>{imageryStatus.detail}</strong>
-          </div>
-
-          <label className="map-border-toggle">
-            <input type="checkbox" checked={showBorders} onChange={(e) => setShowBorders(e.target.checked)} />
-            <span>แสดงแนวชายแดนไทย + ชื่อประเทศเพื่อนบ้าน</span>
-          </label>
-          {bordersErr ? <p className="map-note map-note-error">{bordersErr}</p> : null}
-          {showBorders && bordersCredit && !bordersErr ? (
-            <p className="map-note map-note-credit">แนวชายแดน: {bordersCredit}</p>
-          ) : null}
-
           {national ? (
             <p className="map-note">
               บัญชีผู้ดูแล/เจ้าหน้าที่ไม่ผูกกับโรงเรียนใดโรงเรียนหนึ่ง จึงแสดงมุมมองทั้งประเทศ —
@@ -2346,6 +2434,11 @@ export default function CesiumMap({
             </p>
           ) : (
             <>
+              <MapStep
+                step={2}
+                title="เลือกเส้นทางเดินทางเข้าถึง"
+                hint="ระบบหาเส้นทางจากศาลากลางจังหวัดให้อัตโนมัติ — ถ้ามีหลายเส้นให้เลือกเส้นที่ใช้จริง และเพิ่มจุดหมาย (อำเภอ/รพ.) ได้จากช่องค้นหาในขั้นตอนที่ 1"
+              />
               <dl className="map-stats">
                 <div>
                   <dt>เส้นทางรถยนต์จากศาลากลางจังหวัด{province?.name ? province.name : ""}</dt>
@@ -2439,75 +2532,101 @@ export default function CesiumMap({
                 )}
               </div>
 
-              {assessment && centerDiffersFromForm ? (
-                <p className={`map-note ${centerMoveTooFar ? "map-note-error" : "map-note-sync"}`}>
-                  {centerMoveTooFar
-                    ? centerMoveTooFarMessage
-                    : "พิกัดจุดโรงเรียนในแผนที่ถูกย้ายจากค่าที่อยู่ในแบบฟอร์ม ระบบจะบันทึกละติจูด/ลองจิจูดให้อัปเดตพร้อมผล GIS"}
-                </p>
-              ) : null}
+              <h3 className="map-population-title map-info-title">ผลวิเคราะห์ภูมิประเทศ (คำนวณอัตโนมัติ)</h3>
+              <p className="map-note">
+                💡 คลิกขวาบนแผนที่ตรงจุดที่คิดว่าสูงสุด เพื่อดูระดับความสูงของจุดนั้น (หมุดส้ม) — คลิกซ้ำได้เรื่อย ๆ
+                หมุดจะย้ายไปจุดล่าสุด เป็นการดูค่าอย่างเดียว ไม่บันทึกลงแบบประเมิน
+              </p>
+              <div className="map-analysis">
+                {analyzing ? (
+                  <p className="map-note">กำลังวิเคราะห์ภูมิประเทศจากข้อมูลความสูง (DEM)…</p>
+                ) : analysisErr ? (
+                  <p className="map-note map-note-error">{analysisErr}</p>
+                ) : analysis ? (
+                  <dl className="map-stats">
+                    <div>
+                      <dt>
+                        ประเภทภูมิประเทศ <LandformLegendTip className="map-landform-tip" />
+                      </dt>
+                      <dd className="map-stat-strong">
+                        {analysis.landformTh} <span className="map-stat-en">({analysis.landformEn})</span>
+                      </dd>
+                      <dd className="map-landform-note">{landformAppLabelNoteTh(analysis.landformTh)}</dd>
+                      {officialElevBandTh(analysis.meanElev) ? (
+                        <dd className="map-landform-note">{officialElevBandTh(analysis.meanElev)}</dd>
+                      ) : null}
+                    </div>
+                    <div>
+                      <dt>ความสูงเฉลี่ย</dt>
+                      <dd>
+                        {fmt(analysis.meanElev)} ม. (ต่ำสุด {fmt(analysis.minElev)} – สูงสุด {fmt(analysis.maxElev)})
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>ความต่างระดับ (relief)</dt>
+                      <dd>{fmt(analysis.relief)} ม.</dd>
+                    </div>
+                    <div>
+                      <dt>ความลาดชันเฉลี่ย</dt>
+                      <dd>
+                        {analysis.meanSlopePct.toFixed(1)}% (สูงสุด {analysis.maxSlopePct.toFixed(1)}%)
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>ชั้นความลาดชัน (LDD)</dt>
+                      <dd>{analysis.lddClass}</dd>
+                    </div>
+                    <div>
+                      <dt>จังหวัด (เกณฑ์ความสูง)</dt>
+                      <dd>
+                        {analysis.provinceName ?? "—"}
+                        {analysis.provinceAvgElev ? ` (${fmt(analysis.provinceAvgElev)} ม.)` : ""}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>ความสูงสุดในรัศมี 1 กม. รอบที่ตั้ง</dt>
+                      <dd>{analysis.local1000Elev !== null ? `${fmt(analysis.local1000Elev)} ม.` : "—"}</dd>
+                    </div>
+                    <div>
+                      <dt>ความสูงสุดตลอดเส้นทางทั้งเส้น (เกต SSRA)</dt>
+                      <dd>
+                        {analysis.routeFullMaxElev !== null ? `${fmt(analysis.routeFullMaxElev)} ม.` : "ไม่มีข้อมูล"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>ความสูงสุดช่วง 5 กม. สุดท้าย (จำแนก landform)</dt>
+                      <dd>
+                        {analysis.routeTailMaxElev !== null ? `${fmt(analysis.routeTailMaxElev)} ม.` : "ไม่มีข้อมูล"}
+                      </dd>
+                    </div>
+                    {analysis.classificationMethod === "fallback" ? (
+                      <div>
+                        <dt>วิธีจำแนก</dt>
+                        <dd className="map-note-error">
+                          ใช้เกณฑ์สำรอง (ความลาดชัน/TPI) — ไม่มีข้อมูลเส้นทางรถยนต์สำหรับเช็คเกณฑ์ 5 กม.สุดท้าย
+                        </dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                ) : (
+                  <p className="map-note">รอโหลดข้อมูลภูมิประเทศ…</p>
+                )}
+              </div>
+              <button
+                className="ghost-btn"
+                type="button"
+                onClick={() => void runAnalysis()}
+                disabled={analyzing || !terrainReady}
+              >
+                {analyzing ? "กำลังวิเคราะห์…" : "วิเคราะห์ภูมิประเทศอีกครั้ง"}
+              </button>
 
-              {!national && (canSaveAssessment || assessment) ? (
-                <GisAssessmentPanel
-                  assessment={
-                    assessment ? { id: assessment.id, submitted: assessment.submitted, year: assessment.year } : null
-                  }
-                  currentYear={currentYearAssessment}
-                  canSaveAssessment={canSaveAssessment}
-                  previewGis={previewGis}
-                  previewAuto={previewAuto}
-                  previewSeverity={previewSeverity}
-                  previewCommunity={previewCommunity}
-                  destErrors={gisDestinations
-                    .filter((d) => d.error)
-                    .map((d) => ({
-                      key: d.key,
-                      destinationType: d.destinationType,
-                      name: d.name,
-                      error: d.error,
-                    }))}
-                  destCount={gisDestinations.length}
-                  routeElevationReady={routeElevationStatus === "ready"}
-                  saveState={savingGis ? "saving" : "idle"}
-                  saveAction={saveAction}
-                  saveErr={gisSaveErr}
-                  onSave={() => void saveAssessmentFromMap()}
-                  onRemoveDestination={removeGisDestination}
-                />
-              ) : null}
-
-              {!national ? (
-                <div className="map-snapshot-block">
-                  {assessment?.id ? (
-                    <>
-                      <button
-                        type="button"
-                        className="ghost-btn map-snapshot-btn"
-                        onClick={captureSiteSnapshots}
-                        disabled={capturing || aiAnalyzing || Boolean(assessment.submitted)}
-                      >
-                        {capturing
-                          ? `กำลังจับภาพ ${captureProgress}/${SNAPSHOT_VIEWS.length}…`
-                          : aiAnalyzing
-                            ? "กำลังวิเคราะห์ภูมิประเทศด้วย AI…"
-                            : "📸 จับภาพ 3D ยืนยันที่ตั้ง"}
-                      </button>
-                      {captureErr ? <p className="map-snapshot-err">{captureErr}</p> : null}
-                      <p className="map-snapshot-hint">
-                        จับภาพ 9 มุม (มุมบน + ใกล้/ไกล 4 ทิศ) แล้วแนบเข้าแบบประเมินในหัวข้อ “ลักษณะที่ตั้ง” — จับใหม่จะแทนชุดเดิม
-                      </p>
-                    </>
-                  ) : (
-                    <p className="map-snapshot-hint">
-                      กดบันทึกแบบประเมินก่อน แล้วเปิดแผนที่จากแบบประเมินอีกครั้งเพื่อจับภาพ 3D ยืนยันที่ตั้ง
-                    </p>
-                  )}
-                </div>
-              ) : null}
-
+              <MapStep
+                step={3}
+                title="วาดพื้นที่เพื่อคำนวณประชากร (ถ้าต้องการ)"
+                hint="ข้อสรุปของพื้นที่ที่วาดจะถูกบันทึกไปพร้อมกันในขั้นตอนถัดไป — ข้ามได้ถ้าไม่ต้องการ"
+              />
               <div className="map-population">
-                <h3 className="map-population-title">คำนวณประชากรโดยประมาณในพื้นที่ที่วาด</h3>
-
                 <div className="map-draw-controls">
                   <button
                     className="ghost-btn"
@@ -2635,91 +2754,104 @@ export default function CesiumMap({
                 )}
               </div>
 
-              <div className="map-analysis">
-                {analyzing ? (
-                  <p className="map-note">กำลังวิเคราะห์ภูมิประเทศจากข้อมูลความสูง (DEM)…</p>
-                ) : analysisErr ? (
-                  <p className="map-note map-note-error">{analysisErr}</p>
-                ) : analysis ? (
-                  <dl className="map-stats">
-                    <div>
-                      <dt>
-                        ประเภทภูมิประเทศ <LandformLegendTip className="map-landform-tip" />
-                      </dt>
-                      <dd className="map-stat-strong">
-                        {analysis.landformTh} <span className="map-stat-en">({analysis.landformEn})</span>
-                      </dd>
-                      <dd className="map-landform-note">{landformAppLabelNoteTh(analysis.landformTh)}</dd>
-                      {officialElevBandTh(analysis.meanElev) ? (
-                        <dd className="map-landform-note">{officialElevBandTh(analysis.meanElev)}</dd>
-                      ) : null}
-                    </div>
-                    <div>
-                      <dt>ความสูงเฉลี่ย</dt>
-                      <dd>
-                        {fmt(analysis.meanElev)} ม. (ต่ำสุด {fmt(analysis.minElev)} – สูงสุด {fmt(analysis.maxElev)})
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>ความต่างระดับ (relief)</dt>
-                      <dd>{fmt(analysis.relief)} ม.</dd>
-                    </div>
-                    <div>
-                      <dt>ความลาดชันเฉลี่ย</dt>
-                      <dd>
-                        {analysis.meanSlopePct.toFixed(1)}% (สูงสุด {analysis.maxSlopePct.toFixed(1)}%)
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>ชั้นความลาดชัน (LDD)</dt>
-                      <dd>{analysis.lddClass}</dd>
-                    </div>
-                    <div>
-                      <dt>จังหวัด (เกณฑ์ความสูง)</dt>
-                      <dd>
-                        {analysis.provinceName ?? "—"}
-                        {analysis.provinceAvgElev ? ` (${fmt(analysis.provinceAvgElev)} ม.)` : ""}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>ความสูงสุดในรัศมี 1 กม. รอบที่ตั้ง</dt>
-                      <dd>{analysis.local1000Elev !== null ? `${fmt(analysis.local1000Elev)} ม.` : "—"}</dd>
-                    </div>
-                    <div>
-                      <dt>ความสูงสุดตลอดเส้นทางทั้งเส้น (เกต SSRA)</dt>
-                      <dd>
-                        {analysis.routeFullMaxElev !== null ? `${fmt(analysis.routeFullMaxElev)} ม.` : "ไม่มีข้อมูล"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>ความสูงสุดช่วง 5 กม. สุดท้าย (จำแนก landform)</dt>
-                      <dd>
-                        {analysis.routeTailMaxElev !== null ? `${fmt(analysis.routeTailMaxElev)} ม.` : "ไม่มีข้อมูล"}
-                      </dd>
-                    </div>
-                    {analysis.classificationMethod === "fallback" ? (
-                      <div>
-                        <dt>วิธีจำแนก</dt>
-                        <dd className="map-note-error">
-                          ใช้เกณฑ์สำรอง (ความลาดชัน/TPI) — ไม่มีข้อมูลเส้นทางรถยนต์สำหรับเช็คเกณฑ์ 5 กม.สุดท้าย
-                        </dd>
-                      </div>
-                    ) : null}
-                  </dl>
-                ) : (
-                  <p className="map-note">รอโหลดข้อมูลภูมิประเทศ…</p>
-                )}
-              </div>
-              <button
-                className="ghost-btn"
-                type="button"
-                onClick={() => void runAnalysis()}
-                disabled={analyzing || !terrainReady}
-              >
-                {analyzing ? "กำลังวิเคราะห์…" : "วิเคราะห์ภูมิประเทศอีกครั้ง"}
-              </button>
+              {!national ? (
+                <MapStep
+                  step={4}
+                  title="จับภาพ 3D ยืนยันที่ตั้ง"
+                  hint="ต้องมีแบบประเมินอยู่แล้วจึงจับภาพได้ — ถ้ายังไม่เคยบันทึก ให้ทำขั้นตอนที่ 5 ก่อน แล้วเปิดแผนที่จากแบบประเมินอีกครั้ง"
+                />
+              ) : null}
+
+              {!national ? (
+                <div className="map-snapshot-block">
+                  {assessment?.id ? (
+                    <>
+                      <button
+                        type="button"
+                        className="ghost-btn map-snapshot-btn"
+                        onClick={captureSiteSnapshots}
+                        disabled={capturing || aiAnalyzing || Boolean(assessment.submitted)}
+                      >
+                        {capturing
+                          ? `กำลังจับภาพ ${captureProgress}/${SNAPSHOT_VIEWS.length}…`
+                          : aiAnalyzing
+                            ? "กำลังวิเคราะห์ภูมิประเทศด้วย AI…"
+                            : "📸 จับภาพ 3D ยืนยันที่ตั้ง"}
+                      </button>
+                      {captureErr ? <p className="map-snapshot-err">{captureErr}</p> : null}
+                      <p className="map-snapshot-hint">
+                        จับภาพ 9 มุม (มุมบน + ใกล้/ไกล 4 ทิศ) แล้วแนบเข้าแบบประเมินในหัวข้อ “ลักษณะที่ตั้ง” — จับใหม่จะแทนชุดเดิม
+                      </p>
+                    </>
+                  ) : (
+                    <p className="map-snapshot-hint">
+                      กดบันทึกแบบประเมินก่อน แล้วเปิดแผนที่จากแบบประเมินอีกครั้งเพื่อจับภาพ 3D ยืนยันที่ตั้ง
+                    </p>
+                  )}
+                </div>
+              ) : null}
+
+              {showSaveStep ? (
+                <MapStep
+                  step={5}
+                  title="บันทึกข้อมูลประกอบเกณฑ์และกรอกแบบประเมิน"
+                  hint="ขั้นตอนสุดท้าย — บันทึกครั้งเดียวจะเก็บผลทุกขั้นตอนด้านบน (พิกัด เส้นทาง พื้นที่ที่วาด) กรอกข้อมูลประกอบเกณฑ์ และคำนวณคะแนนด้านที่ 3 ให้แบบประเมินปีปัจจุบัน"
+                />
+              ) : null}
+
+              {assessment && centerDiffersFromForm ? (
+                <p className={`map-note ${centerMoveTooFar ? "map-note-error" : "map-note-sync"}`}>
+                  {centerMoveTooFar
+                    ? centerMoveTooFarMessage
+                    : "พิกัดจุดโรงเรียนในแผนที่ถูกย้ายจากค่าที่อยู่ในแบบฟอร์ม ระบบจะบันทึกละติจูด/ลองจิจูดให้อัปเดตพร้อมผล GIS"}
+                </p>
+              ) : null}
+
+              {!national && (canSaveAssessment || assessment) ? (
+                <GisAssessmentPanel
+                  assessment={
+                    assessment ? { id: assessment.id, submitted: assessment.submitted, year: assessment.year } : null
+                  }
+                  currentYear={currentYearAssessment}
+                  canSaveAssessment={canSaveAssessment}
+                  previewGis={previewGis}
+                  previewAuto={previewAuto}
+                  previewSeverity={previewSeverity}
+                  previewCommunity={previewCommunity}
+                  destErrors={gisDestinations
+                    .filter((d) => d.error)
+                    .map((d) => ({
+                      key: d.key,
+                      destinationType: d.destinationType,
+                      name: d.name,
+                      error: d.error,
+                    }))}
+                  destCount={gisDestinations.length}
+                  routeElevationReady={routeElevationStatus === "ready"}
+                  saveState={savingGis ? "saving" : "idle"}
+                  saveAction={saveAction}
+                  saveErr={gisSaveErr}
+                  onSave={() => void saveAssessmentFromMap()}
+                  onRemoveDestination={removeGisDestination}
+                />
+              ) : null}
+
             </>
           )}
+          <div className={`map-imagery-status map-imagery-status-${imageryStatus.tone}`}>
+            <span>{imageryStatus.label}</span>
+            <strong>{imageryStatus.detail}</strong>
+          </div>
+
+          <label className="map-border-toggle">
+            <input type="checkbox" checked={showBorders} onChange={(e) => setShowBorders(e.target.checked)} />
+            <span>แสดงแนวชายแดนไทย + ชื่อประเทศเพื่อนบ้าน</span>
+          </label>
+          {bordersErr ? <p className="map-note map-note-error">{bordersErr}</p> : null}
+          {showBorders && bordersCredit && !bordersErr ? (
+            <p className="map-note map-note-credit">แนวชายแดน: {bordersCredit}</p>
+          ) : null}
+
           <p className="map-credit">ภูมิประเทศ: Terrarium · AWS Open Data • ภาพถ่าย: {imageryStatus.credit}</p>
         </aside>
       ) : (

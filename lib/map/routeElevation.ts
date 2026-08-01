@@ -66,3 +66,20 @@ export function formatElevationMeters(value: number): string {
 export function formatRouteHighestLabel(value: number): string {
   return `จุดสูงสุดบนเส้นทาง\nระดับความสูง ${formatElevationMeters(value)}`;
 }
+
+/** จุดสูงสุดที่ผู้ใช้ชี้เอง (คลิกขวาบนแผนที่) — ดูค่าอย่างเดียว ไม่บันทึกลงฐานข้อมูล */
+export interface ManualHighPoint {
+  lat: number;
+  lng: number;
+  /** null = อ่านระดับความสูงจากภูมิประเทศตรงจุดนั้นไม่ได้ (tile ยังไม่โหลด/นอกขอบข้อมูล) */
+  elevationM: number | null;
+}
+
+/** ข้อความบนป้ายหมุดจุดสูงสุดที่ชี้เอง — บรรทัดแรกบอกที่มา บรรทัดถัดไปคือค่าและพิกัด */
+export function formatManualHighPointLabel(point: ManualHighPoint): string {
+  const elevation =
+    point.elevationM !== null && Number.isFinite(point.elevationM)
+      ? `ระดับความสูง ${formatElevationMeters(point.elevationM)}`
+      : "ไม่มีข้อมูลระดับความสูงตรงจุดนี้";
+  return `จุดสูงสุด (ชี้เอง — ไม่บันทึก)\n${elevation}\n${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}`;
+}

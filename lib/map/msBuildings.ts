@@ -189,7 +189,9 @@ CREATE TABLE IF NOT EXISTS map_buildings (
   area_m2 DOUBLE NOT NULL DEFAULT 0,
   height_m DOUBLE NULL,
   PRIMARY KEY (id),
-  KEY idx_qk_lat (quadkey, lat)
+  -- covering index ของ query bbox ด้านล่าง: quadkey+lat จำกัดช่วง ส่วน lng/area_m2 ทำให้ไม่ต้องวิ่งกลับไปอ่านแถวจริง
+  -- (วัดจริงบนข้อมูล 27 ล้านแถว: 1,808 ms → 241 ms) — DB ที่มีตารางอยู่แล้วต้อง ALTER เพิ่มเอง ดู docs/DEPLOY.md
+  KEY idx_qk_lat_lng (quadkey, lat, lng, area_m2)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 `;
 
