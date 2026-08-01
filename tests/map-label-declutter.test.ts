@@ -24,7 +24,16 @@ test("only label entities are toggled — pins, flags and points keep showing", 
 
 test("screen boxes are built in drawing-buffer pixels, the same space as billboard sizes", () => {
   assert.match(component, /SceneTransforms\.worldToDrawingBufferCoordinates\(scene, position, anchor\)/);
-  assert.match(component, /labelBox\(id, screen\.x, screen\.y, placement\)/);
+  assert.match(component, /labelBox\(id, screen\.x, screen\.y, placement, distanceM\)/);
+});
+
+// ป้ายที่ย่อตามระยะ (ชื่อโรงเรียนในมุมมองทั้งประเทศ) ต้องใช้กล่องที่ย่อตามด้วย ไม่งั้นกันกันเองเกินจริง
+// และไม่ยอมโผล่กลับมาแม้ผู้ใช้ซูมเข้าจนป้ายจริงแยกกันแล้ว
+test("box size follows the rendered size at the current camera distance", () => {
+  assert.match(component, /const distanceM = Cartesian3\.magnitude\(toPoint\)/);
+  assert.match(component, /if \(labelFadedOut\(placement, distanceM\)\) continue;/);
+  assert.match(component, /scaleByDistance: options\.scaleByDistance/);
+  assert.match(component, /translucencyByDistance: options\.translucencyByDistance/);
 });
 
 test("labels behind the camera or off screen never block the visible ones", () => {

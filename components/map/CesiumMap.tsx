@@ -59,7 +59,13 @@ import { pointInPolygon, polygonAreaM2, polygonCentroid, polygonBoundingRadiusM 
 import { parseSharedBorders, type SharedBordersDoc } from "@/lib/map/borders";
 import { createLabelImage } from "@/lib/map/labelImage";
 import { borderBlockedMessage, filterDomesticRoutes } from "@/lib/map/borderCrossing";
-import { labelBox, pickVisibleLabels, type LabelBox, type LabelPlacement } from "@/lib/map/labelDeclutter";
+import {
+  labelBox,
+  labelFadedOut,
+  pickVisibleLabels,
+  type LabelBox,
+  type LabelPlacement,
+} from "@/lib/map/labelDeclutter";
 import { fetchBuildings, fetchNearestProvince, fetchOsrmRoutes } from "@/lib/map/mapApi";
 import { searchPlaces, resolvePlaceHit, reverseProvince, type PlaceHit } from "@/lib/map/placeSearch";
 import {
@@ -205,6 +211,23 @@ function addPinLabel(
     offsetY: options.offsetY,
     verticalCenter: options.verticalOrigin === VerticalOrigin.CENTER,
     priority: options.priority,
+    // เก็บค่าที่ไล่ตามระยะไว้ด้วย เพื่อให้กล่องชนเท่ากับขนาดที่ตาเห็นจริงในทุกระยะซูม
+    scaleByDistance: options.scaleByDistance
+      ? {
+          near: options.scaleByDistance.near,
+          nearValue: options.scaleByDistance.nearValue,
+          far: options.scaleByDistance.far,
+          farValue: options.scaleByDistance.farValue,
+        }
+      : undefined,
+    translucencyByDistance: options.translucencyByDistance
+      ? {
+          near: options.translucencyByDistance.near,
+          nearValue: options.translucencyByDistance.nearValue,
+          far: options.translucencyByDistance.far,
+          farValue: options.translucencyByDistance.farValue,
+        }
+      : undefined,
   });
   return ds.entities.add({
     id: options.id,
@@ -1262,10 +1285,13 @@ export default function CesiumMap({
           // จุดที่อยู่หลังกล้องยังถูกฉายเป็นพิกัดจอได้ (กลับด้าน) — ต้องคัดออก ไม่งั้นไปบังป้ายที่มองเห็นจริง
           const toPoint = Cartesian3.subtract(position, scene.camera.positionWC, cameraToPoint);
           if (Cartesian3.dot(toPoint, scene.camera.directionWC) <= 0) continue;
+          // ระยะกล้อง→หมุด ใช้ย่อกล่องตาม scaleByDistance และเช็คว่าป้ายจางหายไปแล้วหรือยัง
+          const distanceM = Cartesian3.magnitude(toPoint);
+          if (labelFadedOut(placement, distanceM)) continue;
           // drawing-buffer pixel — หน่วยเดียวกับ billboard.width/height/pixelOffset ของ Cesium
           const screen = SceneTransforms.worldToDrawingBufferCoordinates(scene, position, anchor);
           if (!screen || !Number.isFinite(screen.x) || !Number.isFinite(screen.y)) continue;
-          const box = labelBox(id, screen.x, screen.y, placement);
+          const box = labelBox(id, screen.x, screen.y, placement, distanceM);
           // ป้ายที่อยู่นอกจอไม่ต้องนำมาคิด — ไม่มีใครเห็น และไม่ควรไปกันป้ายที่อยู่ในจอ
           if (box.right < 0 || box.bottom < 0 || box.left > scene.drawingBufferWidth) continue;
           if (box.top > scene.drawingBufferHeight) continue;

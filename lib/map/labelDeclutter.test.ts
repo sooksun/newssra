@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { boxesOverlap, LABEL_GAP_PX, labelBox, pickVisibleLabels, type LabelPlacement } from "./labelDeclutter";
+import {
+  boxesOverlap,
+  LABEL_GAP_PX,
+  labelBox,
+  labelFadedOut,
+  nearFarScale,
+  pickVisibleLabels,
+  type LabelPlacement,
+} from "./labelDeclutter";
 
 const abovePin: LabelPlacement = {
   width: 120,
@@ -75,4 +83,53 @@ test("ties are broken by id so the visible set does not flicker between frames",
 
 test("an empty scene produces an empty visible set", () => {
   assert.equal(pickVisibleLabels([]).size, 0);
+});
+
+// ── ขนาดกล่องต้องเท่ากับขนาดที่เรนเดอร์จริงในทุกระยะซูม ──────────────────────────────
+// ป้ายชื่อโรงเรียนในมุมมองทั้งประเทศถูกย่อด้วย scaleByDistance เหลือ 0.5 เท่าเมื่อกล้องไกล
+// ถ้ากล่องยังใช้ขนาดเต็ม ป้ายจะกันกันเองเกินจริงและไม่ยอมโผล่กลับมาแม้ซูมเข้าจนแยกกันแล้ว
+const overviewRamp = { near: 2.0e5, nearValue: 1.0, far: 2.0e6, farValue: 0.5 };
+
+test("nearFarScale matches Cesium's NearFarScalar ramp", () => {
+  assert.equal(nearFarScale(1.0e5, overviewRamp), 1.0, "ใกล้กว่า near = ค่าคงที่ nearValue");
+  assert.equal(nearFarScale(3.0e6, overviewRamp), 0.5, "ไกลกว่า far = ค่าคงที่ farValue");
+  assert.equal(nearFarScale(1.1e6, overviewRamp), 0.75, "กึ่งกลางช่วง = ค่ากึ่งกลาง");
+  assert.equal(nearFarScale(Number.NaN, overviewRamp), 1, "ระยะใช้ไม่ได้ → ไม่ย่อ");
+  assert.equal(nearFarScale(5e5, undefined), 1, "ไม่มี ramp → ไม่ย่อ");
+});
+
+test("a shrunk label gets a shrunk box, keeping pixelOffset unscaled like Cesium does", () => {
+  const placement: LabelPlacement = { ...abovePin, scaleByDistance: overviewRamp };
+  const far = labelBox("far", 500, 300, placement, 3.0e6);
+
+  assert.equal(far.right - far.left, 60, "กว้างครึ่งเดียวที่ระยะไกลสุด");
+  assert.equal(far.bottom - far.top, 20);
+  assert.equal(far.bottom, 252, "ระยะยกจากหมุด (pixelOffset) ไม่ถูกย่อ");
+});
+
+test("zooming in reveals labels that the full-size box would have kept hidden", () => {
+  const placement: LabelPlacement = { ...abovePin, scaleByDistance: overviewRamp, priority: 4 };
+  // สองหมุดห่างกัน 70 px บนจอ — ป้ายเต็มขนาด (120 px) ทับกัน แต่ป้ายที่ย่อครึ่ง (60 px) ไม่ทับ
+  const boxesFar = [
+    labelBox("a", 500, 300, placement, 3.0e6),
+    labelBox("b", 570, 300, { ...placement, priority: 5 }, 3.0e6),
+  ];
+  assert.equal(pickVisibleLabels(boxesFar).size, 2, "ที่ระยะไกลป้ายย่อลงจนไม่ทับกันแล้ว ต้องแสดงทั้งคู่");
+
+  const boxesNear = [
+    labelBox("a", 500, 300, placement, 1.0e5),
+    labelBox("b", 570, 300, { ...placement, priority: 5 }, 1.0e5),
+  ];
+  assert.equal(pickVisibleLabels(boxesNear).size, 1, "ที่ระยะใกล้ป้ายเต็มขนาดจึงยังทับกัน");
+});
+
+test("a label already faded out by distance is treated as invisible", () => {
+  const placement: LabelPlacement = {
+    ...abovePin,
+    translucencyByDistance: { near: 1.5e6, nearValue: 1.0, far: 3.0e6, farValue: 0.0 },
+  };
+  assert.equal(labelFadedOut(placement, 1.0e6), false);
+  assert.equal(labelFadedOut(placement, 2.0e6), false, "ยังจางไม่พอ ยังนับว่ามองเห็น");
+  assert.equal(labelFadedOut(placement, 2.95e6), true);
+  assert.equal(labelFadedOut(abovePin, 1e9), false, "ไม่มี ramp → ไม่เคยจางหาย");
 });
