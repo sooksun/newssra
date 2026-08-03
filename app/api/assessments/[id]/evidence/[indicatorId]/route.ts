@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getAssessment, saveAssessment } from "@/lib/repo";
+import { getAssessment, mutateAssessmentStateAtomic } from "@/lib/repo";
 import { requireAssessmentAccess } from "@/lib/api-auth";
-import { saveEvidenceFile, sniffMimeType } from "@/lib/uploads";
+import { deleteEvidenceFile, saveEvidenceFile, sniffMimeType } from "@/lib/uploads";
 import { isAllowedMimeType, MAX_FILE_SIZE, MAX_FILES_PER_INDICATOR } from "@/lib/upload-constants";
 import { INDICATOR_IDS } from "@/lib/types";
 import type { IndicatorId } from "@/lib/types";
@@ -75,17 +75,28 @@ export async function POST(request: NextRequest, { params }: Ctx) {
 
     const savedFile = await saveEvidenceFile(assessmentId, indicatorId, file.name, detectedType, buffer);
 
-    const nextState = {
-      ...record.state,
-      evidence: {
-        ...record.state.evidence,
-        [indicatorId]: {
-          ...record.state.evidence[indicatorId],
-          files: [...currentFiles, savedFile],
+    // อ่าน state สดใต้ล็อกแล้วต่อไฟล์เข้ากับรายการล่าสุด — ระหว่างอ่านไฟล์เข้าหน่วยความจำ+เขียนดิสก์
+    // (หลายร้อย ms ต่อไฟล์ 10MB) ผู้ใช้อาจ autosave ฟอร์มไปแล้ว หรืออัปโหลดอีกไฟล์คู่ขนาน
+    // การเขียนทั้งก้อนจากสำเนาเก่าจะทำให้คำตอบที่เพิ่งกรอก/ไฟล์ที่เพิ่งแนบหายไปเงียบ ๆ
+    const stored = await mutateAssessmentStateAtomic(assessmentId, (current) => {
+      const latestFiles = current.evidence[indicatorId]?.files ?? [];
+      if (latestFiles.length >= MAX_FILES_PER_INDICATOR) return null; // มีคำขออื่นแนบจนเต็มไปก่อนแล้ว
+      return {
+        ...current,
+        evidence: {
+          ...current.evidence,
+          [indicatorId]: { ...current.evidence[indicatorId], files: [...latestFiles, savedFile] },
         },
-      },
-    };
-    await saveAssessment(assessmentId, nextState);
+      };
+    });
+    if (!stored.found) return NextResponse.json({ error: "ไม่พบแบบประเมิน" }, { status: 404 });
+    if (!stored.applied) {
+      await deleteEvidenceFile(assessmentId, indicatorId, savedFile.id); // ไม่ได้บันทึก metadata → ไม่ทิ้งไฟล์กำพร้า
+      return NextResponse.json(
+        { error: `แนบไฟล์ได้สูงสุด ${MAX_FILES_PER_INDICATOR} ไฟล์ต่อตัวชี้วัด` },
+        { status: 400 },
+      );
+    }
 
     return NextResponse.json({ file: savedFile }, { status: 201 });
   } catch (error) {

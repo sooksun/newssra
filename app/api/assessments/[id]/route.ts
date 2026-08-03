@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { deleteAssessment, getAssessment, saveAssessment } from "@/lib/repo";
+import { deleteAssessment, getAssessment, mutateAssessmentStateAtomic } from "@/lib/repo";
 import { requireAssessmentAccess } from "@/lib/api-auth";
 import { preserveServerOwned, sanitizeState } from "@/lib/state";
 import { deleteAllEvidenceFiles } from "@/lib/uploads";
@@ -48,15 +48,15 @@ export async function PUT(request: NextRequest, { params }: Ctx) {
     // ฟิลด์ที่ฝั่ง server เป็นเจ้าของ ถูก preserve จาก DB โดย preserveServerOwned
     // (evidence[].files, gis, scoringVersion) ส่วน submitted ที่ออกโดย POST .../submit เท่านั้น
     // ก็ preserve จาก DB ที่นี่ (กัน client ปลอมสถานะยื่นข้าม canSubmit)
-    const existing = await getAssessment(id);
-    if (!existing) return NextResponse.json({ error: "ไม่พบแบบประเมิน" }, { status: 404 });
-
-    const state: AssessmentState = preserveServerOwned(incoming, existing.state);
-    state.submitted = existing.state.submitted;
-
-    const summary = await saveAssessment(id, state);
-    if (!summary) return NextResponse.json({ error: "ไม่พบแบบประเมิน" }, { status: 404 });
-    return NextResponse.json({ summary });
+    // อ่าน+merge+เขียนอยู่ใน transaction เดียวที่ล็อกแถวไว้ — กันคำขออื่นที่คาบเกี่ยวกัน (เช่นบันทึกภาพ
+    // snapshot หรือผลวิเคราะห์ AI) เขียนทับกันเองด้วย state ที่อ่านมาก่อนหน้า
+    const result = await mutateAssessmentStateAtomic(id, (current) => {
+      const merged: AssessmentState = preserveServerOwned(incoming, current);
+      merged.submitted = current.submitted;
+      return merged;
+    });
+    if (!result.found || !result.summary) return NextResponse.json({ error: "ไม่พบแบบประเมิน" }, { status: 404 });
+    return NextResponse.json({ summary: result.summary });
   } catch (error) {
     // uq_owner_school_year: เปลี่ยน "ปีการประเมิน" ไปชนกับแบบประเมินอื่นของโรงเรียนเดียวกัน
     if ((error as { code?: string } | null)?.code === "ER_DUP_ENTRY") {

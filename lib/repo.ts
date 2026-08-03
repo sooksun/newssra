@@ -334,13 +334,14 @@ export async function listSchoolPins(): Promise<SchoolPin[]> {
   }
 
   // แบบร่างที่ยังไม่กรอกพิกัด → fallback พิกัดทะเบียนโรงเรียน (school_location); หาไม่ได้ = ไม่แสดงหมุด
-  await Promise.all(
-    needFallback.map(async ({ code, row }) => {
-      const loc = await schoolLocationByCode(code);
-      const coord = resolvePinCoord(loc?.lat, loc?.lng, null);
-      if (coord) pins.push(toSchoolPin(row, coord));
-    }),
-  );
+  // ดึงเป็นชุดเดียว (IN (...)) ไม่ใช่ query ต่อโรงเรียน — แบบร่างส่วนใหญ่ยังไม่มีพิกัด จึงเคยกลายเป็น
+  // N+1 ที่ยิงหลักพัน query ต่อการเปิดแผนที่ภาพรวมหนึ่งครั้ง
+  const fallbackLocations = await schoolLocationsByCodes(needFallback.map((f) => f.code));
+  for (const { code, row } of needFallback) {
+    const loc = fallbackLocations.get(code);
+    const coord = resolvePinCoord(loc?.lat, loc?.lng, null);
+    if (coord) pins.push(toSchoolPin(row, coord));
+  }
 
   return pins;
 }
@@ -486,6 +487,72 @@ export async function saveAssessmentFromMapAtomic(input: SaveAssessmentFromMapIn
   }
 }
 
+/** ฟังก์ชันแปลง state ที่ mutateAssessmentStateAtomic เรียกใต้ล็อกแถว — ได้รับ state สดจาก DB เสมอ
+ *  คืน state ใหม่เพื่อบันทึก หรือคืน null เพื่อยกเลิก (ไม่เขียนอะไรเลย) เช่นพบว่าแถวถูกยื่นไปแล้ว */
+export type AssessmentMutation = (current: AssessmentState) => AssessmentState | null;
+
+export interface AtomicMutateResult {
+  /** false = ไม่พบแถว id นี้ */
+  found: boolean;
+  /** false = mutate คืน null (ผู้เรียกยกเลิกเอง) — ไม่มีการเขียน */
+  applied: boolean;
+  /** state ที่อยู่ใน DB หลังจบ (ถ้า applied=false คือ state เดิมที่อ่านมา) */
+  state: AssessmentState | null;
+  summary: AssessmentSummary | null;
+}
+
+/**
+ * อ่าน state ปัจจุบัน → แปลง → เขียนกลับ ภายใน transaction เดียวที่ล็อกแถวไว้ด้วย SELECT ... FOR UPDATE
+ *
+ * ทำไมต้องมี: ก่อนหน้านี้เส้นทางที่ "อ่านแถวมาแล้ว merge แล้วเขียนทั้งแถวกลับ" (autosave PUT, บันทึกภาพ
+ * snapshot, บันทึกผลวิเคราะห์ AI) ต่างคนต่างอ่านนอกล็อก ถ้าสองคำขอคาบเกี่ยวกัน คนที่เขียนทีหลังจะทับงาน
+ * ของคนแรกด้วย state ที่อ่านมาก่อนหน้า — ข้อมูลหายเงียบโดยไม่มี error ให้เห็น
+ * (รูปแบบเดียวกับ saveAssessmentFromMapOnce ที่ใช้ FOR UPDATE อยู่แล้ว — รวมมาใช้ซ้ำได้ทุกเส้นทาง)
+ */
+export async function mutateAssessmentStateAtomic(id: number, mutate: AssessmentMutation): Promise<AtomicMutateResult> {
+  const pool = await getPool();
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    try {
+      const [rows] = await conn.query<AssessmentRow[]>(
+        `SELECT id, state FROM assessments WHERE id = ? LIMIT 1 FOR UPDATE`,
+        [id],
+      );
+      if (!rows.length) {
+        await conn.rollback();
+        return { found: false, applied: false, state: null, summary: null };
+      }
+
+      const current = parseState(rows[0].state);
+      const next = mutate(current);
+      if (!next) {
+        await conn.rollback();
+        return { found: true, applied: false, state: current, summary: null };
+      }
+
+      const indexed = reindexCommunityOnState(next);
+      await updateAssessmentRow(conn, id, indexed);
+      const [summaryRows] = await conn.query<AssessmentRow[]>(
+        `SELECT ${SUMMARY_COLUMNS} FROM assessments WHERE id = ? LIMIT 1`,
+        [id],
+      );
+      await conn.commit();
+      return {
+        found: true,
+        applied: true,
+        state: indexed,
+        summary: summaryRows.length ? rowToSummary(summaryRows[0]) : null,
+      };
+    } catch (error) {
+      await conn.rollback();
+      throw error;
+    }
+  } finally {
+    conn.release();
+  }
+}
+
 export async function deleteAssessment(id: number): Promise<boolean> {
   const pool = await getPool();
   const [result] = await pool.query<ResultSetHeader>(`DELETE FROM assessments WHERE id = ?`, [id]);
@@ -578,6 +645,48 @@ interface SchoolLocationRow extends RowDataPacket {
   sc_name: string | null;
 }
 
+interface SchoolLocationBatchRow extends SchoolLocationRow {
+  sc_smis: string | null;
+}
+
+/** แปลงแถว master_school ⨝ school_location เป็นพิกัดที่ใช้ได้ — คืน null ถ้าพิกัดว่าง/เป็น (0,0) */
+function rowToOwnerCoords(row: SchoolLocationRow): OwnerCoords | null {
+  const lat = Number(row.lat);
+  const lng = Number(row.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) return null;
+  return { lat, lng, name: row.sname || row.sc_name || "โรงเรียนของฉัน" };
+}
+
+/** พิกัดทะเบียนของหลายโรงเรียนในคำขอเดียว (คีย์ = รหัส 8 หลักที่ส่งเข้ามา) — ใช้แทนการยิง
+ *  schoolLocationByCode ทีละโรงเรียนในลูป; รหัสที่หาไม่พบ/พิกัดใช้ไม่ได้จะไม่มีคีย์ใน Map
+ *  ตาราง legacy อาจไม่มีในบางสภาพแวดล้อม — จับ error แล้วคืน Map ว่าง (เหมือน schoolLocationByCode) */
+export async function schoolLocationsByCodes(schoolCodes: string[]): Promise<Map<string, OwnerCoords>> {
+  const out = new Map<string, OwnerCoords>();
+  const codes = Array.from(new Set(schoolCodes.filter((c) => c)));
+  if (codes.length === 0) return out;
+  const pool = await getPool();
+  let rows: SchoolLocationBatchRow[];
+  try {
+    [rows] = await pool.query<SchoolLocationBatchRow[]>(
+      `SELECT ms.sc_smis AS sc_smis, sl.lat AS lat, sl.lng AS lng, sl.sname AS sname, ms.sc_name AS sc_name
+         FROM master_school ms
+         JOIN school_location sl ON sl.id = ms.sc_id
+        WHERE ms.sc_smis IN (?)`,
+      [codes],
+    );
+  } catch (error) {
+    console.error("[repo] schoolLocationsByCodes failed (legacy tables missing?):", error);
+    return out;
+  }
+  for (const row of rows) {
+    const code = row.sc_smis?.trim();
+    if (!code || out.has(code)) continue; // แถวแรกของแต่ละรหัสชนะ (เทียบเท่า LIMIT 1 ของแบบเดี่ยว)
+    const coords = rowToOwnerCoords(row);
+    if (coords) out.set(code, coords);
+  }
+  return out;
+}
+
 /** พิกัดโรงเรียนจากฐานข้อมูลหลักของระบบเดิม (legacy) ใช้เป็น fallback เมื่อโรงเรียนยังไม่มีแบบประเมินที่มีพิกัด:
  *  schoolCode (= `user`.user = master_school.sc_smis) → master_school.sc_id → school_location.id → lat/lng
  *  ตาราง master_school / school_location เป็นของระบบเดิม อ่านอย่างเดียว และอาจไม่มีในบางสภาพแวดล้อม
@@ -601,10 +710,7 @@ export async function schoolLocationByCode(schoolCode: string): Promise<OwnerCoo
   }
   const row = rows[0];
   if (!row) return null;
-  const lat = Number(row.lat);
-  const lng = Number(row.lng);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) return null;
-  return { lat, lng, name: row.sname || row.sc_name || "โรงเรียนของฉัน" };
+  return rowToOwnerCoords(row);
 }
 
 export interface ProvinceInfo {
@@ -761,11 +867,18 @@ export interface FeedbackEntry {
   generalFeedback: string;
 }
 
-/** ดึงความคิดเห็นของผู้ทดสอบจากทุกแบบประเมิน — ใช้สรุปผลการทดสอบกับผู้เกี่ยวข้อง (ไม่ใช่หน้าจอสำหรับผู้กรอกทั่วไป) */
-export async function listAllFeedback(): Promise<FeedbackEntry[]> {
+/** เพดานจำนวนแถวที่หน้าสรุปความคิดเห็นจะดึงมาในครั้งเดียว — เหตุผลเดียวกับ DASHBOARD_ROW_CAP:
+ *  query นี้ดึงคอลัมน์ state (JSON เต็มก้อน) ของทุกแถว การไม่มีเพดานทำให้หน่วยความจำโตตามจำนวนแบบประเมิน */
+export const FEEDBACK_ROW_CAP = 5000;
+
+/** ดึงความคิดเห็นของผู้ทดสอบจากทุกแบบประเมิน — ใช้สรุปผลการทดสอบกับผู้เกี่ยวข้อง (ไม่ใช่หน้าจอสำหรับผู้กรอกทั่วไป)
+ *  จำกัดที่ FEEDBACK_ROW_CAP แถวเสมอ (ล่าสุดก่อน) — ผู้เรียกเทียบกับ countAllAssessments() เพื่อแจ้งผู้ใช้เมื่อถูกตัด */
+export async function listAllFeedback(limit: number = FEEDBACK_ROW_CAP): Promise<FeedbackEntry[]> {
   const pool = await getPool();
+  const cap = Number.isInteger(limit) && limit > 0 ? limit : FEEDBACK_ROW_CAP;
   const [rows] = await pool.query<AssessmentRow[]>(
-    `SELECT id, state, unit_name, unit_code, updated_at FROM assessments ORDER BY updated_at DESC`,
+    `SELECT id, state, unit_name, unit_code, updated_at FROM assessments ORDER BY updated_at DESC LIMIT ?`,
+    [cap],
   );
   return rows.map((row) => {
     const state = parseState(row.state);

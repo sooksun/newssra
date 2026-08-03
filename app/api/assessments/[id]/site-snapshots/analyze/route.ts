@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getAssessment, saveAssessment } from "@/lib/repo";
+import { getAssessment, mutateAssessmentStateAtomic } from "@/lib/repo";
 import { requireAssessmentAccess } from "@/lib/api-auth";
 import { terrainAnalyzeRateLimiter } from "@/lib/rate-limit";
 import { readSiteSnapshot } from "@/lib/uploads";
@@ -73,11 +73,15 @@ export async function POST(_request: NextRequest, { params }: Ctx) {
   try {
     const result = await analyzeTerrainFromImages(images);
     const suggestion: TerrainSuggestion = { ...result, analyzedAt: new Date().toISOString() };
-    const nextState = {
-      ...record.state,
-      unit: { ...record.state.unit, settingSuggestion: suggestion },
-    };
-    await saveAssessment(assessmentId, nextState);
+    // การวิเคราะห์กินเวลาหลายวินาที — state ที่อ่านไว้ก่อนหน้าอาจเก่าไปแล้ว จึงอ่านสดใต้ล็อกแล้วแตะเฉพาะ
+    // ฟิลด์ settingSuggestion (ไม่เขียนทั้งก้อนจากสำเนาเก่า) และตรวจสถานะยื่นซ้ำใต้ล็อกด้วย
+    const saved = await mutateAssessmentStateAtomic(assessmentId, (current) =>
+      current.submitted ? null : { ...current, unit: { ...current.unit, settingSuggestion: suggestion } },
+    );
+    if (!saved.found) return NextResponse.json({ error: "ไม่พบแบบประเมิน" }, { status: 404 });
+    if (!saved.applied) {
+      return NextResponse.json({ error: "แบบประเมินถูกยื่นแล้ว วิเคราะห์ใหม่ไม่ได้" }, { status: 409 });
+    }
     return NextResponse.json({ suggestion });
   } catch (error) {
     if (error instanceof TerrainAnalysisError) {

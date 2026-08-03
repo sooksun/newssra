@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getAssessment, saveAssessment } from "@/lib/repo";
+import { getAssessment, mutateAssessmentStateAtomic } from "@/lib/repo";
 import { requireAssessmentAccess } from "@/lib/api-auth";
 import { deleteEvidenceFile, FILE_ID_PATTERN, readEvidenceFile } from "@/lib/uploads";
 import { INDICATOR_IDS } from "@/lib/types";
@@ -70,17 +70,19 @@ export async function DELETE(_request: NextRequest, { params }: Ctx) {
 
     await deleteEvidenceFile(assessmentId, indicatorId, fileId);
 
-    const nextState = {
-      ...record.state,
-      evidence: {
-        ...record.state.evidence,
-        [indicatorId]: {
-          ...record.state.evidence[indicatorId],
-          files: files.filter((f) => f.id !== fileId),
+    // อ่าน state สดใต้ล็อกแล้วตัดเฉพาะไฟล์นี้ออก — ไม่เขียนทั้งก้อนจากสำเนาที่อ่านไว้ตอนต้นคำขอ
+    // (autosave ของฟอร์มอาจ commit ไปแล้วระหว่างนี้ การเขียนทับจะย้อนคำตอบที่เพิ่งกรอกกลับไป)
+    const stored = await mutateAssessmentStateAtomic(assessmentId, (current) => {
+      const latestFiles = current.evidence[indicatorId]?.files ?? [];
+      return {
+        ...current,
+        evidence: {
+          ...current.evidence,
+          [indicatorId]: { ...current.evidence[indicatorId], files: latestFiles.filter((f) => f.id !== fileId) },
         },
-      },
-    };
-    await saveAssessment(assessmentId, nextState);
+      };
+    });
+    if (!stored.found) return NextResponse.json({ error: "ไม่พบแบบประเมิน" }, { status: 404 });
 
     return NextResponse.json({ ok: true });
   } catch (error) {

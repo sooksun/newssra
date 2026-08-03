@@ -9,7 +9,7 @@ import { requireAssessmentAccess } from "@/lib/api-auth";
 import { deriveD3Responses, MAX_ASSESSMENT_RELOCATION_M, suggestSettingTypeFromGis } from "@/lib/gis";
 import { buildGisFromMapRequest, GisRequestError } from "@/lib/gis-request";
 import { haversineM } from "@/lib/map/morphology";
-import { getAssessment, listProvinces, resolveSchoolProvince, saveAssessment } from "@/lib/repo";
+import { getAssessment, listProvinces, mutateAssessmentStateAtomic, resolveSchoolProvince } from "@/lib/repo";
 import type { AssessmentState } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -112,40 +112,45 @@ export async function POST(request: NextRequest, { params }: Ctx) {
     // apply = นำค่าที่ derive ได้เขียนลง responses มิติ 3 → เอนจินคะแนนเดิมคิดต่อเองทั้งหมด (scoring v2)
     const derived = body.apply === true ? deriveD3Responses(gis) : null;
     const willApply = derived !== null && Object.keys(derived).length > 0;
-    // การบันทึกแบบไม่ apply (เช่น ปุ่มส่งข้อสรุปพื้นที่) ต้องไม่ลบสถานะ "เคย apply แล้ว" ที่เคยตั้งไว้
-    gis.appliedToResponses = willApply || existing.state.scoringVersion === "v2-gis";
-
-    // เมื่อ apply คะแนน v2 และผู้ใช้ยังไม่ระบุลักษณะที่ตั้ง — แนะนำจาก GIS (ไม่ทับค่าที่มีอยู่)
-    let unit = existing.state.unit;
     const syncedUnitLocation =
       syncUnitLocation && (!hasUnitCoords || (distanceFromUnitM ?? 0) > CENTER_SYNC_TOLERANCE_M);
-    if (syncedUnitLocation) {
-      unit = { ...unit, lat: lat.toFixed(6), lng: lng.toFixed(6) };
-    }
-
     let suggestedSettingType: string | null = null;
-    if (willApply && !unit.settingType) {
-      const suggested = suggestSettingTypeFromGis(gis);
-      if (suggested) {
-        unit = { ...unit, settingType: suggested };
-        suggestedSettingType = suggested;
+
+    // อ่าน state สดใต้ล็อกแล้วประกอบผลลัพธ์จากค่าล่าสุด — ระหว่างที่ route นี้คำนวณเส้นทาง/จังหวัด
+    // (มีคิวรีฐานข้อมูลคั่น) ผู้ใช้อาจ autosave ฟอร์มไปแล้ว การเขียนทั้งก้อนจาก existing.state ที่อ่านไว้
+    // ตอนต้นคำขอจะย้อนคำตอบที่เพิ่งกรอกกลับไปเงียบ ๆ
+    const stored = await mutateAssessmentStateAtomic(id, (current) => {
+      // การบันทึกแบบไม่ apply (เช่น ปุ่มส่งข้อสรุปพื้นที่) ต้องไม่ลบสถานะ "เคย apply แล้ว" ที่เคยตั้งไว้
+      gis.appliedToResponses = willApply || current.scoringVersion === "v2-gis";
+
+      let unit = current.unit;
+      if (syncedUnitLocation) {
+        unit = { ...unit, lat: lat.toFixed(6), lng: lng.toFixed(6) };
       }
-    }
+      // เมื่อ apply คะแนน v2 และผู้ใช้ยังไม่ระบุลักษณะที่ตั้ง — แนะนำจาก GIS (ไม่ทับค่าที่มีอยู่)
+      if (willApply && !unit.settingType) {
+        const suggested = suggestSettingTypeFromGis(gis);
+        if (suggested) {
+          unit = { ...unit, settingType: suggested };
+          suggestedSettingType = suggested;
+        }
+      }
 
-    const nextState: AssessmentState = {
-      ...existing.state,
-      unit,
-      gis,
-      ...(willApply
-        ? {
-            responses: { ...existing.state.responses, ...derived },
-            scoringVersion: "v2-gis" as const,
-          }
-        : {}),
-    };
-
-    const summary = await saveAssessment(id, nextState);
-    if (!summary) return NextResponse.json({ error: "ไม่พบแบบประเมิน" }, { status: 404 });
+      const nextState: AssessmentState = {
+        ...current,
+        unit,
+        gis,
+        ...(willApply
+          ? {
+              responses: { ...current.responses, ...derived },
+              scoringVersion: "v2-gis" as const,
+            }
+          : {}),
+      };
+      return nextState;
+    });
+    const summary = stored.summary;
+    if (!stored.found || !summary) return NextResponse.json({ error: "ไม่พบแบบประเมิน" }, { status: 404 });
 
     return NextResponse.json({
       gis,

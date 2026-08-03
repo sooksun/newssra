@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getAssessment, maxSubmissionSeq, saveAssessment } from "@/lib/repo";
+import { getAssessment, maxSubmissionSeq, mutateAssessmentStateAtomic } from "@/lib/repo";
 import { requireAssessmentAccess } from "@/lib/api-auth";
 import { canSubmit, levelFor, totalScore } from "@/lib/scoring";
 import { preserveServerOwned, sanitizeState } from "@/lib/state";
@@ -50,8 +50,6 @@ export async function POST(request: NextRequest, { params }: Ctx) {
       );
     }
 
-    const total = totalScore(state);
-    const level = levelFor(total).label;
     const at = new Date().toISOString();
     const year = state.unit.year || "2569";
 
@@ -60,12 +58,38 @@ export async function POST(request: NextRequest, { params }: Ctx) {
     let seq = await maxSubmissionSeq(year);
     let submitted: SubmittedInfo | null = null;
     let summary: AssessmentSummary | null = null;
+    let notFound = false;
+    // เหตุผลที่ธุรกรรมยกเลิก (ตั้งค่าใน callback ใต้ล็อก) — แยก 409 "ยื่นไปแล้ว" ออกจาก 422 "ข้อมูลไม่ครบ"
+    let blocked: "already-submitted" | "not-submittable" | null = null;
+
     for (let attempt = 0; attempt < REF_MAX_ATTEMPTS; attempt++) {
       seq += 1;
-      const candidate: SubmittedInfo = { at, ref: `พสศ-${year}-${String(seq).padStart(4, "0")}`, total, level };
+      const ref = `พสศ-${year}-${String(seq).padStart(4, "0")}`;
+      let issued: SubmittedInfo | null = null;
       try {
-        summary = await saveAssessment(id, { ...state, signed: true, submitted: candidate });
-        submitted = candidate;
+        // merge + ตรวจ canSubmit + เขียน อยู่ในธุรกรรมเดียวที่ล็อกแถวไว้ — กันสองคำขอยื่นพร้อมกัน
+        // ออกเลขที่อ้างอิงคนละใบให้แบบประเมินฉบับเดียว และกัน autosave ที่คาบเกี่ยวถูกเขียนทับ
+        const stored = await mutateAssessmentStateAtomic(id, (current) => {
+          if (current.submitted) {
+            blocked = "already-submitted";
+            return null;
+          }
+          const merged = clientState ? preserveServerOwned(clientState, current) : current;
+          if (!canSubmit(merged)) {
+            blocked = "not-submittable";
+            return null;
+          }
+          const total = totalScore(merged);
+          issued = { at, ref, total, level: levelFor(total).label };
+          return { ...merged, signed: true, submitted: issued };
+        });
+        if (!stored.found) {
+          notFound = true;
+          break;
+        }
+        if (!stored.applied) break; // blocked ถูกตั้งไว้แล้ว — ตอบตามเหตุผลด้านล่าง
+        submitted = issued;
+        summary = stored.summary;
         break;
       } catch (error) {
         if (isDupSubmittedRef(error)) continue; // เลขนี้ถูกใช้ไปแล้ว ลองเลขถัดไป
@@ -73,6 +97,16 @@ export async function POST(request: NextRequest, { params }: Ctx) {
       }
     }
 
+    if (notFound) return NextResponse.json({ error: "ไม่พบแบบประเมิน" }, { status: 404 });
+    if (blocked === "already-submitted") {
+      return NextResponse.json({ error: "แบบประเมินนี้ถูกยื่นไปแล้ว ยื่นซ้ำไม่ได้" }, { status: 409 });
+    }
+    if (blocked === "not-submittable") {
+      return NextResponse.json(
+        { error: "ข้อมูลยังไม่ครบเงื่อนไขการส่ง (ตัวชี้วัด หลักฐาน ธงบล็อก หรือการลงนาม)" },
+        { status: 422 },
+      );
+    }
     if (!submitted) {
       return NextResponse.json({ error: "ออกเลขที่อ้างอิงไม่สำเร็จ กรุณาลองใหม่อีกครั้ง" }, { status: 503 });
     }
