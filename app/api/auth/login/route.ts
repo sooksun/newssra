@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { buildSessionCookie, verifyPassword } from "@/lib/auth";
+import { buildSessionCookie, timingSafeStringEqual, verifyPassword } from "@/lib/auth";
 import { createUser, findByUsername, updateUser } from "@/lib/users-repo";
 import { findLegacyUser } from "@/lib/legacy-users-repo";
 import { clientIp, loginRateLimiter } from "@/lib/rate-limit";
@@ -95,7 +95,7 @@ async function resolveLogin(username: string, password: string): Promise<Session
   // 1) บัญชี local (users) — ตรวจก่อนเพื่อให้บัญชีผู้ดูแลไม่ถูกบัง
   const row = await findByUsername(username);
   if (row) {
-    if (row.active === 1 && verifyPassword(password, row.password_hash)) {
+    if (row.active === 1 && (await verifyPassword(password, row.password_hash))) {
       return sessionFromLocal(row);
     }
     // บัญชี school ที่เคย migrate มาจาก legacy: ถ้ารหัสในตาราง `user` เดิมถูกเปลี่ยนภายหลัง
@@ -103,7 +103,7 @@ async function resolveLogin(username: string, password: string): Promise<Session
     // จำกัดเฉพาะบทบาท school เท่านั้น — บัญชี admin/ssra_admin ต้องไม่ถูก legacy row มา bypass
     if (row.active === 1 && (row.role as Role) === "school") {
       const legacy = await findLegacyUser(username);
-      if (legacy && legacy.password.length > 0 && password === legacy.password) {
+      if (legacy && legacy.password.length > 0 && timingSafeStringEqual(password, legacy.password)) {
         try {
           await updateUser(row.id, { password });
         } catch (error) {
@@ -117,7 +117,7 @@ async function resolveLogin(username: string, password: string): Promise<Session
 
   // 2) บัญชีโรงเรียนเดิม (ตาราง `user`) — เทียบรหัสผ่าน plaintext ตามระบบเดิม แล้ว migrate เป็นบัญชี local ที่แฮชแล้ว
   const legacy = await findLegacyUser(username);
-  if (legacy && legacy.password.length > 0 && password === legacy.password) {
+  if (legacy && legacy.password.length > 0 && timingSafeStringEqual(password, legacy.password)) {
     let uid = 0;
     let source: UserSource = "legacy";
     try {

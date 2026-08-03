@@ -5,6 +5,7 @@ import {
   hashPassword,
   sessionCookieOptions,
   signSession,
+  timingSafeStringEqual,
   verifyPassword,
   verifySession,
 } from "../lib/auth";
@@ -12,17 +13,36 @@ import type { SessionUser } from "../lib/types";
 
 const baseUser: SessionUser = { uid: 1, role: "admin", name: "ผู้ดูแล", source: "local", schoolCode: "" };
 
-test("hashPassword/verifyPassword — round-trip ถูก และปฏิเสธรหัสผิด", () => {
-  const hash = hashPassword("s3cret-pw");
+test("hashPassword/verifyPassword — round-trip ถูก และปฏิเสธรหัสผิด", async () => {
+  const hash = await hashPassword("s3cret-pw");
   assert.match(hash, /^scrypt\$[0-9a-f]+\$[0-9a-f]+$/);
-  assert.equal(verifyPassword("s3cret-pw", hash), true);
-  assert.equal(verifyPassword("wrong", hash), false);
+  assert.equal(await verifyPassword("s3cret-pw", hash), true);
+  assert.equal(await verifyPassword("wrong", hash), false);
 });
 
-test("verifyPassword — รูปแบบ hash เสีย → false (ไม่ throw)", () => {
-  assert.equal(verifyPassword("x", "not-a-hash"), false);
-  assert.equal(verifyPassword("x", "scrypt$zz$zz"), false);
-  assert.equal(verifyPassword("x", ""), false);
+test("verifyPassword — รูปแบบ hash เสีย → false (ไม่ throw)", async () => {
+  assert.equal(await verifyPassword("x", "not-a-hash"), false);
+  assert.equal(await verifyPassword("x", "scrypt$zz$zz"), false);
+  assert.equal(await verifyPassword("x", ""), false);
+});
+
+test("hashPassword — เป็น async จริง (ไม่บล็อก event loop ระหว่างคำนวณ)", async () => {
+  let tickRan = false;
+  setImmediate(() => {
+    tickRan = true;
+  });
+  const pending = hashPassword("s3cret-pw");
+  assert.ok(pending instanceof Promise, "ต้องคืน Promise ไม่ใช่ค่าที่คำนวณเสร็จแบบ sync");
+  await pending;
+  assert.equal(tickRan, true, "event loop ต้องได้ทำงานอื่นระหว่างรอ scrypt");
+});
+
+test("timingSafeStringEqual — ตรงกัน true, ต่างกัน/ยาวต่างกัน false และไม่ throw", () => {
+  assert.equal(timingSafeStringEqual("abc123", "abc123"), true);
+  assert.equal(timingSafeStringEqual("abc123", "abc124"), false);
+  assert.equal(timingSafeStringEqual("abc", "abc123"), false); // ยาวไม่เท่ากันต้องไม่ throw
+  assert.equal(timingSafeStringEqual("", ""), true);
+  assert.equal(timingSafeStringEqual("รหัสไทย", "รหัสไทย"), true); // utf8 หลายไบต์
 });
 
 test("session — sign แล้ว verify กลับได้ครบ field", () => {

@@ -20,6 +20,8 @@ import { createConnection } from "mysql2/promise";
 import { scryptSync, randomBytes } from "node:crypto";
 
 // ⚠️ ต้องตรงกับรูปแบบใน lib/auth.ts#hashPassword เป๊ะ (scrypt$<saltHex>$<hashHex>, salt 16B, keylen 64)
+// ใช้ scryptSync ที่นี่โดยตั้งใจ — เป็นสคริปต์ CLI ที่รันจบเป็นครั้ง ๆ ไม่มี request อื่นรอ event loop อยู่
+// (ต่างจาก lib/auth.ts ที่เปลี่ยนเป็น crypto.scrypt แบบ async เพราะอยู่ในเส้นทางคำขอของเว็บ)
 function hashPassword(plain) {
   const salt = randomBytes(16);
   const hash = scryptSync(plain, salt, 64);

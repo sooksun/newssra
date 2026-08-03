@@ -89,7 +89,7 @@ export async function createUser(input: NewUser): Promise<number> {
   try {
     const [result] = await pool.query<ResultSetHeader>(
       `INSERT INTO users (username, password_hash, role, display_name, school_code, active) VALUES (?, ?, ?, ?, ?, 1)`,
-      [input.username, hashPassword(input.password), normalizeRole(input.role), input.displayName, schoolCode],
+      [input.username, await hashPassword(input.password), normalizeRole(input.role), input.displayName, schoolCode],
     );
     return result.insertId;
   } catch (error) {
@@ -132,7 +132,7 @@ export async function updateUser(id: number, patch: UserUpdate): Promise<boolean
   }
   if (patch.password !== undefined) {
     sets.push("password_hash = ?");
-    values.push(hashPassword(patch.password));
+    values.push(await hashPassword(patch.password));
   }
   if (sets.length === 0) return true;
 
@@ -180,7 +180,7 @@ export async function seedDefaultUsers(pool: Pool): Promise<void> {
     // INSERT IGNORE ให้เป็น no-op ถ้าชื่อบัญชีมีอยู่แล้ว (ไม่ทับรหัสผ่านที่ผู้ดูแลอาจเปลี่ยนไปแล้ว)
     await pool.query<ResultSetHeader>(
       `INSERT IGNORE INTO users (username, password_hash, role, display_name, active) VALUES (?, ?, ?, ?, 1)`,
-      [seed.username, hashPassword(seed.password), seed.role, seed.displayName],
+      [seed.username, await hashPassword(seed.password), seed.role, seed.displayName],
     );
   }
 }

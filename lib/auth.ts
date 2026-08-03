@@ -42,24 +42,46 @@ function authSecret(): string {
 
 // ---------- รหัสผ่าน ----------
 
-export function hashPassword(plain: string): string {
+/** scrypt แบบไม่บล็อก event loop — งานคำนวณไปอยู่บน threadpool ของ libuv แทนที่จะกิน main thread
+ *  (scryptSync ใช้เวลาระดับ ~100 ms ต่อครั้ง ซึ่งระหว่างนั้น process เดียวกันตอบคำขออื่นไม่ได้เลย
+ *  — คนล็อกอินพร้อมกันหลายคนจะทำให้ทั้งเว็บหน่วงตาม ไม่ใช่แค่หน้า login) */
+function scryptAsync(plain: string, salt: Buffer): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(plain, salt, SCRYPT_KEYLEN, (error, derived) => {
+      if (error) reject(error);
+      else resolve(derived);
+    });
+  });
+}
+
+export async function hashPassword(plain: string): Promise<string> {
   const salt = crypto.randomBytes(16);
-  const hash = crypto.scryptSync(plain, salt, SCRYPT_KEYLEN);
+  const hash = await scryptAsync(plain, salt);
   return `scrypt$${salt.toString("hex")}$${hash.toString("hex")}`;
 }
 
-export function verifyPassword(plain: string, stored: string): boolean {
+export async function verifyPassword(plain: string, stored: string): Promise<boolean> {
   const parts = stored.split("$");
   if (parts.length !== 3 || parts[0] !== "scrypt") return false;
   try {
     const salt = Buffer.from(parts[1], "hex");
     const expected = Buffer.from(parts[2], "hex");
     if (expected.length !== SCRYPT_KEYLEN) return false;
-    const actual = crypto.scryptSync(plain, salt, SCRYPT_KEYLEN);
+    const actual = await scryptAsync(plain, salt);
     return crypto.timingSafeEqual(actual, expected);
   } catch {
     return false;
   }
+}
+
+/** เทียบสตริงแบบเวลาคงที่ — ใช้กับรหัสผ่าน plaintext ของระบบเดิม (ตาราง `user`) ที่ยังเทียบตรงไม่ได้แฮช
+ *  `===` ของ JS หยุดทันทีที่เจอตัวอักษรต่างกัน จึงมีเวลาต่างกันตามจำนวนตัวอักษรที่ตรง
+ *  หมายเหตุ: ความยาวที่ต่างกันยังรั่วอยู่โดยธรรมชาติ — ทางแก้จริงคือเลิกใช้ plaintext (ดู docs/AUTH-MIGRATION.md) */
+export function timingSafeStringEqual(a: string, b: string): boolean {
+  const bufA = Buffer.from(a, "utf8");
+  const bufB = Buffer.from(b, "utf8");
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
 }
 
 // ---------- session token ----------
