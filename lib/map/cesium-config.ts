@@ -38,6 +38,18 @@ export function googleMapsApiKey(): string | null {
   return GOOGLE_MAPS_API_KEY?.trim() || null;
 }
 
+/**
+ * เปิดใช้ Google Photorealistic 3D Tiles ระหว่าง "จับภาพ 3D" หรือไม่ (ค่าเริ่มต้น: ปิด)
+ *
+ * ตั้งเป็น 1/true เพื่อเปิด — ต้องมี NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ที่เปิด Map Tiles API ด้วย
+ * ตั้งใจให้เป็น opt-in เพราะ 3D Tiles แทนที่ globe ทั้งก้อน ซึ่งกระทบทั้งภาพที่ได้และค่าใช้จ่าย API
+ * (ดู lib/map/photorealistic3d.ts สำหรับข้อจำกัดที่ตามมา เช่น verticalExaggeration ใช้ไม่ได้)
+ */
+export function photorealistic3dEnabled(): boolean {
+  const raw = process.env.NEXT_PUBLIC_MAP_3D_TILES?.trim().toLowerCase();
+  return (raw === "1" || raw === "true") && Boolean(googleMapsApiKey());
+}
+
 export function preferredImagerySource(): MapImagerySource {
   const requested = MAP_IMAGERY_PROVIDER?.trim().toLowerCase();
   if (requested === "esri") return "esri";

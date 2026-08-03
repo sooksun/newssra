@@ -11,7 +11,15 @@ import type { Viewer } from "cesium";
  * เช็คอยู่ใน callback ของ rAF) ค้างตลอดไป — setTimeout ยังคงยิงในแท็บที่ถูกซ่อนอยู่ (แค่ถูก throttle)
  * จึงการันตีว่า timeout จะทำงานเสมอไม่ว่าแท็บจะอยู่ foreground หรือไม่
  */
-export function waitForTilesLoaded(viewer: Viewer, timeoutMs = 4000, stableTicks = 1): Promise<void> {
+export function waitForTilesLoaded(
+  viewer: Viewer,
+  timeoutMs = 4000,
+  stableTicks = 1,
+  /** เงื่อนไขความพร้อมเพิ่มเติมนอกเหนือจาก globe เช่น Cesium3DTileset.tilesLoaded ตอนใช้ Google 3D Tiles
+   *  (globe.tilesLoaded ไม่ครอบคลุม primitive อื่น — ถ้าไม่รอด้วยจะจับภาพตอน mesh ยังโหลดไม่ครบ)
+   *  ไม่ส่งมา = พฤติกรรมเดิมทุกประการ */
+  extraReady?: () => boolean,
+): Promise<void> {
   return new Promise((resolve) => {
     const start = Date.now();
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -26,7 +34,8 @@ export function waitForTilesLoaded(viewer: Viewer, timeoutMs = 4000, stableTicks
       if (viewer.isDestroyed()) return finish();
       // ต้องเห็น tilesLoaded ติดกัน stableTicks ครั้งจึงถือว่านิ่งจริง — หลังหมุนกล้อง Cesium มักรายงาน
       // tilesLoaded=true ชั่วครู่ก่อนจะเริ่มขอไทล์ระดับละเอียดของมุมใหม่ ถ้าจับภาพจังหวะนั้นจะได้ภาพเบลอ
-      loadedStreak = viewer.scene.globe.tilesLoaded ? loadedStreak + 1 : 0;
+      const ready = viewer.scene.globe.tilesLoaded && (extraReady ? extraReady() : true);
+      loadedStreak = ready ? loadedStreak + 1 : 0;
       if (loadedStreak >= stableTicks || Date.now() - start > timeoutMs) {
         return finish();
       }

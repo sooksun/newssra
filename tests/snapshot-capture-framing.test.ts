@@ -19,7 +19,9 @@ test("กล้องจับภาพเล็งที่ผิวภูม�
 test("จับภาพด้วยความละเอียดสูงกว่าปกติ แล้วคืนค่าเดิมเสมอ", () => {
   assert.match(component, /viewer\.resolutionScale = SNAPSHOT_RESOLUTION_SCALE/);
   assert.match(component, /viewer\.resolutionScale = prevResolutionScale/);
-  assert.match(component, /await waitForTilesLoaded\(viewer, SNAPSHOT_TILE_WAIT_MS, SNAPSHOT_TILE_STABLE_TICKS\)/);
+  // ต้องรอไทล์นิ่งด้วยค่าคงที่ของการจับภาพเสมอ — อาร์กิวเมนต์ที่ 4 (เงื่อนไขความพร้อมของ Google 3D Tiles)
+  // เป็นตัวเลือกเสริม จึงไม่บังคับในรูปแบบนี้ (มี tests/snapshot-3dtiles-wiring.test.ts คุมส่วนนั้นแยก)
+  assert.match(component, /await waitForTilesLoaded\(\s*viewer,\s*SNAPSHOT_TILE_WAIT_MS,\s*SNAPSHOT_TILE_STABLE_TICKS/);
 });
 
 test("มุมภาพรวมครอบสองจุดใช้ BoundingSphere ของโรงเรียน+ศาลากลาง ไม่ใช่ lookAt รอบโรงเรียน", () => {
