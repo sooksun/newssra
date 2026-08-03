@@ -9,6 +9,18 @@
 const OSRM_BASE = (process.env.NEXT_PUBLIC_OSRM_URL || "https://router.project-osrm.org").replace(/\/+$/, "");
 const OSRM_ROUTE_BASE = `${OSRM_BASE}/route/v1/driving`;
 
+/** เพดานเวลารอต่อคำขอ — ปลายทางเป็นบริการภายนอก/เซิร์ฟเวอร์เองที่ไม่มี SLA ถ้าไม่มีเพดาน สปินเนอร์
+ *  บนแผนที่จะหมุนค้างไม่รู้จบแทนที่จะแจ้ง error ให้ผู้ใช้กดลองใหม่ */
+const OSRM_TIMEOUT_MS = 20_000;
+const API_TIMEOUT_MS = 30_000; // /api/buildings อาจต้องนำเข้า quadkey ใหม่ในคำขอแรกของพื้นที่นั้น
+
+/** รวม signal ของผู้เรียก (ยกเลิกเมื่อ effect ถูก cleanup) เข้ากับ timeout — ตัวใดมาก่อนชนะ
+ *  ใช้ AbortSignal.any ที่มีใน browser สมัยใหม่ทุกตัวที่ Cesium รองรับอยู่แล้ว */
+function withTimeout(signal: AbortSignal | undefined, ms: number): AbortSignal {
+  const timeout = AbortSignal.timeout(ms);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
+}
+
 /** เส้นทางหนึ่งเส้นจาก OSRM — coords เป็น [lng,lat][] ตามรูปแบบ GeoJSON */
 export interface OsrmRoute {
   coords: [number, number][];
@@ -35,8 +47,16 @@ export async function fetchOsrmRoutes(
 ): Promise<OsrmRoute[]> {
   const alt = opts.alternatives && opts.alternatives > 1 ? `&alternatives=${opts.alternatives}` : "";
   const url = `${OSRM_ROUTE_BASE}/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson&steps=false${alt}`;
-  const res = await fetch(url, opts.signal ? { signal: opts.signal } : {});
-  const data = (await res.json()) as OsrmResponse;
+  const res = await fetch(url, { signal: withTimeout(opts.signal, OSRM_TIMEOUT_MS) });
+  // ต้องเช็คสถานะก่อน .json(): เซิร์ฟเวอร์เส้นทางที่ throttle/ล่มมักตอบ HTML (502/503) ซึ่งจะกลายเป็น
+  // SyntaxError ที่อ่านไม่รู้เรื่องแทนข้อความบอกสาเหตุจริง
+  if (!res.ok) throw new Error(`เซิร์ฟเวอร์เส้นทางตอบกลับสถานะ ${res.status}`);
+  let data: OsrmResponse;
+  try {
+    data = (await res.json()) as OsrmResponse;
+  } catch {
+    throw new Error("เซิร์ฟเวอร์เส้นทางตอบกลับรูปแบบที่อ่านไม่ได้");
+  }
   const routes = data.routes ?? [];
   if (data.code !== "Ok" || routes.length === 0) {
     throw new Error("ไม่พบเส้นทางรถยนต์");
@@ -72,11 +92,10 @@ export async function fetchBuildings(
 ): Promise<BuildingsResult> {
   const ringsParam = ringRadiiM.length ? `&rings=${ringRadiiM.join(",")}` : "";
   const polyParam = polygon.length >= 3 ? `&poly=${polygon.map(([la, ln]) => `${la},${ln}`).join(",")}` : "";
-  const res = await fetch(
-    `/api/buildings?lat=${lat}&lng=${lng}&radius=${radiusM}${ringsParam}${polyParam}`,
-    signal ? { signal } : {},
-  );
-  const data = (await res.json()) as {
+  const res = await fetch(`/api/buildings?lat=${lat}&lng=${lng}&radius=${radiusM}${ringsParam}${polyParam}`, {
+    signal: withTimeout(signal, API_TIMEOUT_MS),
+  });
+  const data = (await res.json().catch(() => ({}))) as {
     error?: string;
     features?: BuildingFeature[];
     truncated?: boolean;
@@ -118,10 +137,9 @@ export async function fetchNearestProvince(
 ): Promise<NearestProvinceResult> {
   const assessmentParam = opts.assessmentId ? `&assessment=${opts.assessmentId}` : "";
   const provinceParam = opts.provinceHint ? `&province=${encodeURIComponent(opts.provinceHint)}` : "";
-  const res = await fetch(
-    `/api/provinces/nearest?lat=${lat}&lng=${lng}${assessmentParam}${provinceParam}`,
-    opts.signal ? { signal: opts.signal } : {},
-  );
+  const res = await fetch(`/api/provinces/nearest?lat=${lat}&lng=${lng}${assessmentParam}${provinceParam}`, {
+    signal: withTimeout(opts.signal, API_TIMEOUT_MS),
+  });
   if (!res.ok) throw new Error("หาจังหวัดที่ใกล้ที่สุดไม่สำเร็จ");
   const data = (await res.json()) as NearestProvinceResult;
   return { province: data.province ?? null, householdSize: data.householdSize ?? null };

@@ -5,6 +5,9 @@ import type { SettingType } from "../types";
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = "google/gemini-2.5-flash";
+// เพดานเวลารอ OpenRouter — คำขอหนึ่งครั้งแบกภาพ base64 ได้ถึง 10 รูป จึงตั้งไว้กว้างพอสำหรับกรณีปกติ
+// แต่ต้องมีเพดาน: ถ้า upstream ค้าง fetch จะรอไม่จำกัดและกิน request slot ของเซิร์ฟเวอร์ทิ้งไว้เฉย ๆ
+const REQUEST_TIMEOUT_MS = 90_000;
 const CONFIDENCE_VALUES = ["high", "medium", "low"] as const;
 type Confidence = (typeof CONFIDENCE_VALUES)[number];
 
@@ -114,8 +117,13 @@ export async function analyzeTerrainFromImages(images: TerrainImageInput[]): Pro
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   } catch (e) {
+    // AbortSignal.timeout โยน TimeoutError — แยกข้อความให้ผู้ใช้รู้ว่าเป็นการหมดเวลา ไม่ใช่ต่อไม่ติด
+    if (e instanceof Error && e.name === "TimeoutError") {
+      throw new TerrainAnalysisError("upstream", `วิเคราะห์ AI ใช้เวลานานเกิน ${REQUEST_TIMEOUT_MS / 1000} วินาที`);
+    }
     throw new TerrainAnalysisError("upstream", e instanceof Error ? e.message : "เชื่อมต่อ OpenRouter ไม่สำเร็จ");
   }
 
