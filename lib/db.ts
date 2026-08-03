@@ -219,6 +219,21 @@ async function assertNoDuplicateOwnerSchoolYear(pool: Pool): Promise<void> {
 
 /** เพิ่ม index/unique key ถ้ายังไม่มี — best-effort: ถ้า ALTER ล้ม (เช่นมีค่าซ้ำเดิม) แค่เตือน ไม่ล้มทั้งแอป */
 async function ensureUniqueIndex(pool: Pool, table: string, indexName: string, alterSql: string): Promise<void> {
+  return ensureIndex(pool, table, indexName, alterSql, "unique index");
+}
+
+/**
+ * เพิ่ม index ธรรมดาถ้ายังไม่มี — ใช้กับตารางที่ถูกสร้างนอก init() ด้วย (เช่น map_buildings ที่สร้างแบบ lazy
+ * ใน lib/map/msBuildings.ts) ซึ่ง index ระบุไว้แค่ใน CREATE TABLE จึงไม่ถูกเพิ่มให้ฐานที่มีตารางอยู่ก่อนแล้ว
+ * best-effort เหมือน ensureUniqueIndex: ล้มแล้วเตือน ไม่ทำให้คำขอพัง (คิวรียังทำงานได้ แค่ช้ากว่า)
+ */
+export async function ensureIndex(
+  pool: Pool,
+  table: string,
+  indexName: string,
+  alterSql: string,
+  kind = "index",
+): Promise<void> {
   const [rows] = await pool.query<(RowDataPacket & { n: number })[]>(
     `SELECT COUNT(*) AS n FROM information_schema.STATISTICS
      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?`,
@@ -227,10 +242,10 @@ async function ensureUniqueIndex(pool: Pool, table: string, indexName: string, a
   if ((rows[0]?.n ?? 0) > 0) return;
   try {
     await pool.query(alterSql);
-    console.log(`[db] migrated: added unique index ${table}.${indexName}`);
+    console.log(`[db] migrated: added ${kind} ${table}.${indexName}`);
   } catch (error) {
     console.warn(
-      `[db] ไม่สามารถเพิ่ม unique index ${table}.${indexName} ได้ (อาจมีค่าซ้ำเดิม) — โปรด dedupe แล้วลองใหม่:`,
+      `[db] ไม่สามารถเพิ่ม ${kind} ${table}.${indexName} ได้ — โปรดตรวจสอบแล้วเพิ่มเองด้วย ALTER TABLE:`,
       error instanceof Error ? error.message : error,
     );
   }

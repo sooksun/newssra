@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { DIMENSIONS, INDICATORS } from "@/lib/criteria";
-import { listAllFeedback } from "@/lib/repo";
+import { countAllAssessments, FEEDBACK_ROW_CAP, listAllFeedback } from "@/lib/repo";
 import { requireRole } from "@/lib/auth";
 import type { FeedbackEntry } from "@/lib/repo";
 import { FEEDBACK_OPINIONS, FEEDBACK_OPINION_LABELS } from "@/lib/types";
@@ -103,14 +103,18 @@ export default async function FeedbackPage() {
   await requireRole("admin", "ssra_admin");
 
   let entries: FeedbackEntry[] = [];
+  let totalInDb = 0;
   let dbError: string | null = null;
 
   try {
-    entries = await listAllFeedback();
+    [entries, totalInDb] = await Promise.all([listAllFeedback(), countAllAssessments()]);
   } catch (error) {
     console.error("[feedback-page] list feedback failed:", error);
     dbError = "เชื่อมต่อฐานข้อมูล MySQL ไม่สำเร็จ — ตรวจสอบว่า MySQL เปิดใช้งานอยู่และค่าเชื่อมต่อถูกต้อง";
   }
+
+  // เกินเพดานที่ดึงมา → บอกตรง ๆ ว่าสรุปจาก "N ล่าสุด" ไม่ใช่ทั้งหมด (เหมือนหน้าแดชบอร์ด)
+  const capped = totalInDb > entries.length;
 
   const totalAssessments = entries.length;
   const generalComments: Comment[] = entries
@@ -153,6 +157,19 @@ export default async function FeedbackPage() {
           <div className="db-error">{dbError}</div>
         ) : (
           <>
+            {capped ? (
+              <div className="pilot-banner">
+                <strong>
+                  สรุปจาก {totalAssessments.toLocaleString("th-TH")} รายการล่าสุด (จากทั้งหมด{" "}
+                  {totalInDb.toLocaleString("th-TH")})
+                </strong>
+                <span>
+                  หน้านี้อ่านคำตอบทั้งก้อนของแต่ละแบบประเมิน จึงจำกัดที่ {FEEDBACK_ROW_CAP.toLocaleString("th-TH")}{" "}
+                  รายการล่าสุดเพื่อไม่ให้หน้าโหลดช้า — ตัวเลขด้านล่างจึงเป็นของช่วงนี้ ไม่ใช่ทั้งระบบ
+                </span>
+              </div>
+            ) : null}
+
             <div className="home-head">
               <div>
                 <h2>ภาพรวมความคิดเห็น</h2>

@@ -20,7 +20,7 @@ import { Readable } from "node:stream";
 import readline from "node:readline";
 import type { ReadableStream as NodeWebReadableStream } from "node:stream/web";
 import type { Pool } from "mysql2/promise";
-import { getPool } from "../db";
+import { ensureIndex, getPool } from "../db";
 import { pointInPolygon } from "./geometry";
 
 const DATASET_INDEX_URL = "https://minedbuildings.z5.web.core.windows.net/global-buildings/dataset-links.csv";
@@ -213,6 +213,14 @@ function ensureBuildingTables(): Promise<Pool> {
       const pool = await getPool();
       await pool.query(BUILDINGS_SCHEMA_SQL);
       await pool.query(BUILDINGS_META_SCHEMA_SQL);
+      // ฐานที่สร้าง map_buildings ไว้ก่อนมี covering index จะไม่ได้ index จาก CREATE TABLE ด้านบน
+      // (เดิมต้อง ALTER มือตาม docs/DEPLOY.md — วัดจริงบน 27 ล้านแถว: 1,808 ms → 241 ms ถ้าลืมก็ช้าเงียบ ๆ)
+      await ensureIndex(
+        pool,
+        "map_buildings",
+        "idx_qk_lat_lng",
+        "ALTER TABLE map_buildings ADD INDEX idx_qk_lat_lng (quadkey, lat, lng, area_m2), ALGORITHM=INPLACE, LOCK=NONE",
+      );
       return pool;
     })();
     tablesReady.catch(() => {
