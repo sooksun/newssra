@@ -37,7 +37,7 @@ Next.js 16 (App Router) · TypeScript strict · React 19 · MySQL 8 (`mysql2`) �
 
 ## เริ่มต้นใช้งาน (Development)
 
-ต้องมี Node.js 20+ และ MySQL (Laragon ก็ได้)
+ต้องมี Node.js 22+ และ MySQL (Laragon ก็ได้) — CI และ image production ใช้ **Node 24 LTS** (`Dockerfile`, `.github/workflows/ci.yml`)
 
 ```bash
 git clone <repo> && cd newssra
