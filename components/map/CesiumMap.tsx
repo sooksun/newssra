@@ -15,6 +15,7 @@ import {
   Credit,
   CustomDataSource,
   DiscardMissingTileImagePolicy,
+  createGooglePhotorealistic3DTileset,
   Google2DImageryProvider,
   HeadingPitchRange,
   HeightReference,
@@ -37,9 +38,12 @@ import type { Entity, ImageryProvider, TerrainProvider } from "cesium";
 import {
   configureCesium,
   googleMapsApiKey,
+  photorealistic3dEnabled,
   preferredImagerySource,
   type MapImagerySource,
 } from "@/lib/map/cesium-config";
+import { tilesetReady, withPhotorealisticTiles } from "@/lib/map/photorealistic3d";
+import type { SnapshotTerrainSource } from "@/lib/types";
 import { createTerrariumTerrainProvider, sampleCesiumGrid, sampleCesiumPoints } from "@/lib/map/cesiumTerrain";
 import {
   ESRI_MAX_REQUEST_LEVEL,
@@ -56,7 +60,7 @@ import {
   type Morphology,
 } from "@/lib/map/morphology";
 import { pointInPolygon, polygonAreaM2, polygonCentroid, polygonBoundingRadiusM } from "@/lib/map/geometry";
-import { parseSharedBorders, type SharedBordersDoc } from "@/lib/map/borders";
+import { borderLabelPoints, parseSharedBorders, type SharedBordersDoc } from "@/lib/map/borders";
 import { createLabelImage } from "@/lib/map/labelImage";
 import { borderBlockedMessage, filterDomesticRoutes } from "@/lib/map/borderCrossing";
 import {
@@ -268,6 +272,10 @@ function circleCoords(lat: number, lng: number, radiusM: number, segments = 96):
 }
 
 // ── แนวชายแดนไทยกับประเทศเพื่อนบ้าน (คำนวณไว้ล่วงหน้าใน public/geo/sea-borders.json) ──
+// จำนวนป้ายชื่อประเทศต่อหนึ่งแนวชายแดน — วางบนเส้นจริงที่ 25%/50%/75% ของความยาว (ดู borderLabelPoints)
+// 3 จุดเพราะแนวชายแดนแต่ละด้านยาวหลายร้อยกิโลเมตร ป้ายเดียวจึงมองไม่เห็นเมื่อซูมดูช่วงใดช่วงหนึ่ง
+// ป้ายที่ทับกันตอนซูมออกถูกซ่อนอัตโนมัติโดยระบบ declutter อยู่แล้ว จึงไม่ทำให้จอรก
+const BORDER_LABELS_PER_COUNTRY = 3;
 let bordersCache: SharedBordersDoc | null = null;
 let bordersPromise: Promise<SharedBordersDoc> | null = null;
 async function loadBorders(): Promise<SharedBordersDoc> {
@@ -468,7 +476,25 @@ function createEsriImageryLayer(maximumLevel = ESRI_MAX_REQUEST_LEVEL): ImageryL
   );
 }
 
-function createBaseImageryLayer(source: MapImagerySource, esriMaxLevel = ESRI_MAX_REQUEST_LEVEL): ImageryLayer {
+/**
+ * ชั้นภาพถ่ายฐานตาม provider ที่เลือก
+ *
+ * provider ที่ต้องยืนยันตัวตน (google/ion) โหลดแบบ async และ "ล้มได้จริง" — quota หมด, key ถูก rotate,
+ * API ถูกปิดสิทธิ์ ฯลฯ ถ้าไม่ดักไว้ Cesium จะได้ promise ที่ reject แล้วลูกโลกจะไม่มีภาพถ่ายเลย
+ * ซึ่งอันตรายเป็นพิเศษกับระบบนี้ เพราะปุ่มจับภาพ 3D ยังทำงานต่อและจะส่ง "ภาพเปล่า" เข้า AI ไปตัดสิน
+ * ลักษณะที่ตั้งโดยไม่มีอะไรเตือน — onProviderFailed จึงเป็นทางให้ผู้เรียกถอยไป Esri และบอกผู้ใช้
+ */
+function createBaseImageryLayer(
+  source: MapImagerySource,
+  esriMaxLevel = ESRI_MAX_REQUEST_LEVEL,
+  onProviderFailed?: (source: MapImagerySource, reason: string) => void,
+): ImageryLayer {
+  const guard = (provider: Promise<ImageryProvider>) =>
+    provider.catch((error: unknown) => {
+      onProviderFailed?.(source, error instanceof Error ? error.message : "โหลดชั้นภาพถ่ายไม่สำเร็จ");
+      throw error; // ส่งต่อให้ Cesium รู้ด้วย — ผู้เรียกเป็นคนสลับชั้นภาพแทน
+    });
+
   if (source === "google") {
     const key = googleMapsApiKey();
     if (key) {
@@ -478,13 +504,13 @@ function createBaseImageryLayer(source: MapImagerySource, esriMaxLevel = ESRI_MA
         language: "th-TH",
         region: "TH",
       }) as Promise<unknown> as Promise<ImageryProvider>;
-      return ImageryLayer.fromProviderAsync(provider, IMAGERY_LAYER_OPTIONS);
+      return ImageryLayer.fromProviderAsync(guard(provider), IMAGERY_LAYER_OPTIONS);
     }
   }
 
   if (source === "ion") {
     return ImageryLayer.fromProviderAsync(
-      createWorldImageryAsync({ style: IonWorldImageryStyle.AERIAL }),
+      guard(createWorldImageryAsync({ style: IonWorldImageryStyle.AERIAL })),
       IMAGERY_LAYER_OPTIONS,
     );
   }
@@ -631,10 +657,17 @@ export default function CesiumMap({
     ? `พิกัดที่เลือกอยู่ห่างจากพิกัดในแบบฟอร์มประมาณ ${(distanceFromFormCenterM! / 1000).toFixed(1)} กม. ระบบไม่บันทึกเพื่อกันข้อมูลโรงเรียนอื่นปนกับแบบประเมินนี้`
     : "";
 
+  // ตัวจัดการ "provider หลักล้ม" — เก็บใน ref เพราะ effect สร้าง Viewer รันครั้งเดียวตอน mount
+  // แต่ตัวจัดการต้องใช้ replaceEsriImageryLayer/setImageryStatus ที่ถูกสร้างหลังจากนั้น
+  const imageryFallbackRef = useRef<((source: MapImagerySource, reason: string) => void) | null>(null);
+
   const replaceEsriImageryLayer = useCallback(
-    (maximumLevel: number) => {
+    // force = สลับแม้ระดับเท่าเดิม — ใช้ตอนถอยจาก provider อื่นมาเป็น Esri (ชั้นภาพปัจจุบันไม่ใช่ Esri
+    // แต่ esriMaxLevelRef ถูกตั้งค่าไว้ตั้งแต่ init ทำให้การเทียบระดับอย่างเดียวบล็อกการสลับ)
+    (maximumLevel: number, opts?: { force?: boolean }) => {
       const viewer = viewerRef.current;
-      if (!viewer || viewer.isDestroyed() || esriMaxLevelRef.current === maximumLevel) return;
+      if (!viewer || viewer.isDestroyed()) return;
+      if (!opts?.force && esriMaxLevelRef.current === maximumLevel) return;
 
       const previousLayer = imageryLayerRef.current;
       const nextLayer = createEsriImageryLayer(maximumLevel);
@@ -648,6 +681,28 @@ export default function CesiumMap({
     },
     [assessment?.id],
   );
+
+  // provider หลัก (Google/ion) โหลดไม่สำเร็จ → ถอยไป Esri ทันที และเปลี่ยนแถบสถานะให้บอกตรง ๆ
+  // สำคัญกว่าความสวยงาม: ถ้าไม่ถอย ลูกโลกจะไม่มีภาพถ่ายเลย แล้วการจับภาพ 3D จะส่งภาพเปล่าเข้า AI
+  // ไปตัดสิน "ลักษณะที่ตั้ง" โดยไม่มีใครรู้ — และ imageryStatus.source ที่อัปเดตตรงนี้คือค่าที่ถูกบันทึก
+  // ลง metadata ของภาพ (SnapshotFile.imagerySource) จึงต้องสะท้อนแหล่งภาพที่ใช้จริง ไม่ใช่ที่ตั้งใจจะใช้
+  useEffect(() => {
+    imageryFallbackRef.current = (failedSource, reason) => {
+      console.error(`[map] imagery provider "${failedSource}" failed:`, reason);
+      replaceEsriImageryLayer(ESRI_MAX_REQUEST_LEVEL, { force: true });
+      setImageryStatus({
+        source: "esri",
+        label: `ภาพถ่าย: ${imageryLabel("esri")} (สำรอง)`,
+        detail: `ใช้ ${imageryLabel(failedSource)} ไม่ได้ — ${reason}`,
+        tone: "warn",
+        nativeMaxLevel: null,
+        credit: imageryCredit("esri"),
+      });
+    };
+    return () => {
+      imageryFallbackRef.current = null;
+    };
+  }, [replaceEsriImageryLayer]);
 
   // ── สร้าง Viewer ครั้งเดียว ─────────────────────────────────────────────────
   useEffect(() => {
@@ -681,7 +736,9 @@ export default function CesiumMap({
     }
     viewerRef.current = viewer;
     const imagerySource = preferredImagerySource();
-    const imageryLayer = createBaseImageryLayer(imagerySource, ESRI_MAX_REQUEST_LEVEL);
+    const imageryLayer = createBaseImageryLayer(imagerySource, ESRI_MAX_REQUEST_LEVEL, (failedSource, reason) =>
+      imageryFallbackRef.current?.(failedSource, reason),
+    );
     viewer.imageryLayers.add(imageryLayer, 0);
     imageryLayerRef.current = imageryLayer;
     esriMaxLevelRef.current = ESRI_MAX_REQUEST_LEVEL;
@@ -1001,7 +1058,9 @@ export default function CesiumMap({
         }
         if (blocked.length > 0) {
           const countries = Array.from(new Set(blocked.map((b) => b.crossing.countryTh))).join(" / ");
-          setRouteBorderNote(`ตัดเส้นทางที่ผ่านพรมแดน${countries} ออก ${blocked.length} เส้น — ใช้เฉพาะเส้นทางในประเทศ`);
+          setRouteBorderNote(
+            `ตัดเส้นทางที่ผ่านพรมแดน${countries} ออก ${blocked.length} เส้น — ใช้เฉพาะเส้นทางในประเทศ`,
+          );
         }
         setRouteAlternatives(domestic);
         setSelectedRouteIdx(0);
@@ -1846,16 +1905,24 @@ export default function CesiumMap({
               },
             });
           }
-          addPinLabel(bordersDs, {
-            id: `border-label:${border.name}`,
-            priority: LABEL_PRIORITY.country,
-            lat: border.label[1],
-            lng: border.label[0],
-            lines: [border.nameTh],
-            background: "rgba(15, 23, 42, 0.78)",
-            offsetY: 0,
-            fontPx: 13,
-            verticalOrigin: VerticalOrigin.CENTER,
+          // ป้ายชื่อประเทศ 3 จุดบนเส้นชายแดนจริง (25% / 50% / 75% ของความยาวเส้น) แทนป้ายเดียวลอย ๆ
+          // เดิมใช้ border.label ซึ่งเป็นพิกัดที่คำนวณไว้ล่วงหน้าและไม่ได้อยู่บนเส้นเสมอไป ทำให้เวลาซูมดู
+          // ช่วงชายแดนหนึ่ง ๆ มักไม่เห็นป้ายเลยว่าอีกฝั่งคือประเทศอะไร — ถ้าเส้นสั้นผิดปกติจนคำนวณไม่ได้
+          // ค่อย fallback กลับไปใช้ border.label ตามเดิม
+          const labelPoints = borderLabelPoints(border, BORDER_LABELS_PER_COUNTRY);
+          const positions = labelPoints.length > 0 ? labelPoints : [border.label];
+          positions.forEach(([lng, lat], index) => {
+            addPinLabel(bordersDs, {
+              id: `border-label:${border.name}:${index}`,
+              priority: LABEL_PRIORITY.country,
+              lat,
+              lng,
+              lines: [border.nameTh],
+              background: "rgba(15, 23, 42, 0.78)",
+              offsetY: 0,
+              fontPx: 13,
+              verticalOrigin: VerticalOrigin.CENTER,
+            });
           });
         }
       })
@@ -2355,68 +2422,92 @@ export default function CesiumMap({
       // เล็งกล้องมาที่หมุดโรงเรียน (center) เสมอ ด้วย lookAt — หมุดจึงอยู่กึ่งกลางภาพทุกมุม ทั้งใกล้/ไกล
       // สำคัญ: ต้องเล็งที่ "ผิวภูมิประเทศจริง" ไม่ใช่ผิวทรงรี (ความสูง 0) — หมุดถูก clamp ติดพื้น ถ้าโรงเรียน
       // อยู่บนดอยสูง ~1,000 ม. การเล็งที่ความสูง 0 จะทำให้หมุดลอยเหนือจุดเล็งจนหลุดออกนอกภาพในมุมใกล้
+      // อ่านความสูงก่อนเปิด 3D Tiles เสมอ — ค่านี้ต้องมาจาก terrain เดิม (แหล่งเดียวกับที่ใช้คิดคะแนน)
       const pinCarto = Cartographic.fromDegrees(center.lng, center.lat);
       const terrainHeightM = viewer.scene.globe.getHeight(pinCarto);
       const pinHeightM = Number.isFinite(terrainHeightM)
         ? (terrainHeightM as number)
         : (routeElevationProfile?.schoolElevationM ?? 0);
+      const hallHeightM = province
+        ? viewer.scene.globe.getHeight(Cartographic.fromDegrees(province.lng, province.lat))
+        : undefined;
       const pin = Cartesian3.fromDegrees(center.lng, center.lat, pinHeightM);
       const blobs: { blob: Blob; viewKey: string }[] = [];
-      for (let i = 0; i < SNAPSHOT_VIEWS.length; i++) {
-        const view = SNAPSHOT_VIEWS[i];
-        if (view.frame === "school-and-province") {
-          // มุมภาพรวมครอบทั้งโรงเรียนและศาลากลางจังหวัด — ต้องมีพิกัดศาลากลาง (province) ไม่งั้นข้ามมุมนี้ไป
-          if (!province) {
-            setCaptureProgress(i + 1);
-            continue;
+      // แหล่งภูมิประเทศที่ "ใช้จริง" — ตั้งเป็น google-3dtiles เฉพาะเมื่อ tileset โหลดสำเร็จเท่านั้น
+      // (ตั้งใจเปิดแต่ล้ม → ยังเป็น terrarium ตามความจริง ไม่ใช่ตามความตั้งใจ)
+      let usedTerrainSource: SnapshotTerrainSource = "terrarium";
+
+      await withPhotorealisticTiles(
+        viewer,
+        { enabled: photorealistic3dEnabled(), createTileset: () => createGooglePhotorealistic3DTileset() },
+        async ({ tileset, skippedReason }) => {
+          if (skippedReason) {
+            // ตั้งใจเปิด 3D Tiles แต่ใช้ไม่ได้ — บอกผู้ใช้ตรง ๆ ว่าภาพชุดนี้มาจาก globe เดิม ไม่ใช่ Google mesh
+            setCaptureErr(`ใช้ Google 3D Tiles ไม่ได้ (${skippedReason}) — จับภาพด้วยภูมิประเทศปกติแทน`);
           }
-          const hallCarto = Cartographic.fromDegrees(province.lng, province.lat);
-          const hallHeightM = viewer.scene.globe.getHeight(hallCarto);
-          const hall = Cartesian3.fromDegrees(
-            province.lng,
-            province.lat,
-            Number.isFinite(hallHeightM) ? (hallHeightM as number) : 0,
-          );
-          // เล็งกึ่งกลางระหว่างสองจุด แล้วถอยกล้องด้วยระยะที่คำนวณจาก fov + aspect จริง ให้ทรงกลม (ครอบทั้งสองจุด)
-          // อยู่ในเฟรมครบเสมอ — ตัวคูณตายตัวเดิมไม่พอสำหรับจอแนวนอน ทำให้จุดบน/ล่างหลุดขอบ (ดู overviewFitRangeM)
-          const sphere = BoundingSphere.fromPoints([pin, hall]);
-          const frustumFov = (viewer.camera.frustum as { fov?: number }).fov;
-          const canvasW = viewer.canvas.clientWidth || viewer.canvas.width;
-          const canvasH = viewer.canvas.clientHeight || viewer.canvas.height;
-          const aspect = canvasW > 0 && canvasH > 0 ? canvasW / canvasH : 1;
-          const fitRange =
-            typeof frustumFov === "number" && frustumFov > 0
-              ? overviewFitRangeM(sphere.radius, frustumFov, aspect)
-              : sphere.radius * SNAPSHOT_OVERVIEW_FALLBACK_FACTOR;
-          viewer.camera.viewBoundingSphere(
-            sphere,
-            new HeadingPitchRange(
-              CesiumMath.toRadians(view.headingDeg),
-              CesiumMath.toRadians(view.pitchDeg),
-              fitRange,
-            ),
-          );
-        } else {
-          // เล็งกล้องมาที่หมุดโรงเรียนเสมอ ด้วย lookAt — หมุดจึงอยู่กึ่งกลางภาพทุกมุม ทั้งใกล้/ไกล
-          viewer.camera.lookAt(
-            pin,
-            new HeadingPitchRange(
-              CesiumMath.toRadians(view.headingDeg),
-              CesiumMath.toRadians(view.pitchDeg),
-              view.rangeM,
-            ),
-          );
-        }
-        // รอไทล์ของมุมใหม่ให้นิ่งจริง (เห็น tilesLoaded ติดกัน 3 รอบ) ก่อนจับภาพ — กันภาพเบลอ/ไทล์หยาบค้าง
-        await waitForTilesLoaded(viewer, SNAPSHOT_TILE_WAIT_MS, SNAPSHOT_TILE_STABLE_TICKS);
-        blobs.push({ blob: dataUrlToBlob(captureCurrentView(viewer)), viewKey: view.key });
-        setCaptureProgress(i + 1);
-      }
+          if (tileset) usedTerrainSource = "google-3dtiles";
+          for (let i = 0; i < SNAPSHOT_VIEWS.length; i++) {
+            const view = SNAPSHOT_VIEWS[i];
+            if (view.frame === "school-and-province") {
+              // มุมภาพรวมครอบทั้งโรงเรียนและศาลากลางจังหวัด — ต้องมีพิกัดศาลากลาง (province) ไม่งั้นข้ามมุมนี้ไป
+              if (!province) {
+                setCaptureProgress(i + 1);
+                continue;
+              }
+              const hall = Cartesian3.fromDegrees(
+                province.lng,
+                province.lat,
+                Number.isFinite(hallHeightM) ? (hallHeightM as number) : 0,
+              );
+              // เล็งกึ่งกลางระหว่างสองจุด แล้วถอยกล้องด้วยระยะที่คำนวณจาก fov + aspect จริง ให้ทรงกลม (ครอบทั้งสองจุด)
+              // อยู่ในเฟรมครบเสมอ — ตัวคูณตายตัวเดิมไม่พอสำหรับจอแนวนอน ทำให้จุดบน/ล่างหลุดขอบ (ดู overviewFitRangeM)
+              const sphere = BoundingSphere.fromPoints([pin, hall]);
+              const frustumFov = (viewer.camera.frustum as { fov?: number }).fov;
+              const canvasW = viewer.canvas.clientWidth || viewer.canvas.width;
+              const canvasH = viewer.canvas.clientHeight || viewer.canvas.height;
+              const aspect = canvasW > 0 && canvasH > 0 ? canvasW / canvasH : 1;
+              const fitRange =
+                typeof frustumFov === "number" && frustumFov > 0
+                  ? overviewFitRangeM(sphere.radius, frustumFov, aspect)
+                  : sphere.radius * SNAPSHOT_OVERVIEW_FALLBACK_FACTOR;
+              viewer.camera.viewBoundingSphere(
+                sphere,
+                new HeadingPitchRange(
+                  CesiumMath.toRadians(view.headingDeg),
+                  CesiumMath.toRadians(view.pitchDeg),
+                  fitRange,
+                ),
+              );
+            } else {
+              // เล็งกล้องมาที่หมุดโรงเรียนเสมอ ด้วย lookAt — หมุดจึงอยู่กึ่งกลางภาพทุกมุม ทั้งใกล้/ไกล
+              viewer.camera.lookAt(
+                pin,
+                new HeadingPitchRange(
+                  CesiumMath.toRadians(view.headingDeg),
+                  CesiumMath.toRadians(view.pitchDeg),
+                  view.rangeM,
+                ),
+              );
+            }
+            // รอไทล์ของมุมใหม่ให้นิ่งจริง (เห็น tilesLoaded ติดกัน 3 รอบ) ก่อนจับภาพ — กันภาพเบลอ/ไทล์หยาบค้าง
+            // เมื่อใช้ Google 3D Tiles ต้องรอ mesh ของ tileset ด้วย (globe.tilesLoaded ไม่ครอบคลุม primitive นี้)
+            await waitForTilesLoaded(viewer, SNAPSHOT_TILE_WAIT_MS, SNAPSHOT_TILE_STABLE_TICKS, () =>
+              tilesetReady(tileset),
+            );
+            blobs.push({ blob: dataUrlToBlob(captureCurrentView(viewer)), viewKey: view.key });
+            setCaptureProgress(i + 1);
+          }
+        },
+      );
       // (transform ของ lookAt ถูกปลดล็อกใน finally เสมอ ก่อนคืนมุมกล้องเดิม)
 
       const fd = new FormData();
       for (const b of blobs) fd.append("files", b.blob, `${b.viewKey}.jpg`);
       fd.append("viewKeys", JSON.stringify(blobs.map((b) => b.viewKey)));
+      // บันทึกแหล่งภาพ/ภูมิประเทศไปกับไฟล์ เพื่อให้ตรวจย้อนหลังได้ว่าหลักฐานชุดนี้เรนเดอร์จากอะไร
+      // imageryStatus.source สะท้อนแหล่งที่ใช้จริง (ถ้า provider หลักล้มแล้วถอยไป Esri ค่านี้จะเป็น esri แล้ว)
+      fd.append("imagerySource", imageryStatus.source);
+      fd.append("terrainSource", usedTerrainSource);
       const res = await fetch(`/api/assessments/${targetId}/site-snapshots`, { method: "POST", body: fd });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
@@ -2447,7 +2538,7 @@ export default function CesiumMap({
       }
       setCapturing(false);
     }
-  }, [capturing, national, center, assessment, routeElevationProfile, province]);
+  }, [capturing, national, center, assessment, routeElevationProfile, province, imageryStatus.source]);
 
   // ขั้นตอนในแผงด้านซ้ายเรียงบนลงล่าง 1→5 และจบที่ปุ่มบันทึก (ขั้นตอนที่ 5) เสมอ
   // ซ่อนขั้นตอนที่ 5 เมื่อผู้ใช้บันทึกไม่ได้และยังไม่มีฉบับให้เปิดดู — เป็นขั้นตอนสุดท้ายอยู่แล้ว เลขจึงไม่ขาดช่วง
@@ -2971,7 +3062,8 @@ export default function CesiumMap({
                       </button>
                       {captureErr ? <p className="map-snapshot-err">{captureErr}</p> : null}
                       <p className="map-snapshot-hint">
-                        จับภาพ 9 มุม (มุมบน + ใกล้/ไกล 4 ทิศ) แล้วแนบเข้าแบบประเมินในหัวข้อ “ลักษณะที่ตั้ง” — จับใหม่จะแทนชุดเดิม
+                        จับภาพ 9 มุม (มุมบน + ใกล้/ไกล 4 ทิศ) แล้วแนบเข้าแบบประเมินในหัวข้อ “ลักษณะที่ตั้ง” —
+                        จับใหม่จะแทนชุดเดิม
                       </p>
                     </>
                   ) : (
@@ -3026,7 +3118,6 @@ export default function CesiumMap({
                   onRemoveDestination={removeGisDestination}
                 />
               ) : null}
-
             </>
           )}
           <div className={`map-imagery-status map-imagery-status-${imageryStatus.tone}`}>

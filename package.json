@@ -12,10 +12,16 @@
     "buildings:import": "node --import tsx scripts/import-buildings.mts",
     "borders:fetch": "node scripts/fetch-borders.mjs",
     "users:migrate": "node scripts/migrate-legacy-users.mjs",
-    "test": "node --import tsx --test tests/scoring.test.ts tests/demo.test.ts tests/gis.test.ts tests/gis-request.test.ts tests/assessment-year.test.ts tests/map-assessment.test.ts tests/auth.test.ts tests/rate-limit.test.ts tests/state.test.ts tests/uploads.test.ts tests/map-panel-collapse.test.ts tests/map-step-order.test.ts tests/manual-high-point.test.ts tests/map-thai-labels.test.ts tests/route-domestic-only.test.ts tests/map-label-declutter.test.ts tests/route-elevation-flags.test.ts tests/snapshot-capture-framing.test.ts tests/map-hints-current-year.test.ts tests/school-pins.test.ts tests/school-pins-map.test.ts tests/school-pins-page.test.ts lib/map/geometry.test.ts lib/map/borders.test.ts lib/map/borderCrossing.test.ts lib/map/labelDeclutter.test.ts lib/map/routeElevation.test.ts lib/map/labelImage.test.ts lib/map/snapshotViews.test.ts lib/map/snapshotCapture.test.ts components/SiteSnapshotGallery.test.tsx lib/ai/terrainAnalysis.test.ts components/SettingSuggestionCard.test.tsx lib/settings.test.ts components/SettingsAdmin.test.tsx components/map/MapPanelToggle.test.tsx components/map/MapStep.test.tsx components/map/GisAssessmentPanel.test.tsx components/GisSummary.test.tsx",
-    "test:integration": "node --import tsx --experimental-test-module-mocks --test-force-exit --test tests/integration/login-route.test.mts tests/integration/assessment-security.test.mts tests/integration/map-to-assessment.test.mts tests/integration/assessment-year-conflict.test.mts tests/integration/admin-settings.test.mts",
+    "legacy:analyze": "node scripts/analyze-legacy-items.mjs --print",
+    "legacy:report": "node scripts/analyze-legacy-items.mjs && node scripts/report-legacy-items.mjs && node scripts/emit-legacy-baseline.mjs && node scripts/report-legacy-html.mjs && node scripts/report-answers-by-year.mjs && node scripts/report-answers-summary.mjs",
+    "test": "node --import tsx --test tests/scoring.test.ts tests/legacy-score.test.ts tests/criteria-model.test.ts tests/demo.test.ts tests/gis.test.ts tests/gis-request.test.ts tests/assessment-year.test.ts tests/map-assessment.test.ts tests/auth.test.ts tests/rate-limit.test.ts tests/state.test.ts tests/uploads.test.ts tests/map-panel-collapse.test.ts tests/map-step-order.test.ts tests/manual-high-point.test.ts tests/map-thai-labels.test.ts tests/route-domestic-only.test.ts tests/map-label-declutter.test.ts tests/route-elevation-flags.test.ts tests/snapshot-capture-framing.test.ts tests/snapshot-3dtiles-wiring.test.ts tests/imagery-fallback.test.ts tests/map-hints-current-year.test.ts tests/school-pins.test.ts tests/school-pins-map.test.ts tests/school-pins-page.test.ts lib/map/geometry.test.ts lib/map/borders.test.ts lib/map/borderCrossing.test.ts lib/map/labelDeclutter.test.ts lib/map/routeElevation.test.ts lib/map/labelImage.test.ts lib/map/mapApi.test.ts lib/map/photorealistic3d.test.ts lib/map/snapshotViews.test.ts lib/map/snapshotCapture.test.ts components/SiteSnapshotGallery.test.tsx lib/ai/terrainAnalysis.test.ts components/SettingSuggestionCard.test.tsx lib/settings.test.ts components/SettingsAdmin.test.tsx components/map/MapPanelToggle.test.tsx components/map/MapStep.test.tsx components/map/GisAssessmentPanel.test.tsx components/GisSummary.test.tsx",
+    "test:integration": "node --import tsx --experimental-test-module-mocks --test-force-exit --test tests/integration/login-route.test.mts tests/integration/assessment-security.test.mts tests/integration/map-to-assessment.test.mts tests/integration/assessment-year-conflict.test.mts tests/integration/admin-settings.test.mts tests/integration/concurrent-write.test.mts",
     "format": "prettier --write \"app/**/*.{ts,tsx}\" \"lib/**/*.{ts,tsx}\" \"components/**/*.{ts,tsx}\" \"tests/**/*.{ts,mts}\"",
-    "format:check": "prettier --check \"app/**/*.{ts,tsx}\" \"lib/**/*.{ts,tsx}\" \"components/**/*.{ts,tsx}\" \"tests/**/*.{ts,mts}\""
+    "format:check": "prettier --check \"app/**/*.{ts,tsx}\" \"lib/**/*.{ts,tsx}\" \"components/**/*.{ts,tsx}\" \"tests/**/*.{ts,mts}\"",
+    "legacy:simulate": "node scripts/simulate-criteria.mjs scripts/criteria/2569-draft-a.json scripts/criteria/2569-draft-b.json scripts/criteria/2569-draft-c.json --md && node scripts/report-criteria-html.mjs --focus=2569-draft-c && node scripts/explain-draft.mjs && node scripts/report-explainer-html.mjs",
+    "legacy:import": "node scripts/import-legacy-dump.mjs --db=ssra_live",
+    "legacy:answers": "node scripts/report-answers-by-year.mjs && node scripts/report-answers-summary.mjs",
+    "legacy:explain": "node scripts/explain-draft.mjs && node scripts/report-explainer-html.mjs"
   },
   "dependencies": {
     "cesium": "^1.143.0",
@@ -25,11 +31,11 @@
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@types/node": "^24.3.0",
+    "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "prettier": "^3.9.6",
-    "tsx": "^4.23.1",
+    "tsx": "^4.23.4",
     "typescript": "^5.9.2"
   },
   "overrides": {
