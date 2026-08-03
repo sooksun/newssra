@@ -27,7 +27,8 @@ test("every pin that shows free-form Thai draws its label through addPinLabel", 
   for (const id of ids) assert.ok(component.includes(`id: "${id}"`), `ไม่พบป้ายของหมุด ${id}`);
   // ป้ายที่ id สร้างจากข้อมูล (ชื่อโรงเรียนภาพรวม / ชื่อประเทศเพื่อนบ้าน / จุดหมาย GIS)
   assert.match(component, /id: `school-pin:\$\{pin\.id\}:label`/);
-  assert.match(component, /id: `border-label:\$\{border\.name\}`/);
+  // ชื่อประเทศเพื่อนบ้านมีหลายป้ายต่อหนึ่งแนวชายแดน (วางบนเส้นจริง) จึงมีลำดับต่อท้าย id
+  assert.match(component, /id: `border-label:\$\{border\.name\}:\$\{index\}`/);
   assert.match(component, /id: `gis-dest-label:\$\{d\.key\}`/);
   assert.match(component, /function addPinLabel\(/);
 });

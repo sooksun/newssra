@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { parseSharedBorders } from "./borders";
+import { borderLabelPoints, parseSharedBorders } from "./borders";
 
 test("parseSharedBorders drops malformed entries and orders neighbors", () => {
   const doc = parseSharedBorders({
@@ -135,3 +135,99 @@ function chainLengthKm(chain: [number, number][]): number {
   for (let i = 0; i < chain.length - 1; i += 1) total += haversineKm(chain[i], chain[i + 1]);
   return total;
 }
+
+// ── borderLabelPoints: ตำแหน่งป้ายชื่อประเทศบนเส้นชายแดน ────────────────────────
+
+/** ระยะจากจุดถึงเส้น (โพลีไลน์) เป็นเมตร — ใช้ยืนยันว่าป้าย "อยู่บนเส้นจริง" ไม่ใช่ลอยข้าง ๆ */
+function distanceToChainM(point: [number, number], chain: [number, number][]): number {
+  let best = Infinity;
+  for (let i = 0; i + 1 < chain.length; i++) {
+    const [ax, ay] = chain[i];
+    const [bx, by] = chain[i + 1];
+    const dx = bx - ax;
+    const dy = by - ay;
+    const len2 = dx * dx + dy * dy;
+    const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((point[0] - ax) * dx + (point[1] - ay) * dy) / len2));
+    const proj: [number, number] = [ax + dx * t, ay + dy * t];
+    best = Math.min(best, haversineKm(point, proj) * 1000);
+  }
+  return best;
+}
+
+test("borderLabelPoints: คืน 3 จุดที่ 25/50/75% ของความยาวเส้นตรง", () => {
+  // เส้นตรงตามเส้นลองจิจูดคงที่ จุดถี่ไม่เท่ากันโดยตั้งใจ — ผลต้องอิงระยะทาง ไม่ใช่ดัชนีจุด
+  const border = {
+    name: "Test",
+    nameTh: "ทดสอบ",
+    label: [100, 10] as [number, number],
+    chains: [
+      [
+        [100, 10],
+        [100, 10.1],
+        [100, 10.2],
+        [100, 11],
+      ] as [number, number][],
+    ],
+    pointCount: 4,
+  };
+  const pts = borderLabelPoints(border, 3);
+  assert.equal(pts.length, 3);
+  // ความยาวรวม 1 องศาละติจูด → 25/50/75% = lat 10.25 / 10.5 / 10.75
+  assert.ok(Math.abs(pts[0][1] - 10.25) < 0.01, `จุดแรกควรอยู่ราว 10.25 ได้ ${pts[0][1]}`);
+  assert.ok(Math.abs(pts[1][1] - 10.5) < 0.01, `จุดกลางควรอยู่ราว 10.5 ได้ ${pts[1][1]}`);
+  assert.ok(Math.abs(pts[2][1] - 10.75) < 0.01, `จุดท้ายควรอยู่ราว 10.75 ได้ ${pts[2][1]}`);
+  // ต้องไม่ไปตกที่ปลายเส้น (จุดสามเหลี่ยมพรมแดนที่ป้ายสองประเทศจะชนกัน)
+  pts.forEach((p) => assert.ok(p[1] > 10 && p[1] < 11));
+});
+
+test("borderLabelPoints: count ไม่ถูกต้อง หรือเส้นยาวศูนย์ → คืน [] ให้ผู้เรียก fallback", () => {
+  const flat = {
+    name: "T",
+    nameTh: "ท",
+    label: [100, 10] as [number, number],
+    chains: [
+      [
+        [100, 10],
+        [100, 10],
+      ] as [number, number][],
+    ],
+    pointCount: 2,
+  };
+  assert.deepEqual(borderLabelPoints(flat, 3), [], "ทุกจุดซ้ำกัน = ความยาวศูนย์");
+  const ok = {
+    ...flat,
+    chains: [
+      [
+        [100, 10],
+        [100, 11],
+      ] as [number, number][],
+    ],
+  };
+  assert.deepEqual(borderLabelPoints(ok, 0), []);
+  assert.deepEqual(borderLabelPoints(ok, -1), []);
+  assert.deepEqual(borderLabelPoints(ok, 1.5), []);
+});
+
+test("borderLabelPoints: ทุกจุดตกบนเส้นชายแดนจริงของทั้ง 4 ประเทศ (< 1 ม.)", () => {
+  const doc = parseSharedBorders(JSON.parse(readFileSync(join(process.cwd(), "public/geo/sea-borders.json"), "utf8")));
+  assert.equal(doc.borders.length, 4);
+  for (const border of doc.borders) {
+    const pts = borderLabelPoints(border, 3);
+    assert.equal(pts.length, 3, `${border.name} ต้องได้ 3 จุด`);
+    for (const p of pts) {
+      const d = Math.min(...border.chains.map((c) => distanceToChainM(p, c)));
+      assert.ok(d < 1, `${border.name}: ป้ายห่างจากเส้น ${d.toFixed(1)} ม. (ต้องอยู่บนเส้น)`);
+    }
+  }
+});
+
+test("borderLabelPoints: จุดกระจายห่างกันจริง ไม่กระจุกช่วงที่เส้นคดเคี้ยว", () => {
+  const doc = parseSharedBorders(JSON.parse(readFileSync(join(process.cwd(), "public/geo/sea-borders.json"), "utf8")));
+  for (const border of doc.borders) {
+    const [a, b, c] = borderLabelPoints(border, 3);
+    const total = border.chains.reduce((s, ch) => s + chainLengthKm(ch), 0);
+    // ระยะตรงระหว่างป้ายที่ติดกันต้องไม่น้อยเกินไปเมื่อเทียบกับความยาวเส้น (กันกรณีกระจุกที่จุดเดียว)
+    assert.ok(haversineKm(a, b) > total * 0.05, `${border.name}: ป้าย 1-2 ใกล้กันเกินไป`);
+    assert.ok(haversineKm(b, c) > total * 0.05, `${border.name}: ป้าย 2-3 ใกล้กันเกินไป`);
+  }
+});
