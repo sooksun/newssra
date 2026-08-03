@@ -18,3 +18,7 @@ legacy
 
 # separate Python analysis project
 ssra-policy-report
+
+# ไฟล์ที่สคริปต์สร้างอัตโนมัติ (scripts/emit-legacy-baseline.mjs)
+lib/legacy-baseline.ts
+docs/analysis

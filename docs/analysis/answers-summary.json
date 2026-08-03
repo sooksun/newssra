@@ -1,0 +1,2146 @@
+{
+  "generatedAt": "2026-08-01T13:35:42.439Z",
+  "source": "snapshot ในเครื่อง (ฐาน ssra_live — dump สร้างเมื่อ Aug 01, 2026 at 04:08 PM · นำเข้าเมื่อ 2026-08-01T09:23:53.639Z · จากไฟล์ ssrainfo_ssra (3).sql)",
+  "rule": "รอบประเมินล่าสุดของแต่ละโรงเรียน เฉพาะที่ยืนยันสถานะปี 2569 (school_confirm.area_type=1)",
+  "note": "ร้อยละคำนวณจากจำนวนโรงเรียนทั้งหมดในกลุ่มตัวอย่าง · ข้อที่เลือกได้หลายตัวเลือกผลรวมเกิน 100% ได้ · varianceSharePct = สัดส่วนความแปรปรวนของคะแนนรวมที่มาจากข้อนั้น (ผลรวมทุกข้อ = 100%)",
+  "highland": {
+    "n": 1481,
+    "totals": {
+      "mean": 65.76,
+      "sd": 9.07,
+      "variance": 82.3,
+      "pass70": 490
+    },
+    "items": [
+      {
+        "no": 1,
+        "key": "citeria01",
+        "title": "ระดับความสูงเหนือระดับน้ำทะเล ณ จุดสูงสุดของเส้นทางโรงเรียน–ศาลากลางจังหวัด",
+        "short": "ความสูงจุดสูงสุด",
+        "max": 30,
+        "measure": "continuous",
+        "measureLabel": "ค่าวัดต่อเนื่อง",
+        "unit": "เมตร",
+        "rule": "ถ้า ≥500 ม. หรือ ≥ ค่าเฉลี่ยความสูง → 15 + (min(ค่า,500) × 15/500) ; ไม่เข้าเงื่อนไข = 0",
+        "n": 1481,
+        "score": {
+          "mean": 29.46,
+          "sd": 2.38,
+          "sharePct": 98.21,
+          "zeroPct": 0.41,
+          "fullPct": 87.58
+        },
+        "impact": {
+          "varianceSharePct": 7.68,
+          "contribution": 29.46,
+          "flipPct": 24.31,
+          "D": 0.04
+        },
+        "kind": "numeric",
+        "answers": [
+          {
+            "label": "0 (ไม่มีข้อมูล)",
+            "n": 9,
+            "pct": 0.61
+          },
+          {
+            "label": "1–499",
+            "n": 175,
+            "pct": 11.82
+          },
+          {
+            "label": "500–699",
+            "n": 435,
+            "pct": 29.37
+          },
+          {
+            "label": "700–999",
+            "n": 438,
+            "pct": 29.57
+          },
+          {
+            "label": "1,000–1,299",
+            "n": 238,
+            "pct": 16.07
+          },
+          {
+            "label": "≥ 1,300",
+            "n": 186,
+            "pct": 12.56
+          }
+        ],
+        "stats": {
+          "mean": 827.47,
+          "median": 760,
+          "sd": 355.48,
+          "min": 0,
+          "max": 1819,
+          "p25": 500,
+          "p75": 1074,
+          "p90": 1350
+        },
+        "verdict": {
+          "key": "move",
+          "label": "ย้ายไปเป็นเงื่อนไขคุณสมบัติ",
+          "why": "87.58% ได้เต็ม — ทุกคนมีเหมือนกัน จึงไม่ได้จำแนกใคร"
+        },
+        "caveat": "ตัวเลข *สลับผลได้/ตก* สูงที่สุด (24.3%) เพราะข้อนี้กินน้ำหนัก 30 คะแนน การตัดทิ้งจึงกระทบคะแนนทุกคนพร้อมกัน ไม่ใช่เพราะข้อนี้จำแนกได้ดี — ดูที่ D=0.04 ประกอบเสมอ"
+      },
+      {
+        "no": 2,
+        "key": "citeria02",
+        "title": "เขตติดต่อระหว่างโรงเรียนกับพื้นที่ชายแดนประเทศเพื่อนบ้าน",
+        "short": "ชายแดน",
+        "max": 5,
+        "measure": "ordinal",
+        "measureLabel": "ข้อความเชิงคุณภาพ (เรียงระดับได้)",
+        "unit": null,
+        "rule": null,
+        "n": 1481,
+        "score": {
+          "mean": 2.83,
+          "sd": 1.49,
+          "sharePct": 56.54,
+          "zeroPct": 13.17,
+          "fullPct": 16.48
+        },
+        "impact": {
+          "varianceSharePct": 5.11,
+          "contribution": 2.83,
+          "flipPct": 2.57,
+          "D": 0.24
+        },
+        "kind": "categorical",
+        "multiSelect": false,
+        "multiSelectedPct": 0,
+        "answers": [
+          {
+            "id": 1,
+            "label": "1. หมู่บ้าน/เขตบริการติดชายแดน",
+            "points": 5,
+            "n": 244,
+            "pct": 16.48
+          },
+          {
+            "id": 2,
+            "label": "2. ตำบลติดชายแดน",
+            "points": 4,
+            "n": 231,
+            "pct": 15.6
+          },
+          {
+            "id": 3,
+            "label": "3. อำเภอติดชายแดน",
+            "points": 3,
+            "n": 421,
+            "pct": 28.43
+          },
+          {
+            "id": 4,
+            "label": "4. จังหวัดติดชายแดน",
+            "points": 2,
+            "n": 390,
+            "pct": 26.33
+          },
+          {
+            "id": 5,
+            "label": "5. ไม่อยู่ในจังหวัดติดชายแดน",
+            "points": 0,
+            "n": 188,
+            "pct": 12.69
+          }
+        ],
+        "blank": {
+          "n": 7,
+          "pct": 0.47
+        },
+        "verdict": {
+          "key": "review",
+          "label": "ทบทวนสูตร",
+          "why": "อำนาจจำแนกพอใช้ (D=0.24) แต่ยังไม่ถึงเกณฑ์ที่ดี"
+        },
+        "caveat": null
+      },
+      {
+        "no": 3,
+        "key": "citeria03",
+        "title": "เขตการปกครองส่วนท้องถิ่นที่โรงเรียนตั้งอยู่",
+        "short": "เขต อปท.",
+        "max": 5,
+        "measure": "ordinal",
+        "measureLabel": "ข้อความเชิงคุณภาพ (เรียงระดับได้)",
+        "unit": null,
+        "rule": null,
+        "n": 1481,
+        "score": {
+          "mean": 4.82,
+          "sd": 0.4,
+          "sharePct": 96.42,
+          "zeroPct": 0.07,
+          "fullPct": 82.44
+        },
+        "impact": {
+          "varianceSharePct": 1.01,
+          "contribution": 4.82,
+          "flipPct": 6.08,
+          "D": 0.05
+        },
+        "kind": "categorical",
+        "multiSelect": false,
+        "multiSelectedPct": 0,
+        "answers": [
+          {
+            "id": 1,
+            "label": "1. อบต.",
+            "points": 5,
+            "n": 1221,
+            "pct": 82.44
+          },
+          {
+            "id": 2,
+            "label": "2. เทศบาลตำบล",
+            "points": 4,
+            "n": 258,
+            "pct": 17.42
+          },
+          {
+            "id": 3,
+            "label": "3. เทศบาลเมือง",
+            "points": 3,
+            "n": 1,
+            "pct": 0.07
+          },
+          {
+            "id": 4,
+            "label": "4. เทศบาลนคร",
+            "points": 0,
+            "n": 0,
+            "pct": 0
+          }
+        ],
+        "blank": {
+          "n": 1,
+          "pct": 0.07
+        },
+        "verdict": {
+          "key": "move",
+          "label": "ย้ายไปเป็นเงื่อนไขคุณสมบัติ",
+          "why": "82.44% ได้เต็ม — ทุกคนมีเหมือนกัน จึงไม่ได้จำแนกใคร"
+        },
+        "caveat": null
+      },
+      {
+        "no": 4,
+        "key": "citeria041",
+        "title": "ระยะทางช่วงที่รถยนต์ขับเคลื่อนสองล้อไปไม่ได้ (บางฤดูกาล/ตลอดปี)",
+        "short": "ถนนรถ 2 ล้อไปไม่ได้",
+        "max": 5,
+        "measure": "continuous",
+        "measureLabel": "ค่าวัดต่อเนื่อง",
+        "unit": "กิโลเมตร",
+        "rule": "min(ระยะทาง, 5) คะแนน (1 กม. = 1 คะแนน) ; ถ้าเลือก 'ไม่มี' ให้ระยะทาง = 0",
+        "n": 1481,
+        "score": {
+          "mean": 0.58,
+          "sd": 1.56,
+          "sharePct": 11.62,
+          "zeroPct": 87.17,
+          "fullPct": 10.26
+        },
+        "impact": {
+          "varianceSharePct": 9.04,
+          "contribution": 0.58,
+          "flipPct": 10.47,
+          "D": 0.34
+        },
+        "kind": "numeric",
+        "answers": [
+          {
+            "label": "0 (ไม่มีเส้นทางลำบาก)",
+            "n": 1291,
+            "pct": 87.17
+          },
+          {
+            "label": "0.01–1.99",
+            "n": 10,
+            "pct": 0.68
+          },
+          {
+            "label": "2–4.99",
+            "n": 28,
+            "pct": 1.89
+          },
+          {
+            "label": "5–9.99",
+            "n": 47,
+            "pct": 3.17
+          },
+          {
+            "label": "≥ 10",
+            "n": 105,
+            "pct": 7.09
+          }
+        ],
+        "stats": {
+          "mean": 2.67,
+          "median": 0,
+          "sd": 12.87,
+          "min": 0,
+          "max": 207.58,
+          "p25": 0,
+          "p75": 0,
+          "p90": 5
+        },
+        "verdict": {
+          "key": "keep",
+          "label": "คงไว้ — เป็นแกนหลัก",
+          "why": "จำแนกได้ดี (D=0.34) และมีผลต่อคะแนนจริง 9.04%"
+        },
+        "caveat": null
+      },
+      {
+        "no": 5,
+        "key": "citeria05",
+        "title": "ระยะทางรวมเส้นทางหลัก ศาลากลางจังหวัด–โรงเรียน",
+        "short": "ระยะทางถึงศาลากลาง",
+        "max": 5,
+        "measure": "continuous",
+        "measureLabel": "ค่าวัดต่อเนื่อง",
+        "unit": "กิโลเมตร",
+        "rule": "min(ระยะทาง, 80) × 5/80",
+        "n": 1481,
+        "score": {
+          "mean": 4.64,
+          "sd": 0.84,
+          "sharePct": 92.72,
+          "zeroPct": 0.61,
+          "fullPct": 74.68
+        },
+        "impact": {
+          "varianceSharePct": 1.91,
+          "contribution": 4.64,
+          "flipPct": 5.87,
+          "D": 0.06
+        },
+        "kind": "numeric",
+        "answers": [
+          {
+            "label": "0 (ไม่มีข้อมูล)",
+            "n": 9,
+            "pct": 0.61
+          },
+          {
+            "label": "1–49",
+            "n": 103,
+            "pct": 6.95
+          },
+          {
+            "label": "50–99",
+            "n": 551,
+            "pct": 37.2
+          },
+          {
+            "label": "100–149",
+            "n": 483,
+            "pct": 32.61
+          },
+          {
+            "label": "150–199",
+            "n": 254,
+            "pct": 17.15
+          },
+          {
+            "label": "≥ 200",
+            "n": 81,
+            "pct": 5.47
+          }
+        ],
+        "stats": {
+          "mean": 115.55,
+          "median": 106,
+          "sd": 61.24,
+          "min": 0,
+          "max": 815,
+          "p25": 79,
+          "p75": 146,
+          "p90": 184
+        },
+        "verdict": {
+          "key": "move",
+          "label": "ย้ายไปเป็นเงื่อนไขคุณสมบัติ",
+          "why": "74.68% ได้เต็ม — ทุกคนมีเหมือนกัน จึงไม่ได้จำแนกใคร"
+        },
+        "caveat": null
+      },
+      {
+        "no": 6,
+        "key": "citeria06",
+        "title": "ลักษณะการเดินทางด้วยระบบขนส่งสาธารณะ",
+        "short": "ขนส่งสาธารณะ",
+        "max": 5,
+        "measure": "ordinal",
+        "measureLabel": "ข้อความเชิงคุณภาพ (เรียงระดับได้)",
+        "unit": null,
+        "rule": null,
+        "n": 1481,
+        "score": {
+          "mean": 4.63,
+          "sd": 0.9,
+          "sharePct": 92.56,
+          "zeroPct": 0.07,
+          "fullPct": 79.27
+        },
+        "impact": {
+          "varianceSharePct": 2.32,
+          "contribution": 4.63,
+          "flipPct": 6.08,
+          "D": 0.11
+        },
+        "kind": "categorical",
+        "multiSelect": false,
+        "multiSelectedPct": 0,
+        "answers": [
+          {
+            "id": 1,
+            "label": "1. ไม่มีรถประจำทาง",
+            "points": 5,
+            "n": 1174,
+            "pct": 79.27
+          },
+          {
+            "id": 2,
+            "label": "2. ≤2 เที่ยว/วัน",
+            "points": 4,
+            "n": 188,
+            "pct": 12.69
+          },
+          {
+            "id": 3,
+            "label": "3. ≤4 เที่ยว/วัน",
+            "points": 3,
+            "n": 57,
+            "pct": 3.85
+          },
+          {
+            "id": 4,
+            "label": "4. ≤6 เที่ยว/วัน",
+            "points": 1,
+            "n": 27,
+            "pct": 1.82
+          },
+          {
+            "id": 5,
+            "label": "5. >6 เที่ยว/วัน",
+            "points": 1,
+            "n": 34,
+            "pct": 2.3
+          }
+        ],
+        "blank": {
+          "n": 1,
+          "pct": 0.07
+        },
+        "verdict": {
+          "key": "move",
+          "label": "ย้ายไปเป็นเงื่อนไขคุณสมบัติ",
+          "why": "79.27% ได้เต็ม — ทุกคนมีเหมือนกัน จึงไม่ได้จำแนกใคร"
+        },
+        "caveat": null
+      },
+      {
+        "no": 7,
+        "key": "citeria07",
+        "title": "แหล่งน้ำหลักสำหรับอุปโภค-บริโภคในโรงเรียน",
+        "short": "แหล่งน้ำ",
+        "max": 6,
+        "measure": "multiset",
+        "measureLabel": "ข้อความเชิงคุณภาพ (เลือกได้หลายข้อ)",
+        "unit": null,
+        "rule": "ใช้ค่า id สูงสุดที่เลือก",
+        "n": 1481,
+        "score": {
+          "mean": 4.8,
+          "sd": 1.42,
+          "sharePct": 80.05,
+          "zeroPct": 0.07,
+          "fullPct": 48.95
+        },
+        "impact": {
+          "varianceSharePct": 6.6,
+          "contribution": 4.8,
+          "flipPct": 6.01,
+          "D": 0.25
+        },
+        "kind": "categorical",
+        "multiSelect": true,
+        "multiSelectedPct": 21.61,
+        "answers": [
+          {
+            "id": 1,
+            "label": "1. ต่อจากแหล่งน้ำธรรมชาติ (ประปาภูเขา/ลำธาร)",
+            "points": 6,
+            "n": 971,
+            "pct": 65.56
+          },
+          {
+            "id": 2,
+            "label": "2. สูบจากบ่อ/สระ/บาดาลของชุมชน",
+            "points": 5,
+            "n": 211,
+            "pct": 14.25
+          },
+          {
+            "id": 3,
+            "label": "3. สูบจากบ่อ/สระ/บาดาลของโรงเรียน",
+            "points": 4,
+            "n": 377,
+            "pct": 25.46
+          },
+          {
+            "id": 4,
+            "label": "4. ประปาหมู่บ้าน/ชุมชน",
+            "points": 3,
+            "n": 177,
+            "pct": 11.95
+          },
+          {
+            "id": 5,
+            "label": "5. ประปา อปท.",
+            "points": 2,
+            "n": 50,
+            "pct": 3.38
+          },
+          {
+            "id": 6,
+            "label": "6. ประปาส่วนภูมิภาค",
+            "points": 1,
+            "n": 58,
+            "pct": 3.92
+          }
+        ],
+        "blank": {
+          "n": 1,
+          "pct": 0.07
+        },
+        "verdict": {
+          "key": "review",
+          "label": "ทบทวนสูตร",
+          "why": "อำนาจจำแนกพอใช้ (D=0.25) แต่ยังไม่ถึงเกณฑ์ที่ดี"
+        },
+        "caveat": null
+      },
+      {
+        "no": 8,
+        "key": "citeria08",
+        "title": "ระบบไฟฟ้า",
+        "short": "ไฟฟ้า",
+        "max": 3,
+        "measure": "multiset",
+        "measureLabel": "ข้อความเชิงคุณภาพ (เลือกได้หลายข้อ)",
+        "unit": null,
+        "rule": "ใช้ค่า id สูงสุดที่เลือก",
+        "n": 1481,
+        "score": {
+          "mean": 0.31,
+          "sd": 0.91,
+          "sharePct": 10.26,
+          "zeroPct": 89.74,
+          "fullPct": 10.26
+        },
+        "impact": {
+          "varianceSharePct": 5.29,
+          "contribution": 0.31,
+          "flipPct": 6.35,
+          "D": 0.33
+        },
+        "kind": "categorical",
+        "multiSelect": true,
+        "multiSelectedPct": 6.28,
+        "answers": [
+          {
+            "id": 1,
+            "label": "1. พลังงานทางเลือก (โซลาร์/ลม/น้ำ/เครื่องปั่นไฟ)",
+            "points": 3,
+            "n": 245,
+            "pct": 16.54
+          },
+          {
+            "id": 2,
+            "label": "2. ไฟฟ้าส่วนภูมิภาค",
+            "points": 0,
+            "n": 1328,
+            "pct": 89.67
+          }
+        ],
+        "blank": {
+          "n": 1,
+          "pct": 0.07
+        },
+        "verdict": {
+          "key": "keep",
+          "label": "คงไว้ — เป็นแกนหลัก",
+          "why": "จำแนกได้ดี (D=0.33) และมีผลต่อคะแนนจริง 5.29%"
+        },
+        "caveat": null
+      },
+      {
+        "no": 9,
+        "key": "citeria09",
+        "title": "ระบบโทรศัพท์ที่ใช้ในโรงเรียน",
+        "short": "โทรศัพท์",
+        "max": 3,
+        "measure": "multiset",
+        "measureLabel": "ข้อความเชิงคุณภาพ (เลือกได้หลายข้อ)",
+        "unit": null,
+        "rule": "ใช้ค่า id สูงสุดที่เลือก",
+        "n": 1481,
+        "score": {
+          "mean": 0.98,
+          "sd": 0.7,
+          "sharePct": 32.82,
+          "zeroPct": 17.89,
+          "fullPct": 7.43
+        },
+        "impact": {
+          "varianceSharePct": 3.56,
+          "contribution": 0.98,
+          "flipPct": 3.71,
+          "D": 0.24
+        },
+        "kind": "categorical",
+        "multiSelect": true,
+        "multiSelectedPct": 13.57,
+        "answers": [
+          {
+            "id": 1,
+            "label": "1. ไม่มีเครือข่ายสัญญาณ",
+            "points": 3,
+            "n": 129,
+            "pct": 8.71
+          },
+          {
+            "id": 2,
+            "label": "2. ผ่านจานดาวเทียม",
+            "points": 2,
+            "n": 48,
+            "pct": 3.24
+          },
+          {
+            "id": 3,
+            "label": "3. โทรศัพท์เคลื่อนที่",
+            "points": 1,
+            "n": 1243,
+            "pct": 83.93
+          },
+          {
+            "id": 4,
+            "label": "4. โทรศัพท์พื้นฐาน",
+            "points": 0,
+            "n": 264,
+            "pct": 17.83
+          }
+        ],
+        "blank": {
+          "n": 1,
+          "pct": 0.07
+        },
+        "verdict": {
+          "key": "review",
+          "label": "ทบทวนสูตร",
+          "why": "อำนาจจำแนกพอใช้ (D=0.24) แต่ยังไม่ถึงเกณฑ์ที่ดี"
+        },
+        "caveat": null
+      },
+      {
+        "no": 10,
+        "key": "citeria10",
+        "title": "ระบบอินเทอร์เน็ตที่ใช้ในโรงเรียน",
+        "short": "อินเทอร์เน็ต",
+        "max": 3,
+        "measure": "multiset",
+        "measureLabel": "ข้อความเชิงคุณภาพ (เลือกได้หลายข้อ)",
+        "unit": null,
+        "rule": "ใช้ค่า id สูงสุดที่เลือก",
+        "n": 1481,
+        "score": {
+          "mean": 0.35,
+          "sd": 0.73,
+          "sharePct": 11.7,
+          "zeroPct": 76.91,
+          "fullPct": 3.58
+        },
+        "impact": {
+          "varianceSharePct": 4,
+          "contribution": 0.35,
+          "flipPct": 5.47,
+          "D": 0.26
+        },
+        "kind": "categorical",
+        "multiSelect": true,
+        "multiSelectedPct": 27.68,
+        "answers": [
+          {
+            "id": 1,
+            "label": "1. ไม่มีเครือข่าย Internet",
+            "points": 3,
+            "n": 71,
+            "pct": 4.79
+          },
+          {
+            "id": 2,
+            "label": "2. จานรับสัญญาณดาวเทียม",
+            "points": 2,
+            "n": 118,
+            "pct": 7.97
+          },
+          {
+            "id": 3,
+            "label": "3. ไร้สาย (มือถือ)",
+            "points": 1,
+            "n": 581,
+            "pct": 39.23
+          },
+          {
+            "id": 4,
+            "label": "4. Leased line / Fiber",
+            "points": 0,
+            "n": 1138,
+            "pct": 76.84
+          }
+        ],
+        "blank": {
+          "n": 1,
+          "pct": 0.07
+        },
+        "verdict": {
+          "key": "review",
+          "label": "ทบทวนสูตร",
+          "why": "อำนาจจำแนกพอใช้ (D=0.26) แต่ยังไม่ถึงเกณฑ์ที่ดี"
+        },
+        "caveat": null
+      },
+      {
+        "no": 11,
+        "key": "citeria11",
+        "title": "ร้อยละของนักเรียนกลุ่มชาติพันธุ์",
+        "short": "% ชาติพันธุ์",
+        "max": 5,
+        "measure": "percent",
+        "measureLabel": "ร้อยละ / สัดส่วน",
+        "unit": "ร้อยละ",
+        "rule": "ร้อยละ (เพดาน 100) × 5/100 — คำนวณจากตาราง highland_eval_hilltrib",
+        "n": 1481,
+        "score": {
+          "mean": 3.39,
+          "sd": 2.01,
+          "sharePct": 67.83,
+          "zeroPct": 16.21,
+          "fullPct": 45.31
+        },
+        "impact": {
+          "varianceSharePct": 14.12,
+          "contribution": 3.39,
+          "flipPct": 6.35,
+          "D": 0.71
+        },
+        "kind": "numeric",
+        "answers": [
+          {
+            "label": "0%",
+            "n": 240,
+            "pct": 16.21
+          },
+          {
+            "label": "0.01–24.99%",
+            "n": 111,
+            "pct": 7.49
+          },
+          {
+            "label": "25–49.99%",
+            "n": 113,
+            "pct": 7.63
+          },
+          {
+            "label": "50–74.99%",
+            "n": 129,
+            "pct": 8.71
+          },
+          {
+            "label": "75–99.99%",
+            "n": 218,
+            "pct": 14.72
+          },
+          {
+            "label": "100%",
+            "n": 670,
+            "pct": 45.24
+          }
+        ],
+        "stats": {
+          "mean": 67.83,
+          "median": 95.72,
+          "sd": 40.26,
+          "min": 0,
+          "max": 100,
+          "p25": 30.42,
+          "p75": 100,
+          "p90": 100
+        },
+        "verdict": {
+          "key": "keep",
+          "label": "คงไว้ — เป็นแกนหลัก",
+          "why": "จำแนกได้ดี (D=0.71) และมีผลต่อคะแนนจริง 14.12%"
+        },
+        "caveat": "กระจุกตัวที่ปลายบน (45.2% ได้เต็ม เพราะนักเรียนเป็นกลุ่มชาติพันธุ์ 100%) — ควรจัดเป็นช่วงแทนสัดส่วนเชิงเส้น"
+      },
+      {
+        "no": 12,
+        "key": "citeria12",
+        "title": "จำนวนกลุ่มชาติพันธุ์ของนักเรียน",
+        "short": "จำนวนกลุ่มชาติพันธุ์",
+        "max": 5,
+        "measure": "count",
+        "measureLabel": "จำนวนนับ",
+        "unit": "กลุ่ม",
+        "rule": "min(จำนวนกลุ่ม, 5) — 1 กลุ่ม = 1 คะแนน",
+        "n": 1481,
+        "score": {
+          "mean": 1.93,
+          "sd": 1.52,
+          "sharePct": 38.56,
+          "zeroPct": 16.21,
+          "fullPct": 9.18
+        },
+        "impact": {
+          "varianceSharePct": 2.91,
+          "contribution": 1.93,
+          "flipPct": 4.46,
+          "D": 0.16
+        },
+        "kind": "numeric",
+        "answers": [
+          {
+            "label": "0 กลุ่ม",
+            "n": 240,
+            "pct": 16.21
+          },
+          {
+            "label": "1 กลุ่ม",
+            "n": 503,
+            "pct": 33.96
+          },
+          {
+            "label": "2 กลุ่ม",
+            "n": 267,
+            "pct": 18.03
+          },
+          {
+            "label": "3 กลุ่ม",
+            "n": 202,
+            "pct": 13.64
+          },
+          {
+            "label": "4 กลุ่ม",
+            "n": 133,
+            "pct": 8.98
+          },
+          {
+            "label": "≥ 5 กลุ่ม",
+            "n": 136,
+            "pct": 9.18
+          }
+        ],
+        "stats": {
+          "mean": 2,
+          "median": 1,
+          "sd": 1.69,
+          "min": 0,
+          "max": 9,
+          "p25": 1,
+          "p75": 3,
+          "p90": 4
+        },
+        "verdict": {
+          "key": "move",
+          "label": "ย้ายออกจากคะแนนหลัก",
+          "why": "D=0.16 ต่ำเกินกว่าจะช่วยจำแนก"
+        },
+        "caveat": null
+      },
+      {
+        "no": 13,
+        "key": "citeria13",
+        "title": "จำนวนนักเรียนยากจน/ยากจนพิเศษแบบมีเงื่อนไข",
+        "short": "นักเรียนยากจน",
+        "max": 5,
+        "measure": "count",
+        "measureLabel": "จำนวนนับ",
+        "unit": "คน",
+        "rule": "ร้อยละของนักเรียนทั้งหมด (เพดาน 50%) × 5/50",
+        "n": 1481,
+        "score": {
+          "mean": 4.07,
+          "sd": 1.54,
+          "sharePct": 81.45,
+          "zeroPct": 5.4,
+          "fullPct": 62.26
+        },
+        "impact": {
+          "varianceSharePct": 7.41,
+          "contribution": 4.07,
+          "flipPct": 6.28,
+          "D": 0.35
+        },
+        "kind": "numeric",
+        "answers": [
+          {
+            "label": "0 คน",
+            "n": 80,
+            "pct": 5.4
+          },
+          {
+            "label": "1–20",
+            "n": 202,
+            "pct": 13.64
+          },
+          {
+            "label": "21–50",
+            "n": 345,
+            "pct": 23.3
+          },
+          {
+            "label": "51–100",
+            "n": 371,
+            "pct": 25.05
+          },
+          {
+            "label": "101–200",
+            "n": 311,
+            "pct": 21
+          },
+          {
+            "label": "≥ 201",
+            "n": 172,
+            "pct": 11.61
+          }
+        ],
+        "stats": {
+          "mean": 102.51,
+          "median": 62,
+          "sd": 142.01,
+          "min": 0,
+          "max": 1898,
+          "p25": 27,
+          "p75": 122,
+          "p90": 223
+        },
+        "verdict": {
+          "key": "keep",
+          "label": "คงไว้ — เป็นแกนหลัก",
+          "why": "จำแนกได้ดี (D=0.35) และมีผลต่อคะแนนจริง 7.41%"
+        },
+        "caveat": null
+      },
+      {
+        "no": 14,
+        "key": "citeria14",
+        "title": "จำนวนนักเรียนพักนอน",
+        "short": "นักเรียนพักนอน",
+        "max": 5,
+        "measure": "count",
+        "measureLabel": "จำนวนนับ",
+        "unit": "คน",
+        "rule": "min(จำนวน, 50) × 5/50",
+        "n": 1481,
+        "score": {
+          "mean": 0.91,
+          "sd": 1.69,
+          "sharePct": 18.23,
+          "zeroPct": 71.17,
+          "fullPct": 9.45
+        },
+        "impact": {
+          "varianceSharePct": 7.64,
+          "contribution": 0.91,
+          "flipPct": 8.85,
+          "D": 0.33
+        },
+        "kind": "numeric",
+        "answers": [
+          {
+            "label": "0 คน",
+            "n": 1054,
+            "pct": 71.17
+          },
+          {
+            "label": "1–10",
+            "n": 67,
+            "pct": 4.52
+          },
+          {
+            "label": "11–30",
+            "n": 141,
+            "pct": 9.52
+          },
+          {
+            "label": "31–50",
+            "n": 85,
+            "pct": 5.74
+          },
+          {
+            "label": "≥ 51",
+            "n": 134,
+            "pct": 9.05
+          }
+        ],
+        "stats": {
+          "mean": 14.62,
+          "median": 0,
+          "sd": 39.38,
+          "min": 0,
+          "max": 514,
+          "p25": 0,
+          "p75": 10,
+          "p90": 48
+        },
+        "verdict": {
+          "key": "keep",
+          "label": "คงไว้ — เป็นแกนหลัก",
+          "why": "จำแนกได้ดี (D=0.33) และมีผลต่อคะแนนจริง 7.64%"
+        },
+        "caveat": null
+      },
+      {
+        "no": 15,
+        "key": "citeria15",
+        "title": "จำนวนโรงเรียนสาขา / ห้องเรียนสาขา",
+        "short": "สาขา",
+        "max": 5,
+        "measure": "count",
+        "measureLabel": "จำนวนนับ",
+        "unit": "แห่ง",
+        "rule": "1 สาขา = 3 · 2 สาขา = 4 · ≥3 สาขา = 5 · ไม่มี = 0",
+        "n": 1481,
+        "score": {
+          "mean": 0.29,
+          "sd": 0.98,
+          "sharePct": 5.85,
+          "zeroPct": 91.42,
+          "fullPct": 1.35
+        },
+        "impact": {
+          "varianceSharePct": 3.55,
+          "contribution": 0.29,
+          "flipPct": 9.72,
+          "D": 0.14
+        },
+        "kind": "numeric",
+        "answers": [
+          {
+            "label": "ไม่มีสาขา",
+            "n": 1354,
+            "pct": 91.42
+          },
+          {
+            "label": "1 แห่ง",
+            "n": 95,
+            "pct": 6.41
+          },
+          {
+            "label": "2 แห่ง",
+            "n": 12,
+            "pct": 0.81
+          },
+          {
+            "label": "≥ 3 แห่ง",
+            "n": 20,
+            "pct": 1.35
+          }
+        ],
+        "stats": {
+          "mean": 0.16,
+          "median": 0,
+          "sd": 0.81,
+          "min": 0,
+          "max": 13,
+          "p25": 0,
+          "p75": 0,
+          "p90": 0
+        },
+        "verdict": {
+          "key": "move",
+          "label": "ย้ายออกจากคะแนนหลัก",
+          "why": "91.42% ได้ 0 คะแนน — เป็นแต้มพิเศษของกลุ่มเล็ก ไม่ใช่ตัวชี้วัดร่วม"
+        },
+        "caveat": null
+      },
+      {
+        "no": 16,
+        "key": "citeria16",
+        "title": "เป็นโรงเรียนพื้นที่พิเศษตามประกาศกระทรวงการคลัง",
+        "short": "ประกาศคลัง",
+        "max": 5,
+        "measure": "binary",
+        "measureLabel": "ข้อความเชิงคุณภาพสองค่า",
+        "unit": null,
+        "rule": null,
+        "n": 1481,
+        "score": {
+          "mean": 1.77,
+          "sd": 2.39,
+          "sharePct": 35.31,
+          "zeroPct": 64.69,
+          "fullPct": 35.31
+        },
+        "impact": {
+          "varianceSharePct": 17.86,
+          "contribution": 1.77,
+          "flipPct": 10.13,
+          "D": 0.87
+        },
+        "kind": "categorical",
+        "multiSelect": false,
+        "multiSelectedPct": 0,
+        "answers": [
+          {
+            "id": 1,
+            "label": "1. ใช่",
+            "points": 5,
+            "n": 523,
+            "pct": 35.31
+          },
+          {
+            "id": 2,
+            "label": "2. ไม่ใช่",
+            "points": 0,
+            "n": 950,
+            "pct": 64.15
+          }
+        ],
+        "blank": {
+          "n": 8,
+          "pct": 0.54
+        },
+        "verdict": {
+          "key": "keep-nomore",
+          "label": "คงไว้ แต่ห้ามเพิ่มน้ำหนัก",
+          "why": "มีผลต่อคะแนนสูงสุด (17.86%) แต่เป็นวงจรย้อนกลับ — ดูข้อควรระวัง"
+        },
+        "caveat": "อำนาจจำแนกสูงเพราะข้อนี้ **เป็นผลของการประกาศครั้งก่อน** ไม่ใช่การวัดความลำบากจริง — การเพิ่มน้ำหนักจะทำให้เกณฑ์รับรองการตัดสินใจเดิมของตัวเองเป็นวงจร ควรใช้เป็นตัวสอบทานผลแทน"
+      }
+    ]
+  },
+  "island": {
+    "n": 123,
+    "totals": {
+      "mean": 65.42,
+      "sd": 10.99,
+      "variance": 120.87,
+      "pass70": 47
+    },
+    "items": [
+      {
+        "no": 1,
+        "key": "citeria01",
+        "title": "เป็นโรงเรียนพื้นที่เกาะ",
+        "short": "เป็นเกาะ",
+        "max": 0,
+        "measure": "binary",
+        "measureLabel": "ข้อความเชิงคุณภาพสองค่า",
+        "unit": null,
+        "rule": null,
+        "n": 123,
+        "score": {
+          "mean": 0,
+          "sd": 0,
+          "sharePct": 0,
+          "zeroPct": 100,
+          "fullPct": 0
+        },
+        "impact": {
+          "varianceSharePct": 0,
+          "contribution": 0,
+          "flipPct": 0,
+          "D": 0
+        },
+        "kind": "categorical",
+        "multiSelect": false,
+        "multiSelectedPct": 0,
+        "answers": [
+          {
+            "id": 1,
+            "label": "1. ใช่",
+            "points": 0,
+            "n": 0,
+            "pct": 0
+          },
+          {
+            "id": 2,
+            "label": "2. ไม่ใช่",
+            "points": 0,
+            "n": 0,
+            "pct": 0
+          }
+        ],
+        "blank": {
+          "n": 0,
+          "pct": 0
+        },
+        "verdict": {
+          "key": "move",
+          "label": "ย้ายออกจากคะแนนหลัก",
+          "why": "100% ได้ 0 คะแนน — เป็นแต้มพิเศษของกลุ่มเล็ก ไม่ใช่ตัวชี้วัดร่วม"
+        },
+        "caveat": null
+      },
+      {
+        "no": 2,
+        "key": "citeria02",
+        "title": "เขตการปกครองส่วนท้องถิ่นที่โรงเรียนตั้งอยู่",
+        "short": "เขต อปท.",
+        "max": 10,
+        "measure": "ordinal",
+        "measureLabel": "ข้อความเชิงคุณภาพ (เรียงระดับได้)",
+        "unit": null,
+        "rule": null,
+        "n": 123,
+        "score": {
+          "mean": 8.39,
+          "sd": 2.2,
+          "sharePct": 83.9,
+          "zeroPct": 0,
+          "fullPct": 54.47
+        },
+        "impact": {
+          "varianceSharePct": 8.73,
+          "contribution": 8.39,
+          "flipPct": 11.38,
+          "D": 0.18
+        },
+        "kind": "categorical",
+        "multiSelect": false,
+        "multiSelectedPct": 0,
+        "answers": [
+          {
+            "id": 1,
+            "label": "1. อบต.",
+            "points": 10,
+            "n": 67,
+            "pct": 54.47
+          },
+          {
+            "id": 2,
+            "label": "2. เทศบาลตำบล",
+            "points": 8,
+            "n": 34,
+            "pct": 27.64
+          },
+          {
+            "id": 3,
+            "label": "3. เทศบาลเมือง",
+            "points": 6,
+            "n": 1,
+            "pct": 0.81
+          },
+          {
+            "id": 4,
+            "label": "4. เทศบาลนคร",
+            "points": 4,
+            "n": 21,
+            "pct": 17.07
+          }
+        ],
+        "blank": {
+          "n": 0,
+          "pct": 0
+        },
+        "verdict": {
+          "key": "move",
+          "label": "ย้ายออกจากคะแนนหลัก",
+          "why": "D=0.18 ต่ำเกินกว่าจะช่วยจำแนก"
+        },
+        "caveat": null
+      },
+      {
+        "no": 3,
+        "key": "citeria03",
+        "title": "ลักษณะที่ตั้ง (มีสะพานเชื่อมแผ่นดินใหญ่หรือไม่)",
+        "short": "ลักษณะที่ตั้ง",
+        "max": 16,
+        "measure": "binary",
+        "measureLabel": "ข้อความเชิงคุณภาพสองค่า",
+        "unit": null,
+        "rule": null,
+        "n": 123,
+        "score": {
+          "mean": 15.87,
+          "sd": 1.44,
+          "sharePct": 99.19,
+          "zeroPct": 0.81,
+          "fullPct": 99.19
+        },
+        "impact": {
+          "varianceSharePct": 1.38,
+          "contribution": 15.87,
+          "flipPct": 15.45,
+          "D": 0.03
+        },
+        "kind": "categorical",
+        "multiSelect": false,
+        "multiSelectedPct": 0,
+        "answers": [
+          {
+            "id": 1,
+            "label": "1. ไม่มีสะพาน — ไปได้ทางเรือเท่านั้น",
+            "points": 16,
+            "n": 122,
+            "pct": 99.19
+          },
+          {
+            "id": 2,
+            "label": "2. มีสะพาน / ไปได้ทั้งทางบกและน้ำ",
+            "points": 0,
+            "n": 1,
+            "pct": 0.81
+          }
+        ],
+        "blank": {
+          "n": 0,
+          "pct": 0
+        },
+        "verdict": {
+          "key": "move",
+          "label": "ย้ายไปเป็นเงื่อนไขคุณสมบัติ",
+          "why": "99.19% ได้เต็ม — ทุกคนมีเหมือนกัน จึงไม่ได้จำแนกใคร"
+        },
+        "caveat": "คำถามใช่/ไม่ใช่ข้อเดียวถือน้ำหนัก 16 คะแนน ผลจึงถูกกำหนดด้วยคำตอบเดียว"
+      },
+      {
+        "no": 4,
+        "key": "citeria04",
+        "title": "พาหนะหลักในการเดินทาง",
+        "short": "พาหนะหลัก",
+        "max": 20,
+        "measure": "ordinal",
+        "measureLabel": "ข้อความเชิงคุณภาพ (เรียงระดับได้)",
+        "unit": null,
+        "rule": null,
+        "n": 123,
+        "score": {
+          "mean": 11.91,
+          "sd": 5.92,
+          "sharePct": 59.55,
+          "zeroPct": 0,
+          "fullPct": 21.14
+        },
+        "impact": {
+          "varianceSharePct": 41.28,
+          "contribution": 11.91,
+          "flipPct": 15.45,
+          "D": 0.55
+        },
+        "kind": "categorical",
+        "multiSelect": false,
+        "multiSelectedPct": 0,
+        "answers": [
+          {
+            "id": 1,
+            "label": "1. เรือไม่ประจำทาง",
+            "points": 20,
+            "n": 26,
+            "pct": 21.14
+          },
+          {
+            "id": 2,
+            "label": "2. เรือประจำทาง ไม่ตลอดปี",
+            "points": 15,
+            "n": 40,
+            "pct": 32.52
+          },
+          {
+            "id": 3,
+            "label": "3. เรือประจำทาง ตลอดปี",
+            "points": 10,
+            "n": 12,
+            "pct": 9.76
+          },
+          {
+            "id": 4,
+            "label": "4. เรือเฟอร์รี่/แพขนานยนต์",
+            "points": 5,
+            "n": 45,
+            "pct": 36.59
+          },
+          {
+            "id": 5,
+            "label": "5. ใช้รถเป็นหลัก",
+            "points": 0,
+            "n": 0,
+            "pct": 0
+          }
+        ],
+        "blank": {
+          "n": 0,
+          "pct": 0
+        },
+        "verdict": {
+          "key": "keep",
+          "label": "คงไว้ — เป็นแกนหลัก",
+          "why": "จำแนกได้ดี (D=0.55) และมีผลต่อคะแนนจริง 41.28%"
+        },
+        "caveat": "ข้อเชิงคุณภาพข้อเดียวถือน้ำหนักสูงสุดของเกณฑ์ (20 คะแนน)"
+      },
+      {
+        "no": 5,
+        "key": "citeria05",
+        "title": "ระยะทางช่วงทางบก",
+        "short": "ระยะทางบก",
+        "max": 5,
+        "measure": "continuous",
+        "measureLabel": "ค่าวัดต่อเนื่อง",
+        "unit": "กิโลเมตร",
+        "rule": "min(กม., 20) × 5/20",
+        "n": 123,
+        "score": {
+          "mean": 4.51,
+          "sd": 1.01,
+          "sharePct": 90.2,
+          "zeroPct": 0,
+          "fullPct": 78.05
+        },
+        "impact": {
+          "varianceSharePct": -0.89,
+          "contribution": 4.51,
+          "flipPct": 7.32,
+          "D": -0.04
+        },
+        "kind": "numeric",
+        "answers": [
+          {
+            "label": "0",
+            "n": 0,
+            "pct": 0
+          },
+          {
+            "label": "0.01–4.99",
+            "n": 2,
+            "pct": 1.63
+          },
+          {
+            "label": "5–9.99",
+            "n": 6,
+            "pct": 4.88
+          },
+          {
+            "label": "10–19.99",
+            "n": 19,
+            "pct": 15.45
+          },
+          {
+            "label": "≥ 20",
+            "n": 96,
+            "pct": 78.05
+          }
+        ],
+        "stats": {
+          "mean": 53.76,
+          "median": 54.15,
+          "sd": 31.37,
+          "min": 2.6,
+          "max": 114.72,
+          "p25": 25.4,
+          "p75": 82,
+          "p90": 94.8
+        },
+        "verdict": {
+          "key": "move",
+          "label": "ย้ายไปเป็นเงื่อนไขคุณสมบัติ",
+          "why": "78.05% ได้เต็ม — ทุกคนมีเหมือนกัน จึงไม่ได้จำแนกใคร"
+        },
+        "caveat": null
+      },
+      {
+        "no": 6,
+        "key": "citeria06",
+        "title": "ระยะทางช่วงทางน้ำ",
+        "short": "ระยะทางน้ำ",
+        "max": 5,
+        "measure": "continuous",
+        "measureLabel": "ค่าวัดต่อเนื่อง",
+        "unit": "กิโลเมตร",
+        "rule": "min(กม., 20) × 5/20",
+        "n": 123,
+        "score": {
+          "mean": 2.99,
+          "sd": 1.98,
+          "sharePct": 59.74,
+          "zeroPct": 0.81,
+          "fullPct": 45.53
+        },
+        "impact": {
+          "varianceSharePct": 2.53,
+          "contribution": 2.99,
+          "flipPct": 7.32,
+          "D": 0.22
+        },
+        "kind": "numeric",
+        "answers": [
+          {
+            "label": "0",
+            "n": 1,
+            "pct": 0.81
+          },
+          {
+            "label": "0.01–4.99",
+            "n": 32,
+            "pct": 26.02
+          },
+          {
+            "label": "5–9.99",
+            "n": 26,
+            "pct": 21.14
+          },
+          {
+            "label": "10–19.99",
+            "n": 8,
+            "pct": 6.5
+          },
+          {
+            "label": "≥ 20",
+            "n": 56,
+            "pct": 45.53
+          }
+        ],
+        "stats": {
+          "mean": 21.04,
+          "median": 12,
+          "sd": 19.73,
+          "min": 0,
+          "max": 104.2,
+          "p25": 4.22,
+          "p75": 38,
+          "p90": 42.43
+        },
+        "verdict": {
+          "key": "review",
+          "label": "ทบทวนสูตร",
+          "why": "อำนาจจำแนกพอใช้ (D=0.22) แต่ยังไม่ถึงเกณฑ์ที่ดี"
+        },
+        "caveat": null
+      },
+      {
+        "no": 7,
+        "key": "citeria07",
+        "title": "เวลาที่ใช้เดินทาง",
+        "short": "เวลาเดินทาง",
+        "max": 5,
+        "measure": "continuous",
+        "measureLabel": "ค่าวัดต่อเนื่อง",
+        "unit": "นาที",
+        "rule": "min(นาที, 60) × 5/60",
+        "n": 123,
+        "score": {
+          "mean": 3.55,
+          "sd": 1.45,
+          "sharePct": 70.94,
+          "zeroPct": 0.81,
+          "fullPct": 39.02
+        },
+        "impact": {
+          "varianceSharePct": 1.21,
+          "contribution": 3.55,
+          "flipPct": 4.88,
+          "D": 0.11
+        },
+        "kind": "numeric",
+        "answers": [
+          {
+            "label": "0",
+            "n": 1,
+            "pct": 0.81
+          },
+          {
+            "label": "1–29",
+            "n": 35,
+            "pct": 28.46
+          },
+          {
+            "label": "30–59",
+            "n": 39,
+            "pct": 31.71
+          },
+          {
+            "label": "60–89",
+            "n": 11,
+            "pct": 8.94
+          },
+          {
+            "label": "≥ 90",
+            "n": 37,
+            "pct": 30.08
+          }
+        ],
+        "stats": {
+          "mean": 60.98,
+          "median": 50,
+          "sd": 52.01,
+          "min": 0,
+          "max": 360,
+          "p25": 27,
+          "p75": 90,
+          "p90": 120
+        },
+        "verdict": {
+          "key": "move",
+          "label": "ย้ายออกจากคะแนนหลัก",
+          "why": "D=0.11 ต่ำเกินกว่าจะช่วยจำแนก"
+        },
+        "caveat": null
+      },
+      {
+        "no": 8,
+        "key": "citeria08",
+        "title": "ค่าโดยสารต่อเที่ยว",
+        "short": "ค่าโดยสาร",
+        "max": 5,
+        "measure": "continuous",
+        "measureLabel": "ค่าวัดต่อเนื่อง",
+        "unit": "บาท",
+        "rule": "min(บาท, 500) × 5/500",
+        "n": 123,
+        "score": {
+          "mean": 2.77,
+          "sd": 1.81,
+          "sharePct": 55.46,
+          "zeroPct": 0.81,
+          "fullPct": 21.95
+        },
+        "impact": {
+          "varianceSharePct": 5.45,
+          "contribution": 2.77,
+          "flipPct": 5.69,
+          "D": 0.37
+        },
+        "kind": "numeric",
+        "answers": [
+          {
+            "label": "0",
+            "n": 1,
+            "pct": 0.81
+          },
+          {
+            "label": "1–49",
+            "n": 11,
+            "pct": 8.94
+          },
+          {
+            "label": "50–99",
+            "n": 10,
+            "pct": 8.13
+          },
+          {
+            "label": "100–299",
+            "n": 36,
+            "pct": 29.27
+          },
+          {
+            "label": "300–499",
+            "n": 38,
+            "pct": 30.89
+          },
+          {
+            "label": "≥ 500",
+            "n": 27,
+            "pct": 21.95
+          }
+        ],
+        "stats": {
+          "mean": 338.25,
+          "median": 300,
+          "sd": 319.07,
+          "min": 0,
+          "max": 2000,
+          "p25": 100,
+          "p75": 470,
+          "p90": 620
+        },
+        "verdict": {
+          "key": "keep",
+          "label": "คงไว้ — เป็นแกนหลัก",
+          "why": "จำแนกได้ดี (D=0.37) และมีผลต่อคะแนนจริง 5.45%"
+        },
+        "caveat": null
+      },
+      {
+        "no": 9,
+        "key": "citeria09",
+        "title": "การเดินทางต่อหลังขึ้นฝั่ง",
+        "short": "เดินทางต่อ",
+        "max": 5,
+        "measure": "ordinal",
+        "measureLabel": "ข้อความเชิงคุณภาพ (เรียงระดับได้)",
+        "unit": null,
+        "rule": null,
+        "n": 123,
+        "score": {
+          "mean": 2.25,
+          "sd": 0.74,
+          "sharePct": 45.04,
+          "zeroPct": 0,
+          "fullPct": 0.81
+        },
+        "impact": {
+          "varianceSharePct": 2.74,
+          "contribution": 2.25,
+          "flipPct": 4.88,
+          "D": 0.14
+        },
+        "kind": "categorical",
+        "multiSelect": false,
+        "multiSelectedPct": 0,
+        "answers": [
+          {
+            "id": 1,
+            "label": "1. ทางเรือแล้วต่อด้วยเดินเท้า",
+            "points": 5,
+            "n": 1,
+            "pct": 0.81
+          },
+          {
+            "id": 2,
+            "label": "2. เดินเท้าเท่านั้น",
+            "points": 4,
+            "n": 14,
+            "pct": 11.38
+          },
+          {
+            "id": 3,
+            "label": "3. รถบนทางลำลอง/ทางเท้า",
+            "points": 3,
+            "n": 5,
+            "pct": 4.07
+          },
+          {
+            "id": 4,
+            "label": "4. รถบนทางลาดยาง/คอนกรีต",
+            "points": 2,
+            "n": 98,
+            "pct": 79.67
+          },
+          {
+            "id": 5,
+            "label": "5. ไม่ต้องเดินทางต่อ",
+            "points": 1,
+            "n": 5,
+            "pct": 4.07
+          }
+        ],
+        "blank": {
+          "n": 0,
+          "pct": 0
+        },
+        "verdict": {
+          "key": "move",
+          "label": "ย้ายออกจากคะแนนหลัก",
+          "why": "D=0.14 ต่ำเกินกว่าจะช่วยจำแนก"
+        },
+        "caveat": null
+      },
+      {
+        "no": 10,
+        "key": "citeria10",
+        "title": "ระบบไฟฟ้า",
+        "short": "ไฟฟ้า",
+        "max": 5,
+        "measure": "binary",
+        "measureLabel": "ข้อความเชิงคุณภาพสองค่า",
+        "unit": null,
+        "rule": null,
+        "n": 123,
+        "score": {
+          "mean": 0.85,
+          "sd": 1.89,
+          "sharePct": 17.07,
+          "zeroPct": 82.93,
+          "fullPct": 17.07
+        },
+        "impact": {
+          "varianceSharePct": 11.03,
+          "contribution": 0.85,
+          "flipPct": 9.76,
+          "D": 0.61
+        },
+        "kind": "categorical",
+        "multiSelect": false,
+        "multiSelectedPct": 0,
+        "answers": [
+          {
+            "id": 1,
+            "label": "1. พลังงานทางเลือกเท่านั้น",
+            "points": 5,
+            "n": 21,
+            "pct": 17.07
+          },
+          {
+            "id": 2,
+            "label": "2. ไฟฟ้าส่วนภูมิภาค",
+            "points": 0,
+            "n": 102,
+            "pct": 82.93
+          }
+        ],
+        "blank": {
+          "n": 0,
+          "pct": 0
+        },
+        "verdict": {
+          "key": "keep",
+          "label": "คงไว้ — เป็นแกนหลัก",
+          "why": "จำแนกได้ดี (D=0.61) และมีผลต่อคะแนนจริง 11.03%"
+        },
+        "caveat": null
+      },
+      {
+        "no": 11,
+        "key": "citeria11",
+        "title": "แหล่งน้ำหลัก",
+        "short": "แหล่งน้ำ",
+        "max": 10,
+        "measure": "ordinal",
+        "measureLabel": "ข้อความเชิงคุณภาพ (เรียงระดับได้)",
+        "unit": null,
+        "rule": null,
+        "n": 123,
+        "score": {
+          "mean": 5.64,
+          "sd": 2.98,
+          "sharePct": 56.42,
+          "zeroPct": 14.63,
+          "fullPct": 9.76
+        },
+        "impact": {
+          "varianceSharePct": 13.66,
+          "contribution": 5.64,
+          "flipPct": 8.13,
+          "D": 0.33
+        },
+        "kind": "categorical",
+        "multiSelect": false,
+        "multiSelectedPct": 0,
+        "answers": [
+          {
+            "id": 1,
+            "label": "1. แหล่งน้ำธรรมชาติ",
+            "points": 10,
+            "n": 12,
+            "pct": 9.76
+          },
+          {
+            "id": 2,
+            "label": "2. บ่อ/สระ/บาดาลของชุมชน",
+            "points": 8,
+            "n": 29,
+            "pct": 23.58
+          },
+          {
+            "id": 3,
+            "label": "3. บ่อ/สระ/บาดาลของโรงเรียน",
+            "points": 6,
+            "n": 50,
+            "pct": 40.65
+          },
+          {
+            "id": 4,
+            "label": "4. ประปาหมู่บ้าน/ชุมชน",
+            "points": 4,
+            "n": 7,
+            "pct": 5.69
+          },
+          {
+            "id": 5,
+            "label": "5. ประปา อปท.",
+            "points": 2,
+            "n": 7,
+            "pct": 5.69
+          },
+          {
+            "id": 6,
+            "label": "6. ประปาส่วนภูมิภาค",
+            "points": 0,
+            "n": 18,
+            "pct": 14.63
+          }
+        ],
+        "blank": {
+          "n": 0,
+          "pct": 0
+        },
+        "verdict": {
+          "key": "keep",
+          "label": "คงไว้ — เป็นแกนหลัก",
+          "why": "จำแนกได้ดี (D=0.33) และมีผลต่อคะแนนจริง 13.66%"
+        },
+        "caveat": null
+      },
+      {
+        "no": 12,
+        "key": "citeria12",
+        "title": "ระบบอินเทอร์เน็ต",
+        "short": "อินเทอร์เน็ต",
+        "max": 5,
+        "measure": "ordinal",
+        "measureLabel": "ข้อความเชิงคุณภาพ (เรียงระดับได้)",
+        "unit": null,
+        "rule": null,
+        "n": 123,
+        "score": {
+          "mean": 2.28,
+          "sd": 0.55,
+          "sharePct": 45.53,
+          "zeroPct": 0,
+          "fullPct": 0.81
+        },
+        "impact": {
+          "varianceSharePct": 2.46,
+          "contribution": 2.28,
+          "flipPct": 4.88,
+          "D": 0.15
+        },
+        "kind": "categorical",
+        "multiSelect": false,
+        "multiSelectedPct": 0,
+        "answers": [
+          {
+            "id": 1,
+            "label": "1. ไม่มีเครือข่าย",
+            "points": 5,
+            "n": 1,
+            "pct": 0.81
+          },
+          {
+            "id": 2,
+            "label": "2. จานดาวเทียม",
+            "points": 4,
+            "n": 3,
+            "pct": 2.44
+          },
+          {
+            "id": 3,
+            "label": "3. ไร้สาย (มือถือ)",
+            "points": 3,
+            "n": 25,
+            "pct": 20.33
+          },
+          {
+            "id": 4,
+            "label": "4. Leased line / Fiber",
+            "points": 2,
+            "n": 94,
+            "pct": 76.42
+          }
+        ],
+        "blank": {
+          "n": 0,
+          "pct": 0
+        },
+        "verdict": {
+          "key": "move",
+          "label": "ย้ายออกจากคะแนนหลัก",
+          "why": "D=0.15 ต่ำเกินกว่าจะช่วยจำแนก"
+        },
+        "caveat": null
+      },
+      {
+        "no": 13,
+        "key": "citeria13",
+        "title": "ระบบโทรศัพท์",
+        "short": "โทรศัพท์",
+        "max": 5,
+        "measure": "ordinal",
+        "measureLabel": "ข้อความเชิงคุณภาพ (เรียงระดับได้)",
+        "unit": null,
+        "rule": null,
+        "n": 123,
+        "score": {
+          "mean": 2.59,
+          "sd": 0.54,
+          "sharePct": 51.71,
+          "zeroPct": 0,
+          "fullPct": 0.81
+        },
+        "impact": {
+          "varianceSharePct": 1.85,
+          "contribution": 2.59,
+          "flipPct": 4.07,
+          "D": 0.12
+        },
+        "kind": "categorical",
+        "multiSelect": false,
+        "multiSelectedPct": 0,
+        "answers": [
+          {
+            "id": 1,
+            "label": "1. ไม่มีเครือข่าย",
+            "points": 5,
+            "n": 1,
+            "pct": 0.81
+          },
+          {
+            "id": 2,
+            "label": "2. จานดาวเทียม",
+            "points": 4,
+            "n": 0,
+            "pct": 0
+          },
+          {
+            "id": 3,
+            "label": "3. โทรศัพท์เคลื่อนที่",
+            "points": 3,
+            "n": 69,
+            "pct": 56.1
+          },
+          {
+            "id": 4,
+            "label": "4. โทรศัพท์พื้นฐาน",
+            "points": 2,
+            "n": 53,
+            "pct": 43.09
+          }
+        ],
+        "blank": {
+          "n": 0,
+          "pct": 0
+        },
+        "verdict": {
+          "key": "move",
+          "label": "ย้ายออกจากคะแนนหลัก",
+          "why": "D=0.12 ต่ำเกินกว่าจะช่วยจำแนก"
+        },
+        "caveat": null
+      },
+      {
+        "no": 14,
+        "key": "citeria14",
+        "title": "เป็นพื้นที่พิเศษตามประกาศกระทรวงการคลัง",
+        "short": "ประกาศคลัง",
+        "max": 2,
+        "measure": "binary",
+        "measureLabel": "ข้อความเชิงคุณภาพสองค่า",
+        "unit": null,
+        "rule": null,
+        "n": 123,
+        "score": {
+          "mean": 0.83,
+          "sd": 0.99,
+          "sharePct": 41.46,
+          "zeroPct": 58.54,
+          "fullPct": 41.46
+        },
+        "impact": {
+          "varianceSharePct": 6.31,
+          "contribution": 0.83,
+          "flipPct": 4.07,
+          "D": 0.88
+        },
+        "kind": "categorical",
+        "multiSelect": false,
+        "multiSelectedPct": 0,
+        "answers": [
+          {
+            "id": 1,
+            "label": "1. ใช่",
+            "points": 2,
+            "n": 51,
+            "pct": 41.46
+          },
+          {
+            "id": 2,
+            "label": "2. ไม่ใช่",
+            "points": 0,
+            "n": 72,
+            "pct": 58.54
+          }
+        ],
+        "blank": {
+          "n": 0,
+          "pct": 0
+        },
+        "verdict": {
+          "key": "keep",
+          "label": "คงไว้ — เป็นแกนหลัก",
+          "why": "จำแนกได้ดี (D=0.88) และมีผลต่อคะแนนจริง 6.31%"
+        },
+        "caveat": null
+      },
+      {
+        "no": 15,
+        "key": "citeria15",
+        "title": "จำนวนนักเรียนยากจน",
+        "short": "นักเรียนยากจน",
+        "max": 2,
+        "measure": "count",
+        "measureLabel": "จำนวนนับ",
+        "unit": "คน",
+        "rule": "ร้อยละของนักเรียนทั้งหมด (เพดาน 50%) × 2/50",
+        "n": 123,
+        "score": {
+          "mean": 1,
+          "sd": 0.72,
+          "sharePct": 49.8,
+          "zeroPct": 5.69,
+          "fullPct": 22.76
+        },
+        "impact": {
+          "varianceSharePct": 2.26,
+          "contribution": 1,
+          "flipPct": 2.44,
+          "D": 0.3
+        },
+        "kind": "numeric",
+        "answers": [
+          {
+            "label": "0 คน",
+            "n": 7,
+            "pct": 5.69
+          },
+          {
+            "label": "1–10",
+            "n": 25,
+            "pct": 20.33
+          },
+          {
+            "label": "11–30",
+            "n": 32,
+            "pct": 26.02
+          },
+          {
+            "label": "31–50",
+            "n": 15,
+            "pct": 12.2
+          },
+          {
+            "label": "≥ 51",
+            "n": 44,
+            "pct": 35.77
+          }
+        ],
+        "stats": {
+          "mean": 47.62,
+          "median": 28,
+          "sd": 52.36,
+          "min": 0,
+          "max": 242,
+          "p25": 10,
+          "p75": 68.5,
+          "p90": 102
+        },
+        "verdict": {
+          "key": "keep-weight",
+          "label": "คงไว้ และควรเพิ่มน้ำหนัก",
+          "why": "จำแนกได้ดี (D=0.3) แต่ให้น้ำหนักเพียง 2 คะแนน"
+        },
+        "caveat": null
+      }
+    ]
+  }
+}

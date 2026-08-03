@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>อธิบายร่าง ค — เปลี่ยนอะไร เพราะอะไร ผลเป็นอย่างไร</title>
+<style>*{box-sizing:border-box}html,body{margin:0;padding:0}</style>
+</head>
+<body>
+<style>
+  .viz-root{
+    color-scheme: light;
+    --surface-0:#f6f5f2; --surface-1:#fcfcfb; --border:#e2e0da;
+    --text-primary:#0b0b0b; --text-secondary:#52514e; --text-muted:#7c7a73;
+    --series-1:#2a78d6; --series-2:#eb6834; --track:#e8e6e0;
+    --good:#00713a; --warn:#b9430f;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:where(:not([data-theme="light"])) .viz-root{
+      color-scheme: dark;
+      --surface-0:#111110; --surface-1:#1a1a19; --border:#33332f;
+      --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#96958b;
+      --series-1:#3987e5; --series-2:#d95926; --track:#2b2b28;
+      --good:#4fbf8a; --warn:#f08a5c;
+    }
+  }
+  :root[data-theme="dark"] .viz-root{
+    color-scheme: dark;
+    --surface-0:#111110; --surface-1:#1a1a19; --border:#33332f;
+    --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#96958b;
+    --series-1:#3987e5; --series-2:#d95926; --track:#2b2b28;
+    --good:#4fbf8a; --warn:#f08a5c;
+  }
+
+  .viz-root{
+    background:var(--surface-0); color:var(--text-primary);
+    font-family:"IBM Plex Sans Thai","Noto Sans Thai",-apple-system,"Segoe UI",sans-serif;
+    line-height:1.6; padding:32px 20px 72px; max-width:1080px; margin:0 auto;
+    font-size:15px;
+  }
+  .viz-root h1,.viz-root h2,.viz-root h3{text-wrap:balance}
+  .viz-root h1{font-size:1.7rem; line-height:1.3; margin:0 0 8px; letter-spacing:-0.01em}
+  .viz-root h2{font-size:1.15rem; margin:44px 0 4px; letter-spacing:-0.005em}
+  .viz-root h3{font-size:0.98rem; margin:24px 0 6px; color:var(--text-secondary); font-weight:600}
+  .viz-root p{margin:8px 0; color:var(--text-secondary)}
+  .lead{color:var(--text-secondary); font-size:0.95rem}
+  .src{font-size:0.82rem; color:var(--text-muted); border-left:3px solid var(--border); padding-left:12px; margin:16px 0 0}
+
+  .tiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin:24px 0 8px}
+  .tile{background:var(--surface-1); border:1px solid var(--border); border-radius:12px; padding:14px 16px}
+  .tile .v{font-size:1.7rem; font-weight:650; letter-spacing:-0.02em; font-variant-numeric:tabular-nums}
+  .tile .l{font-size:0.85rem; color:var(--text-secondary); margin-top:2px}
+  .tile .s{font-size:0.76rem; color:var(--text-muted); margin-top:4px}
+
+  .card{background:var(--surface-1); border:1px solid var(--border); border-radius:12px; padding:16px 18px; margin:12px 0}
+  .scroll{overflow-x:auto}
+  svg.chart{display:block; width:100%; height:auto; overflow:visible}
+  svg .lbl{font-size:11.5px; fill:var(--text-secondary)}
+  svg .val{font-size:11.5px; fill:var(--text-primary); font-variant-numeric:tabular-nums}
+  svg .tick{font-size:10.5px; fill:var(--text-muted); font-variant-numeric:tabular-nums}
+  svg .track{fill:var(--track)}
+  svg .grid{stroke:var(--border); stroke-width:1}
+  svg .cut{stroke:var(--text-primary); stroke-width:2; stroke-dasharray:4 3; opacity:.7}
+  svg .cutlbl{font-size:10.5px; fill:var(--text-primary)}
+  svg .bar{cursor:default; outline:none}
+  svg .bar:hover rect:not(.track){opacity:.82}
+  svg .bar:focus-visible rect:not(.track){opacity:.82; stroke:var(--text-primary); stroke-width:2; paint-order:stroke}
+
+  table{border-collapse:collapse; width:100%; font-size:0.85rem; margin:8px 0}
+  th,td{text-align:left; padding:7px 10px; border-bottom:1px solid var(--border); vertical-align:top}
+  th{font-weight:600; color:var(--text-secondary); font-size:0.8rem; white-space:nowrap}
+  td.num,th.num{text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap}
+  td.muted{color:var(--text-muted)}
+  td.warn{color:var(--warn); font-weight:600}
+  td.good{color:var(--good); font-weight:600}
+  tbody tr:hover{background:var(--surface-0)}
+
+  ol.findings{padding-left:20px; margin:12px 0}
+  ol.findings li{margin:10px 0; color:var(--text-secondary)}
+  ol.findings b{color:var(--text-primary)}
+  .legend{display:flex; gap:16px; flex-wrap:wrap; font-size:0.8rem; color:var(--text-secondary); margin:6px 0 10px}
+  .legend span{display:inline-flex; align-items:center; gap:6px}
+  .swatch{width:12px; height:12px; border-radius:3px; display:inline-block}
+  #tip{position:fixed; pointer-events:none; z-index:50; background:var(--text-primary); color:var(--surface-1);
+       font-size:12px; padding:6px 9px; border-radius:7px; opacity:0; transition:opacity .1s; max-width:280px}
+  @media (prefers-reduced-motion: reduce){ #tip{transition:none} }
+  .foot{margin-top:48px; font-size:0.8rem; color:var(--text-muted); border-top:1px solid var(--border); padding-top:16px}
+</style>
+<div class="viz-root">
+  <h1>อธิบายร่าง ค — เปลี่ยนอะไร เพราะอะไร ผลเป็นอย่างไร</h1>
+  <p class="lead">ขยายความจากบรรทัดสรุปในไฟล์ร่าง — แต่ละการเปลี่ยนแปลงอธิบาย 4 ชั้น
+  คือ <b>สูตรเดิมเขียนว่าอย่างไร → หลักฐานว่ามันพังตรงไหน → สูตรใหม่เขียนว่าอย่างไร → ผลที่วัดได้</b></p>
+  <p class="src">แหล่งข้อมูล: snapshot ในเครื่อง (ฐาน ssra_live — dump สร้างเมื่อ Aug 01, 2026 at 04:08 PM · นำเข้าเมื่อ 2026-08-01T09:23:53.639Z · จากไฟล์ ssrainfo_ssra (3).sql) · ประชากร 1,481 โรงเรียนพื้นที่สูงที่ยืนยันสถานะปี 2569 ·
+  สร้างเมื่อ 1/8/2569 21:43:41<br>
+  ร่างเพื่อทดลองคำนวณ ยังไม่ใช่ข้อเสนอที่ผ่านความเห็นชอบ — ตัวอย่างโรงเรียนทุกกรณีดึงจากข้อมูลจริง ไม่ได้เขียนขึ้นเอง</p>
+
+  <div class="tiles">
+    <div class="tile"><div class="v">16 → 5</div><div class="l">จำนวนตัวชี้วัดที่ให้คะแนน</div><div class="s">แบบฟอร์มยังถามเท่าเดิม — คำตอบหลายข้อถูกรวมเป็นดัชนีเดียวก่อนคิดคะแนน</div></div><div class="tile"><div class="v">5/16 → 5/5</div><div class="l">ข้อที่ผ่านเกณฑ์ตรวจรับ</div><div class="s">เกณฑ์เดิมมีข้อที่ตัน/จำแนกไม่ได้ 11 ข้อ รวมน้ำหนัก 76 คะแนน</div></div><div class="tile"><div class="v">9.1 → 19.9</div><div class="l">SD ของคะแนนรวม</div><div class="s">ยิ่งมาก ยิ่งแยกโรงเรียนออกจากกันได้จริง</div></div><div class="tile"><div class="v">0.04 → 0.33</div><div class="l">อำนาจจำแนกต่ำสุดในชุด</div><div class="s">ไม่มีข้อไหนเป็นคะแนนแจกฟรีเหลืออยู่</div></div>
+  </div>
+
+  <h2>0. ภาพรวม — จาก 16 ข้อ เหลือ 5 ตัวชี้วัด</h2>
+  <div class="card scroll">
+    
+<table>
+  <thead><tr><th>ข้อในเกณฑ์เดิม</th><th class="num">น้ำหนักเดิม</th><th>กลายเป็นอะไรในร่าง ค</th><th class="num">น้ำหนักใหม่</th></tr></thead>
+  <tbody><tr><td>ข้อ 1 ความสูง</td><td class="num">30</td><td>G1 — สูตรใหม่ ไม่มีคะแนนฐาน</td><td class="num ">24</td></tr><tr><td>ข้อ 7 น้ำ · 8 ไฟฟ้า · 9 โทรศัพท์ · 10 อินเทอร์เน็ต</td><td class="num">15</td><td>U1 — ดัชนีความรุนแรงของการขาดแคลนโครงสร้างพื้นฐาน</td><td class="num ">22</td></tr><tr><td>ข้อ 4 ถนน · 5 ระยะทาง · 6 ขนส่งสาธารณะ</td><td class="num">15</td><td>A1 — ดัชนีความรุนแรงของอุปสรรคการเดินทาง</td><td class="num ">20</td></tr><tr><td>ข้อ 11 ร้อยละนักเรียนชาติพันธุ์</td><td class="num">5</td><td>L1 — คงเดิม เพิ่มน้ำหนัก</td><td class="num ">20</td></tr><tr><td>ข้อ 13 นักเรียนยากจน</td><td class="num">5</td><td>L3 — เปลี่ยนเพดานจาก 50% เป็น 100%</td><td class="num ">14</td></tr><tr><td>ข้อ 2 ชายแดน · 3 เขต อปท. · 12 กลุ่มชาติพันธุ์ · 14 พักนอน · 15 สาขา · 16 ประกาศคลัง</td><td class="num">30</td><td>ย้ายไปบัญชีรายการประกอบ — ต้องมีมติว่าจะใช้ในบทบาทใด</td><td class="num muted">—</td></tr></tbody>
+</table>
+    <p>สิ่งที่หายไปไม่ใช่ <em>คำถาม</em> แต่เป็น <em>ช่องให้คะแนนแยกกัน</em> — คำตอบหลายข้อถูกรวมเป็นดัชนีเดียวก่อนคิดคะแนน</p>
+  </div>
+
+  <h2>1. ความสูง — ตัดคะแนนฐาน ไล่ระดับถึงเปอร์เซ็นไทล์ที่ 90 ของจริง</h2>
+  <div class="card">
+    <h3>ปัญหาเดิมซ้อนกันสองชั้น</h3>
+    <p><b>ชั้นที่หนึ่ง</b> — ให้คะแนนฐาน 15 จาก 30 ทันทีที่ผ่านด่าน โดยไม่ต้องสูงกว่าใคร<br>
+    <b>ชั้นที่สอง</b> — เพดานอยู่ที่ 500 ม. แต่โรงเรียนที่ผ่านด่านย่อมสูง ≥ 500 ม. อยู่แล้ว จึงชนเพดานทันที</p>
+    <p>ผลคือโรงเรียน <b>87.6%</b> ได้ 30 เต็ม ไม่ว่าจะอยู่ที่ 500 ม. หรือ 1,819 ม. ·
+    อำนาจจำแนก D = 0.04 · สหสัมพันธ์กับข้ออื่น r = 0.03</p>
+    <h3>เทียบคะแนนที่ระดับความสูงต่าง ๆ</h3>
+    <div class="legend">
+      <span><i class="swatch" style="background:var(--series-1)"></i> เกณฑ์เดิม (เต็ม 30)</span>
+      <span><i class="swatch" style="background:var(--series-2)"></i> ร่าง ค (เต็ม 24)</span>
+    </div>
+    <svg class="chart" viewBox="0 0 660 280" role="img" aria-label="แผนภูมิแท่งคู่เปรียบเทียบ">
+      <g class="bar" tabindex="0" data-tip="300 ม. — เดิม 0.00 คะแนน · ใหม่ 0.00 คะแนน · ไม่ผ่านด่านของเกณฑ์เดิม">
+        <text class="lbl" x="102" y="21" text-anchor="end" dominant-baseline="middle">300 ม.</text>
+        <rect x="110" y="8" width="1.0" height="9.0" rx="3" fill="var(--series-1)"/>
+        <rect x="110" y="19" width="1.0" height="9.0" rx="3" fill="var(--series-2)"/>
+        <text class="val" x="560" y="21" dominant-baseline="middle">0.00 → 0.00</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="400 ม. — เดิม 0.00 คะแนน · ใหม่ 2.29 คะแนน · ไม่ผ่านด่านของเกณฑ์เดิม">
+        <text class="lbl" x="102" y="55" text-anchor="end" dominant-baseline="middle">400 ม.</text>
+        <rect x="110" y="42" width="1.0" height="9.0" rx="3" fill="var(--series-1)"/>
+        <rect x="110" y="53" width="33.7" height="9.0" rx="3" fill="var(--series-2)"/>
+        <text class="val" x="560" y="55" dominant-baseline="middle">0.00 → 2.29</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="500 ม. — เดิม 30.00 คะแนน · ใหม่ 4.57 คะแนน">
+        <text class="lbl" x="102" y="89" text-anchor="end" dominant-baseline="middle">500 ม.</text>
+        <rect x="110" y="76" width="442.0" height="9.0" rx="3" fill="var(--series-1)"/>
+        <rect x="110" y="87" width="67.3" height="9.0" rx="3" fill="var(--series-2)"/>
+        <text class="val" x="560" y="89" dominant-baseline="middle">30.00 → 4.57</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="600 ม. — เดิม 30.00 คะแนน · ใหม่ 6.86 คะแนน">
+        <text class="lbl" x="102" y="123" text-anchor="end" dominant-baseline="middle">600 ม.</text>
+        <rect x="110" y="110" width="442.0" height="9.0" rx="3" fill="var(--series-1)"/>
+        <rect x="110" y="121" width="101.1" height="9.0" rx="3" fill="var(--series-2)"/>
+        <text class="val" x="560" y="123" dominant-baseline="middle">30.00 → 6.86</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="800 ม. — เดิม 30.00 คะแนน · ใหม่ 11.43 คะแนน">
+        <text class="lbl" x="102" y="157" text-anchor="end" dominant-baseline="middle">800 ม.</text>
+        <rect x="110" y="144" width="442.0" height="9.0" rx="3" fill="var(--series-1)"/>
+        <rect x="110" y="155" width="168.4" height="9.0" rx="3" fill="var(--series-2)"/>
+        <text class="val" x="560" y="157" dominant-baseline="middle">30.00 → 11.43</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="1,000 ม. — เดิม 30.00 คะแนน · ใหม่ 16.00 คะแนน">
+        <text class="lbl" x="102" y="191" text-anchor="end" dominant-baseline="middle">1,000 ม.</text>
+        <rect x="110" y="178" width="442.0" height="9.0" rx="3" fill="var(--series-1)"/>
+        <rect x="110" y="189" width="235.7" height="9.0" rx="3" fill="var(--series-2)"/>
+        <text class="val" x="560" y="191" dominant-baseline="middle">30.00 → 16.00</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="1,350 ม. — เดิม 30.00 คะแนน · ใหม่ 24.00 คะแนน">
+        <text class="lbl" x="102" y="225" text-anchor="end" dominant-baseline="middle">1,350 ม.</text>
+        <rect x="110" y="212" width="442.0" height="9.0" rx="3" fill="var(--series-1)"/>
+        <rect x="110" y="223" width="353.6" height="9.0" rx="3" fill="var(--series-2)"/>
+        <text class="val" x="560" y="225" dominant-baseline="middle">30.00 → 24.00</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="1,800 ม. — เดิม 30.00 คะแนน · ใหม่ 24.00 คะแนน">
+        <text class="lbl" x="102" y="259" text-anchor="end" dominant-baseline="middle">1,800 ม.</text>
+        <rect x="110" y="246" width="442.0" height="9.0" rx="3" fill="var(--series-1)"/>
+        <rect x="110" y="257" width="353.6" height="9.0" rx="3" fill="var(--series-2)"/>
+        <text class="val" x="560" y="259" dominant-baseline="middle">30.00 → 24.00</text>
+      </g></svg>
+    <div class="scroll">
+<table>
+  <thead><tr><th class="num">ความสูงจริง</th><th class="num">คะแนนเดิม (เต็ม 30)</th><th class="num">คะแนนใหม่ (เต็ม 24)</th></tr></thead>
+  <tbody><tr><td class="num">300 ม.</td><td class="num ">ไม่ผ่านด่าน = 0</td><td class="num">0.00</td></tr><tr><td class="num">400 ม.</td><td class="num ">ไม่ผ่านด่าน = 0</td><td class="num">2.29</td></tr><tr><td class="num">500 ม.</td><td class="num warn">30.00</td><td class="num">4.57</td></tr><tr><td class="num">600 ม.</td><td class="num warn">30.00</td><td class="num">6.86</td></tr><tr><td class="num">800 ม.</td><td class="num warn">30.00</td><td class="num">11.43</td></tr><tr><td class="num">1,000 ม.</td><td class="num warn">30.00</td><td class="num">16.00</td></tr><tr><td class="num">1,350 ม.</td><td class="num warn">30.00</td><td class="num">24.00</td></tr><tr><td class="num">1,800 ม.</td><td class="num warn">30.00</td><td class="num">24.00</td></tr></tbody>
+</table></div>
+    <p>แถวที่ 500 ม. คือหัวใจของปัญหา — เกณฑ์เดิมมองว่าโรงเรียนที่ 500 ม. กับ 1,819 ม. ลำบากเท่ากันทุกประการ</p>
+    <p><b>ผลที่ได้:</b> ข้อนี้เปลี่ยนจาก D = 0.04 เป็น <b>D = 0.52</b>
+    และ item–rest r จาก 0.03 เป็น 0.43</p>
+    <p class="muted"><b>ผลข้างเคียงที่ต้องรู้:</b> โรงเรียน 198 แห่งที่รายงานความสูง 500 ม. พอดี
+    มีคะแนนรวมเฉลี่ยลดจาก 60.21 เหลือ 34.38 —
+    กลุ่มนี้คือกลุ่มที่การกระจุกตัวผิดปกติชี้ว่าตัวเลขอาจถูกกรอกให้พอดีเกณฑ์
+    <b>ต้องวัดความสูงจริงใหม่ก่อนบังคับใช้เกณฑ์ใด ๆ กับกลุ่มนี้</b></p>
+  </div>
+
+  <h2>2. ประกาศกระทรวงการคลัง — ตัดออกจากคะแนน ทั้งที่จำแนกได้ดีที่สุด</h2>
+  <div class="card">
+    <p>ข้อ 16 มีสถิติดีที่สุดในเกณฑ์เดิมทุกด้าน — D = 0.87 สูงสุด และกินส่วนแบ่งความแปรปรวนของคะแนนรวมมากที่สุด
+    ถ้าดูตัวเลขอย่างเดียวควรเพิ่มน้ำหนักด้วยซ้ำ</p>
+    <p>ปัญหาอยู่ที่ <b>ที่มา</b> ของอำนาจจำแนกนั้น — คำถามคือ "เป็นโรงเรียนพื้นที่พิเศษตามประกาศกระทรวงการคลังหรือไม่"
+    ซึ่งเป็น <em>ผลของการตัดสินใจครั้งก่อน</em> ไม่ใช่การวัดสภาพความลำบากในปัจจุบัน</p>
+    <div class="card" style="background:var(--surface-0)">
+      <p style="margin:0"><code>เคยได้รับการประกาศ → ได้ 5 คะแนน → คะแนนรวมสูง → ผ่านการคัดกรอง → ได้รับการประกาศต่อ → ได้ 5 คะแนนอีก …</code></p>
+    </div>
+    <p>เกณฑ์ที่ให้น้ำหนักกับข้อนี้มาก จึงไม่ได้ตรวจว่าโรงเรียนลำบากจริงหรือไม่ แต่กำลัง
+    <b>รับรองการตัดสินใจของตัวเองในอดีต</b> ทำให้ความผิดพลาดในรอบก่อนถูกส่งต่อไปโดยไม่มีใครตรวจพบ</p>
+    <h3>เอาไปใช้ทำอะไรแทน</h3>
+    <p>ใช้เป็น <b>ตัวสอบทานผล</b> — หลังคำนวณด้วยเกณฑ์ใหม่แล้วนำไปเทียบกับรายชื่อตามประกาศคลัง</p>
+    <ul class="findings">
+      <li>คะแนนใหม่สูง <b>แต่ไม่อยู่ในประกาศ</b> → ตรวจว่าตกหล่นจากประกาศเดิมหรือไม่</li>
+      <li><b>อยู่ในประกาศ</b> แต่คะแนนใหม่ต่ำ → ตรวจว่าสภาพเปลี่ยนไปแล้ว หรือเกณฑ์ใหม่มองข้ามปัจจัยบางอย่าง</li>
+    </ul>
+  </div>
+
+  <h2>3. สาธารณูปโภค — ยุบ 4 ข้อเป็นดัชนีความรุนแรงเดียว</h2>
+  <div class="card">
+    <p>ข้อ 8 ไฟฟ้า · 9 โทรศัพท์ · 10 อินเทอร์เน็ต สหสัมพันธ์กันเอง <b>0.58–0.68</b> — ทั้งสามข้อวัดสิ่งเดียวกัน
+    คือระดับการเข้าถึงโครงสร้างพื้นฐานของหมู่บ้าน การให้คะแนนแยกกันจึงนับความลำบากเดียวซ้ำ 3 ครั้ง</p>
+    <h3>ทางที่ลองแล้วไม่ได้ผล</h3>
+    <p>ตอนแรกออกแบบเป็น <b>การนับจำนวนด้านที่ขาดแคลน</b> (0–4 ด้าน) แต่พอคำนวณกับข้อมูลจริงพบว่ากระจุกที่ค่า 1 ถึง <b>73%</b>
+    เพราะ 91.5% ของโรงเรียนใช้น้ำที่ไม่ใช่ประปาเหมือนกันหมด ดัชนีเลยกลายเป็นค่าคงที่ — แก้ปัญหาเดิมไม่ได้เลย</p>
+    <h3>สูตรที่ใช้จริง — ถ่วงน้ำหนักตามระดับความขาดแคลน</h3>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>ด้าน</th><th>ระดับความขาดแคลน → คะแนนดัชนี</th></tr></thead>
+      <tbody>
+        <tr><td>น้ำ</td><td>ธรรมชาติล้วน = 2 · บ่อ/สระ/บาดาล = 1 · ประปา = 0</td></tr>
+        <tr><td>ไฟฟ้า</td><td>ต้องพึ่งพลังงานทางเลือก = 2 · ไฟฟ้าส่วนภูมิภาค = 0</td></tr>
+        <tr><td>โทรศัพท์</td><td>ไม่มีสัญญาณ = 3 · ดาวเทียมเท่านั้น = 2 · มือถือ = 1 · พื้นฐาน = 0</td></tr>
+        <tr><td>อินเทอร์เน็ต</td><td>ไม่มีเครือข่าย = 3 · ดาวเทียมเท่านั้น = 2 · ไร้สาย = 1 · Fiber = 0</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="muted">หลักคิด: การไม่มีสัญญาณโทรศัพท์เลย (กระทบความปลอดภัยและการติดต่อฉุกเฉิน) รุนแรงกว่าการใช้น้ำจากลำธาร จึงให้ 3 กับ 2 ตามลำดับ</p>
+    <h3>การกระจายของดัชนีที่ได้ (0–10)</h3>
+    <svg class="chart" viewBox="0 0 680 220" role="img" aria-label="ฮิสโทแกรม"><line class="grid" x1="44" x2="668" y1="186.0" y2="186.0"/>
+              <text class="tick" x="36" y="190.0" text-anchor="end">0</text><line class="grid" x1="44" x2="668" y1="99.0" y2="99.0"/>
+              <text class="tick" x="36" y="103.0" text-anchor="end">239</text><line class="grid" x1="44" x2="668" y1="12.0" y2="12.0"/>
+              <text class="tick" x="36" y="16.0" text-anchor="end">477</text><g class="bar" tabindex="0" data-tip="0–0 · 14 แห่ง">
+        <rect x="45.5" y="180.9" width="53.7" height="5.1" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="1–1 · 109 แห่ง">
+        <rect x="102.2" y="146.2" width="53.7" height="39.8" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="2–2 · 268 แห่ง">
+        <rect x="159.0" y="88.2" width="53.7" height="97.8" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="3–3 · 477 แห่ง">
+        <rect x="215.7" y="12.0" width="53.7" height="174.0" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="4–4 · 301 แห่ง">
+        <rect x="272.4" y="76.2" width="53.7" height="109.8" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="5–5 · 80 แห่ง">
+        <rect x="329.1" y="156.8" width="53.7" height="29.2" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="6–6 · 101 แห่ง">
+        <rect x="385.9" y="149.2" width="53.7" height="36.8" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="7–7 · 21 แห่ง">
+        <rect x="442.6" y="178.3" width="53.7" height="7.7" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="8–8 · 21 แห่ง">
+        <rect x="499.3" y="178.3" width="53.7" height="7.7" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="9–9 · 32 แห่ง">
+        <rect x="556.0" y="174.3" width="53.7" height="11.7" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="10–10 · 57 แห่ง">
+        <rect x="612.8" y="165.2" width="53.7" height="20.8" rx="4"
+              fill="var(--series-1)"/>
+      </g><text class="tick" x="44.0" y="202" text-anchor="middle">0</text><text class="tick" x="157.5" y="202" text-anchor="middle">2</text><text class="tick" x="270.9" y="202" text-anchor="middle">4</text><text class="tick" x="384.4" y="202" text-anchor="middle">6</text><text class="tick" x="497.8" y="202" text-anchor="middle">8</text><text class="tick" x="611.3" y="202" text-anchor="middle">10</text></svg>
+    <p>ไม่มีช่วงไหนเกิน 32% — ดัชนีนี้แยกโรงเรียนออกจากกันได้จริง ให้ D = 0.33 และ item–rest r = 0.42</p>
+  </div>
+
+  <h2>4. กติกาตัวเลือก — เลิกลงโทษโรงเรียนที่กรอกครบ</h2>
+  <div class="card">
+    <p>ข้อ 7–10 เลือกได้หลายตัวเลือก แต่สูตรเดิมคิดคะแนนจาก <b>id ที่มีค่าสูงสุด</b> ปัญหาคือตัวเลือกเรียงจาก
+    "ลำบากที่สุด" (id 1) ไป "สะดวกที่สุด" การหยิบ id สูงสุดจึงเท่ากับหยิบตัวเลือกที่ให้คะแนนต่ำที่สุด</p>
+    <p>ผลคือ <b>ยิ่งกรอกครบตามความจริง ยิ่งเสียคะแนน</b> — พบ 1,024 ครั้งในสี่ข้อรวมกัน
+    (แหล่งน้ำ 320 · ไฟฟ้า 93 · โทรศัพท์ 201 · อินเทอร์เน็ต 410)</p>
+    
+  <div class="card">
+    <h3>กรณีตัวอย่าง — โรงเรียนที่มีทั้งโซลาร์เซลล์และไฟฟ้าส่วนภูมิภาค</h3>
+    <p class="muted">รหัส 1042520183 · เลย · รอบประเมิน 2565 · นักเรียน 14 คน</p>
+    <p>กรอกว่ามีทั้งพลังงานทางเลือก (id 1) และไฟฟ้าส่วนภูมิภาค (id 2) สูตรเดิมหยิบ id 2 มาคิด จึงได้ <b>0 คะแนน</b>
+             จากข้อไฟฟ้า เท่ากับโรงเรียนที่มีไฟฟ้าส่วนภูมิภาคอย่างเดียว — ข้อมูลที่กรอกเพิ่มมาไม่ได้ช่วยอะไรเลย
+             ในร่าง ค ค่าดัชนีความขาดแคลนได้ 6 จาก 10</p>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>ตัวชี้วัด</th><th>ค่าที่กรอก</th><th class="num">เกณฑ์เดิม</th><th class="num">ร่าง ค</th></tr></thead>
+      <tbody>
+        <tr><td>ความสูง</td><td>777 ม.</td>
+          <td class="num">30.00 / 30</td>
+          <td class="num">10.90 / 24</td></tr>
+        <tr><td>สาธารณูปโภค (น้ำ/ไฟ/โทร/เน็ต)</td>
+          <td class="muted">น้ำ [1,2,4,5] · ไฟ [1,2] · โทร [3] · เน็ต [3,4]</td>
+          <td class="num">3.00 / 15</td>
+          <td class="num">16.50 / 22 <span class="muted">(ดัชนี 6)</span></td></tr>
+        <tr><td>การเดินทาง (ถนน/ระยะทาง/ขนส่ง)</td><td class="muted">รวม 3 ข้อ</td>
+          <td class="num muted">แยกกัน 3 ข้อ</td>
+          <td class="num">6.67 / 20 <span class="muted">(ดัชนี 2)</span></td></tr>
+        <tr><td>นักเรียนกลุ่มชาติพันธุ์</td><td>0.00%</td>
+          <td class="num muted">เต็ม 5</td>
+          <td class="num">0.00 / 20</td></tr>
+        <tr><td>นักเรียนยากจน</td><td>22 คน (50.00%)</td>
+          <td class="num">5.00 / 5</td>
+          <td class="num">14.00 / 14</td></tr>
+        <tr><td>ประกาศกระทรวงการคลัง</td><td>ไม่ใช่</td>
+          <td class="num">0.00 / 5</td>
+          <td class="num muted">ไม่คิดคะแนน</td></tr>
+        <tr><td><b>คะแนนรวม</b></td><td></td>
+          <td class="num"><b>56.00</b> <span class="warn">ไม่ผ่าน</span></td>
+          <td class="num"><b>48.07</b> <span class="warn">ไม่ผ่าน</span></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="muted">จุดตัดที่ใช้เทียบ: เกณฑ์เดิม 70 · ร่าง ค ใช้จุดตัดเทียบเท่า 62.72</p>
+  </div>
+    <div class="card">
+      <h3>บังคับด้วยการทดสอบอัตโนมัติ</h3>
+      <p>คุณสมบัติ <b>"เพิ่มข้อมูลที่เป็นจริง คะแนนต้องไม่ลดลง"</b> ไม่ได้อยู่แค่ในเอกสาร แต่เขียนเป็นเทสต์ใน
+      <code>tests/criteria-model.test.ts</code> — เพิ่มสัญญาณความขาดแคลนทีละอย่างแล้วยืนยันว่าค่าดัชนีไม่ลดลงเลย
+      ถ้าใครเขียนสูตรใหม่ที่ละเมิดคุณสมบัตินี้ <code>npm test</code> จะฟ้องทันที</p>
+    </div>
+  </div>
+
+  <h2>5. การเดินทาง — ทำไมปรับน้ำหนักถึงแก้ไม่ได้</h2>
+  <div class="card">
+    <div class="scroll">
+    <table>
+      <thead><tr><th>ข้อเดิม</th><th>อาการ</th><th>สาเหตุ</th></tr></thead>
+      <tbody>
+        <tr><td>4 ถนนรถสองล้อไปไม่ได้</td><td class="warn">87.2% ได้ 0 คะแนน (พื้นตัน)</td><td class="muted">โรงเรียนส่วนใหญ่ไม่มีเส้นทางแบบนั้น</td></tr>
+        <tr><td>6 ขนส่งสาธารณะ</td><td class="warn">79.3% ได้เต็ม (เพดานตัน)</td><td class="muted">ส่วนใหญ่ตอบว่า "ไม่มีรถประจำทาง" เหมือนกันหมด</td></tr>
+        <tr><td>5 ระยะทางถึงศาลากลาง</td><td class="warn">74.7% ชนเพดาน 80 กม.</td><td class="muted">เพดานต่ำกว่ามัธยฐานจริง (106 กม.)</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p>ไม่ว่าจะให้น้ำหนักเท่าไร ข้อที่คนตอบเหมือนกัน 80–90% ก็ยังแยกใครไม่ได้
+    <b>เพราะปัญหาอยู่ที่ตัวแปร ไม่ใช่ที่น้ำหนัก</b> การเพิ่มน้ำหนักให้ข้อที่ทุกคนได้เท่ากันมีผลเดียวคือบวกค่าคงที่ให้ทุกคน</p>
+    <h3>สูตรที่ใช้จริง</h3>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>สัญญาณ</th><th>ระดับ → คะแนนดัชนี</th></tr></thead>
+      <tbody>
+        <tr><td>ถนนที่รถสองล้อไปไม่ได้</td><td>&gt; 5 กม. = 3 · 2–5 กม. = 2 · &gt; 0 = 1 · ไม่มี = 0</td></tr>
+        <tr><td>ขนส่งสาธารณะ</td><td>ไม่มีรถประจำทาง = 2 · ≤ 2 เที่ยว/วัน = 1 · มากกว่านั้น = 0</td></tr>
+        <tr><td>ระยะทางถึงศาลากลาง</td><td>≥ 184 กม. (P90) = 3 · ≥ 146 (P75) = 2 · ≥ 106 (P50) = 1</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="muted">จุดตัดของระยะทางใช้เปอร์เซ็นไทล์จริงของประชากร แทนตัวเลขกลม เพื่อให้แต่ละระดับมีคนอยู่จริง</p>
+    <h3>การกระจายของดัชนีที่ได้ (0–8)</h3>
+    <svg class="chart" viewBox="0 0 680 220" role="img" aria-label="ฮิสโทแกรม"><line class="grid" x1="44" x2="668" y1="186.0" y2="186.0"/>
+              <text class="tick" x="36" y="190.0" text-anchor="end">0</text><line class="grid" x1="44" x2="668" y1="99.0" y2="99.0"/>
+              <text class="tick" x="36" y="103.0" text-anchor="end">302</text><line class="grid" x1="44" x2="668" y1="12.0" y2="12.0"/>
+              <text class="tick" x="36" y="16.0" text-anchor="end">603</text><g class="bar" tabindex="0" data-tip="0–0 · 46 แห่ง">
+        <rect x="45.5" y="172.7" width="66.3" height="13.3" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="1–1 · 129 แห่ง">
+        <rect x="114.8" y="148.8" width="66.3" height="37.2" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="2–2 · 603 แห่ง">
+        <rect x="184.2" y="12.0" width="66.3" height="174.0" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="3–3 · 284 แห่ง">
+        <rect x="253.5" y="104.0" width="66.3" height="82.0" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="4–4 · 185 แห่ง">
+        <rect x="322.8" y="132.6" width="66.3" height="53.4" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="5–5 · 133 แห่ง">
+        <rect x="392.2" y="147.6" width="66.3" height="38.4" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="6–6 · 27 แห่ง">
+        <rect x="461.5" y="178.2" width="66.3" height="7.8" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="7–7 · 32 แห่ง">
+        <rect x="530.8" y="176.8" width="66.3" height="9.2" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="8–8 · 42 แห่ง">
+        <rect x="600.2" y="173.9" width="66.3" height="12.1" rx="4"
+              fill="var(--series-1)"/>
+      </g><text class="tick" x="44.0" y="202" text-anchor="middle">0</text><text class="tick" x="182.7" y="202" text-anchor="middle">2</text><text class="tick" x="321.3" y="202" text-anchor="middle">4</text><text class="tick" x="460.0" y="202" text-anchor="middle">6</text><text class="tick" x="598.7" y="202" text-anchor="middle">8</text></svg>
+    <p>จากสามข้อที่แยกกันแล้วใช้ไม่ได้เลย กลายเป็นดัชนีเดียวที่ให้ D = 0.36 และ item–rest r = 0.43
+    <span class="muted">— ค่า 2 ยังหนาแน่นที่ 41% ปรับได้อีกโดยเพิ่มสัญญาณย่อยหรือขยับจุดตัดระยะทาง</span></p>
+  </div>
+
+  <h2>6. ตัวชี้วัดผู้เรียน — ใช้ร้อยละทุกข้อ และขยับเพดานตามการกระจายจริง</h2>
+  <div class="card scroll">
+    <table>
+      <thead><tr><th>ข้อ</th><th>เก็บเป็น</th><th>เกณฑ์เดิมคิดคะแนนเป็น</th><th>ร่าง ค</th></tr></thead>
+      <tbody>
+        <tr><td>13 นักเรียนยากจน</td><td>จำนวนคน</td><td><b>ร้อยละ</b> เพดาน 50%</td><td>ร้อยละ เพดาน 100%</td></tr>
+        <tr><td>14 นักเรียนพักนอน</td><td>จำนวนคน</td><td class="warn"><b>จำนวนคน</b> เพดาน 50 คน</td><td class="muted">ย้ายออกจากคะแนนหลัก</td></tr>
+      </tbody>
+    </table>
+    <p>สองข้อนี้อยู่กลุ่มเดียวกันแต่ใช้ฐานคนละแบบ — โรงเรียน 60 คนที่นักเรียนพักนอนทั้งโรงเรียน
+    ได้คะแนนเท่ากับโรงเรียน 800 คนที่มีพักนอน 50 คน</p>
+    <p><b>เหตุผลที่ขยับเพดานนักเรียนยากจน:</b> มัธยฐานจริงคือ 60% และ 62.3% ของโรงเรียนชนเพดาน 50% เดิม
+    พอขยับเป็น 100% สัดส่วนที่ได้เต็มลดเหลือ 13.0% และ D เพิ่มจาก 0.35 เป็น 0.44</p>
+  </div>
+
+  <h2>7. ตัวอย่างจริง — คำนวณทีละข้อ</h2>
+  
+  <div class="card">
+    <h3>โรงเรียนที่คะแนนเพิ่มมากที่สุด</h3>
+    <p class="muted">รหัส 1050130316 · เชียงใหม่ · รอบประเมิน 2565 · นักเรียน 16 คน</p>
+    <p>เดิม "ตกเกณฑ์" ทั้งที่อยู่สูง 1,244 ม. นักเรียนเป็นกลุ่มชาติพันธุ์ทั้งหมด ยากจนทั้งหมด และมีทั้งโซลาร์เซลล์ —
+     เพราะเกณฑ์เดิมให้ 0 คะแนนกับข้อไฟฟ้าและอินเทอร์เน็ต (กติกา id สูงสุด) และไม่ให้เครดิตกับความสูงที่เกิน 500 ม.</p>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>ตัวชี้วัด</th><th>ค่าที่กรอก</th><th class="num">เกณฑ์เดิม</th><th class="num">ร่าง ค</th></tr></thead>
+      <tbody>
+        <tr><td>ความสูง</td><td>1,244 ม.</td>
+          <td class="num">30.00 / 30</td>
+          <td class="num">21.58 / 24</td></tr>
+        <tr><td>สาธารณูปโภค (น้ำ/ไฟ/โทร/เน็ต)</td>
+          <td class="muted">น้ำ [1] · ไฟ [1,2] · โทร [3] · เน็ต [3,4]</td>
+          <td class="num">7.00 / 15</td>
+          <td class="num">16.50 / 22 <span class="muted">(ดัชนี 6)</span></td></tr>
+        <tr><td>การเดินทาง (ถนน/ระยะทาง/ขนส่ง)</td><td class="muted">รวม 3 ข้อ</td>
+          <td class="num muted">แยกกัน 3 ข้อ</td>
+          <td class="num">16.67 / 20 <span class="muted">(ดัชนี 5)</span></td></tr>
+        <tr><td>นักเรียนกลุ่มชาติพันธุ์</td><td>100.00%</td>
+          <td class="num muted">เต็ม 5</td>
+          <td class="num">20.00 / 20</td></tr>
+        <tr><td>นักเรียนยากจน</td><td>16 คน (50.00%)</td>
+          <td class="num">5.00 / 5</td>
+          <td class="num">14.00 / 14</td></tr>
+        <tr><td>ประกาศกระทรวงการคลัง</td><td>ไม่ใช่</td>
+          <td class="num">0.00 / 5</td>
+          <td class="num muted">ไม่คิดคะแนน</td></tr>
+        <tr><td><b>คะแนนรวม</b></td><td></td>
+          <td class="num"><b>64.00</b> <span class="warn">ไม่ผ่าน</span></td>
+          <td class="num"><b>88.75</b> <span class="good">ผ่าน</span></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="muted">จุดตัดที่ใช้เทียบ: เกณฑ์เดิม 70 · ร่าง ค ใช้จุดตัดเทียบเท่า 62.72</p>
+  </div>
+  
+  <div class="card">
+    <h3>โรงเรียนที่คะแนนลดมากที่สุด</h3>
+    <p class="muted">รหัส 1071020452 · กาญจนบุรี · รอบประเมิน 2566 · นักเรียน 1,240 คน</p>
+    <p>ไม่ผ่านเกณฑ์ทั้งเดิมและใหม่ แต่ตัวเลขต่างกัน 43.82 คะแนน — จุดสำคัญคือเกณฑ์เดิมให้
+     23.88 คะแนนกับความสูง 296 ม. ผ่านช่องทาง "สูงกว่าค่าเฉลี่ยของเส้นทาง"
+     ทั้งที่ 296 ม. ไม่ใช่พื้นที่สูงตามความเข้าใจทั่วไป</p>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>ตัวชี้วัด</th><th>ค่าที่กรอก</th><th class="num">เกณฑ์เดิม</th><th class="num">ร่าง ค</th></tr></thead>
+      <tbody>
+        <tr><td>ความสูง</td><td>296 ม.</td>
+          <td class="num">23.88 / 30</td>
+          <td class="num">0.00 / 24</td></tr>
+        <tr><td>สาธารณูปโภค (น้ำ/ไฟ/โทร/เน็ต)</td>
+          <td class="muted">น้ำ [4] · ไฟ [2] · โทร [3,4] · เน็ต [3,4]</td>
+          <td class="num">3.00 / 15</td>
+          <td class="num">5.50 / 22 <span class="muted">(ดัชนี 2)</span></td></tr>
+        <tr><td>การเดินทาง (ถนน/ระยะทาง/ขนส่ง)</td><td class="muted">รวม 3 ข้อ</td>
+          <td class="num muted">แยกกัน 3 ข้อ</td>
+          <td class="num">6.67 / 20 <span class="muted">(ดัชนี 2)</span></td></tr>
+        <tr><td>นักเรียนกลุ่มชาติพันธุ์</td><td>12.10%</td>
+          <td class="num muted">เต็ม 5</td>
+          <td class="num">2.42 / 20</td></tr>
+        <tr><td>นักเรียนยากจน</td><td>139 คน (11.21%)</td>
+          <td class="num">1.12 / 5</td>
+          <td class="num">1.57 / 14</td></tr>
+        <tr><td>ประกาศกระทรวงการคลัง</td><td>ไม่ใช่</td>
+          <td class="num">0.00 / 5</td>
+          <td class="num muted">ไม่คิดคะแนน</td></tr>
+        <tr><td><b>คะแนนรวม</b></td><td></td>
+          <td class="num"><b>59.98</b> <span class="warn">ไม่ผ่าน</span></td>
+          <td class="num"><b>16.16</b> <span class="warn">ไม่ผ่าน</span></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="muted">จุดตัดที่ใช้เทียบ: เกณฑ์เดิม 70 · ร่าง ค ใช้จุดตัดเทียบเท่า 62.72</p>
+  </div>
+  
+  <div class="card">
+    <h3>โรงเรียนที่อยู่สูงที่สุดในฐานข้อมูล</h3>
+    <p class="muted">รหัส 1050130198 · (ไม่ระบุ) · รอบประเมิน 2565 · นักเรียน 242 คน</p>
+    <p>อยู่สูงที่สุดตามฐานข้อมูลนี้ แต่ได้คะแนนความสูงเท่ากับโรงเรียนที่ 500 ม. ในเกณฑ์เดิม (30 เต็มทั้งคู่)
+     ในร่าง ค ได้ 24 เต็ม ขณะที่โรงเรียนที่ 500 ม. ได้ 4.57 — ความต่าง 19.43 คะแนนนี้คือสิ่งที่เกณฑ์เดิมมองไม่เห็น</p>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>ตัวชี้วัด</th><th>ค่าที่กรอก</th><th class="num">เกณฑ์เดิม</th><th class="num">ร่าง ค</th></tr></thead>
+      <tbody>
+        <tr><td>ความสูง</td><td>1,819 ม.</td>
+          <td class="num">30.00 / 30</td>
+          <td class="num">24.00 / 24</td></tr>
+        <tr><td>สาธารณูปโภค (น้ำ/ไฟ/โทร/เน็ต)</td>
+          <td class="muted">น้ำ [1] · ไฟ [2] · โทร [4] · เน็ต [4]</td>
+          <td class="num">6.00 / 15</td>
+          <td class="num">5.50 / 22 <span class="muted">(ดัชนี 2)</span></td></tr>
+        <tr><td>การเดินทาง (ถนน/ระยะทาง/ขนส่ง)</td><td class="muted">รวม 3 ข้อ</td>
+          <td class="num muted">แยกกัน 3 ข้อ</td>
+          <td class="num">13.33 / 20 <span class="muted">(ดัชนี 4)</span></td></tr>
+        <tr><td>นักเรียนกลุ่มชาติพันธุ์</td><td>97.52%</td>
+          <td class="num muted">เต็ม 5</td>
+          <td class="num">19.50 / 20</td></tr>
+        <tr><td>นักเรียนยากจน</td><td>72 คน (29.75%)</td>
+          <td class="num">2.98 / 5</td>
+          <td class="num">4.17 / 14</td></tr>
+        <tr><td>ประกาศกระทรวงการคลัง</td><td>ใช่</td>
+          <td class="num">5.00 / 5</td>
+          <td class="num muted">ไม่คิดคะแนน</td></tr>
+        <tr><td><b>คะแนนรวม</b></td><td></td>
+          <td class="num"><b>73.86</b> <span class="good">ผ่าน</span></td>
+          <td class="num"><b>66.50</b> <span class="good">ผ่าน</span></td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="muted">จุดตัดที่ใช้เทียบ: เกณฑ์เดิม 70 · ร่าง ค ใช้จุดตัดเทียบเท่า 62.72</p>
+  </div>
+
+  <h2>8. ตรวจผลข้างเคียง — ลำเอียงตามขนาดโรงเรียนหรือไม่</h2>
+  <div class="card scroll">
+    <p>เนื่องจากตัวชี้วัดสองข้อใช้ร้อยละของนักเรียน จึงต้องตรวจว่าโรงเรียนเล็กได้เปรียบผิดปกติหรือไม่</p>
+    
+<table>
+  <thead><tr><th>ขนาดโรงเรียน</th><th class="num">จำนวน</th><th class="num">คะแนนเฉลี่ยเดิม</th><th class="num">คะแนนเฉลี่ยร่าง ค</th></tr></thead>
+  <tbody><tr><td>ต่ำกว่า 30 คน</td><td class="num">134</td><td class="num">64.77</td><td class="num">52.81</td></tr><tr><td>30–59 คน</td><td class="num">260</td><td class="num">65.10</td><td class="num">51.58</td></tr><tr><td>60–119 คน</td><td class="num">337</td><td class="num">66.21</td><td class="num">55.18</td></tr><tr><td>120–299 คน</td><td class="num">486</td><td class="num">65.53</td><td class="num">52.63</td></tr><tr><td>300 คนขึ้นไป</td><td class="num">264</td><td class="num">66.77</td><td class="num">50.72</td></tr></tbody>
+</table>
+    <p>สหสัมพันธ์ระหว่างคะแนนกับจำนวนนักเรียน: เกณฑ์เดิม 0.06 · ร่าง ค -0.05
+    — ทั้งสองค่าใกล้ศูนย์ แปลว่า <b>ไม่มีความลำเอียงเชิงระบบตามขนาด</b></p>
+    <p class="muted">ตัวอย่างในหัวข้อ 7 ที่เป็นโรงเรียน 16 คนได้ 88.75 คะแนน
+    จึงเป็นกรณีเฉพาะราย ไม่ใช่อาการของความลำเอียง — แต่คณะกรรมการควรพิจารณาว่าโรงเรียนขนาดเท่านี้ควรอยู่ในกลุ่มคะแนนสูงสุดหรือไม่
+    ซึ่งเป็นคำถามเชิงนโยบาย</p>
+  </div>
+
+  <h2>9. รายการที่ย้ายออกจากคะแนนหลัก</h2>
+  <div class="card scroll">
+    <p>รายการต่อไปนี้ถูกย้ายออกจากคะแนนหลักตามข้อเสนอ 5 และ 8 — ไม่ได้ถูกยกเลิก แต่ต้องตัดสินใจเชิงนโยบายว่าจะใช้ในบทบาทใด (ไม่มีผลต่อการคำนวณในไฟล์นี้)</p>
+    <table>
+  <thead><tr><th>รายการที่ย้ายออก</th><th>เหตุผล</th><th>บทบาทที่เสนอ</th></tr></thead>
+  <tbody><tr><td>ข้อ 16 เดิม — เป็นพื้นที่พิเศษตามประกาศกระทรวงการคลัง</td><td class="muted">D=0.87 สูงที่สุดในเกณฑ์เดิม แต่เป็นผลของการประกาศครั้งก่อน การให้น้ำหนักมากจะทำให้เกณฑ์รับรองการตัดสินใจเดิมของตัวเองเป็นวงจร</td><td>ตัวสอบทานผล — ถ้าเกณฑ์ใหม่ให้ผลต่างจากประกาศคลังมาก ให้ตรวจสอบว่าฝ่ายใดคลาดเคลื่อน</td></tr><tr><td>ข้อ 15 เดิม — จำนวนโรงเรียนสาขา/ห้องเรียนสาขา</td><td class="muted">91.4% ไม่มีสาขา ตัวแปรแทบไม่แปรผันในประชากร ปรับน้ำหนักเท่าไรก็ยังจำแนกไม่ได้</td><td>แต้มพิเศษที่ประกาศแยก หรือเปลี่ยนหน่วยการประเมินเป็นจุดจัดการศึกษา ตามที่เอกสาร GAPS ข้อ A3 เสนอ</td></tr><tr><td>ข้อ 14 เดิม — จำนวนนักเรียนพักนอน</td><td class="muted">71.2% ไม่มีนักเรียนพักนอน เป็นลักษณะของกลุ่มเฉพาะ ไม่ใช่ตัวชี้วัดร่วมของทั้งประชากร</td><td>แต้มพิเศษ หรือใช้เป็นเงื่อนไขจัดสรรงบประมาณเฉพาะรายการ แยกจากคะแนนคัดกรอง</td></tr><tr><td>ข้อ 2 เดิม — ความใกล้ชิดพื้นที่ชายแดน</td><td class="muted">D=0.13–0.15 ต่ำกว่าเกณฑ์ตรวจรับ และซ้อนทับกับความสูง/ระยะทางอยู่แล้ว</td><td>ข้อมูลประกอบการพิจารณา หรือรวมกับปัจจัยด้านความมั่นคงเป็นด้านแยกถ้าคณะกรรมการเห็นว่าจำเป็น</td></tr><tr><td>ข้อ 3 เดิม — เขตการปกครองส่วนท้องถิ่น</td><td class="muted">82.5% อยู่ในเขต อบต. เหมือนกันหมด (D=0.05)</td><td>เงื่อนไขคุณสมบัติ — เช่น กำหนดว่าโรงเรียนในเขตเทศบาลนคร/เทศบาลเมืองไม่เข้าข่าย ตามข้อเสนอ 1</td></tr><tr><td>ข้อ 12 เดิม — จำนวนกลุ่มชาติพันธุ์</td><td class="muted">D=0.09–0.16 และสัมพันธ์กับร้อยละนักเรียนชาติพันธุ์อยู่แล้ว (r=0.36) จึงนับความลำบากเดียวซ้ำ</td><td>ข้อมูลประกอบสำหรับการวางแผนการสอนสองภาษา ไม่ใช่คะแนนคัดกรอง</td></tr></tbody>
+</table>
+  </div>
+
+  <h2>10. สิ่งที่ร่าง ค ยังไม่ได้แก้</h2>
+  <div class="card scroll">
+    <table>
+      <thead><tr><th>ประเด็น</th><th>สถานะ</th></tr></thead>
+      <tbody><tr><td>ข้อเสนอ 1 — แยกคุณสมบัติออกจากคะแนน</td><td class="muted">ร่าง ค เลือกไม่ตั้งด่านคัดกรอง (ร่าง ก ตัดโรงเรียนต่ำกว่า 500 ม. ออก 184 แห่ง) — ยังเป็นการตัดสินใจเชิงนโยบายที่ค้างอยู่</td></tr><tr><td>ข้อเสนอ 3 — สูตรมีเวอร์ชัน</td><td class="muted">ทำแล้วบางส่วน (สูตรอยู่ในไฟล์ JSON ที่มีเลขเวอร์ชัน) แต่ยังต้องเพิ่มคอลัมน์ scoring_version ในฐานข้อมูล</td></tr><tr><td>ข้อเสนอ 4 — ล็อกค่าที่ GIS วัดเอง</td><td class="muted">ต้องแก้ที่แบบฟอร์มและฐานข้อมูล ไม่ใช่ที่สูตร</td></tr><tr><td>ข้อเสนอ 11 — สอบเทียบกับกลุ่มผู้ยื่นใหม่</td><td class="muted">ยังไม่ได้ทำ — กลุ่มผู้ยื่นรอบ 2569 มี 84.9% ที่อยู่ต่ำกว่า 500 ม.</td></tr><tr><td>ดัชนีการเดินทางยังกระจุกที่ค่า 2 (41%)</td><td class="muted">ปรับได้อีกโดยเพิ่มสัญญาณย่อยหรือขยับจุดตัดระยะทาง</td></tr><tr><td>หน่วยการประเมิน</td><td class="muted">ยังเป็นระดับรหัสโรงเรียน ไม่ใช่จุดจัดการศึกษา ตามที่เอกสาร GAPS ข้อ A3 เสนอ</td></tr></tbody>
+    </table>
+  </div>
+
+  <p class="foot">สร้างจาก <code>scripts/explain-draft.mjs</code> → <code>scripts/report-explainer-html.mjs</code> ·
+  ฉบับข้อความ: <code>docs/EXPLAINER-ร่างค.md</code> ·
+  ไฟล์ร่าง: <code>scripts/criteria/2569-draft-c.json</code> ·
+  ข้อเสนอที่อ้างอิง: <code>docs/RECOMMENDATIONS-เกณฑ์2569.md</code></p>
+</div>
+<div id="tip" role="status"></div>
+<script>
+(() => {
+  const tip = document.getElementById("tip");
+  const show = (e) => {
+    const el = e.target.closest("[data-tip]");
+    if (!el) return;
+    tip.textContent = el.dataset.tip;
+    tip.style.opacity = "1";
+    const r = el.getBoundingClientRect();
+    const x = Math.min(window.innerWidth - 300, (e.clientX || r.left) + 12);
+    const y = (e.clientY || r.top) + 16;
+    tip.style.left = x + "px";
+    tip.style.top = y + "px";
+  };
+  const hide = () => { tip.style.opacity = "0"; };
+  document.addEventListener("mousemove", (e) => (e.target.closest("[data-tip]") ? show(e) : hide()));
+  document.addEventListener("focusin", show);
+  document.addEventListener("focusout", hide);
+})();
+</script>
+
+</body>
+</html>

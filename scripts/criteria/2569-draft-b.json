@@ -1,0 +1,149 @@
+{
+  "name": "ร่าง ข — ไม่มีด่านตัดออก กระจายน้ำหนักให้ข้อที่จำแนกได้",
+  "id": "2569-draft-b",
+  "version": "0.1",
+  "status": "ร่างเพื่อทดลองคำนวณ ยังไม่ใช่ข้อเสนอที่ผ่านความเห็นชอบ",
+  "note": "ต่างจากร่าง ก ตรงที่ (1) ไม่ตัดโรงเรียนที่ต่ำกว่า 500 ม. ออกด้วยด่านคัดกรอง แต่ให้คะแนนความสูงต่อเนื่องตั้งแต่ 300 ม. — เพื่อไม่ให้โรงเรียนพื้นราบห่างไกลหลุดทั้งหมด ตามข้อกังวล A2 ในเอกสาร GAPS (2) แก้ปัญหาที่พบในร่าง ก ว่าข้อขนส่งสาธารณะกลายเป็นคะแนนแจกฟรีอีกข้อ (79% ตอบว่าไม่มีรถประจำทาง) จึงลดเพดานเหลือ 6 คะแนนแล้วโยกไปที่ดัชนีความขาดแคลนและถนน ซึ่งจำแนกได้จริง",
+  "fullScore": 100,
+  "passThreshold": 70,
+  "levels": [
+    { "key": 3, "min": 70, "label": "กลุ่มที่ 3 ยุ่งยากมากที่สุด" },
+    { "key": 2, "min": 60, "label": "กลุ่มที่ 2 ยุ่งยากมาก" },
+    { "key": 1, "min": 50, "label": "กลุ่มที่ 1 ยุ่งยาก" },
+    { "key": 0, "min": 0, "label": "ไม่เข้ากลุ่ม" }
+  ],
+
+  "gates": [],
+
+  "items": [
+    {
+      "id": "G1",
+      "title": "ระดับความสูงเหนือระดับน้ำทะเล",
+      "group": "geo",
+      "variable": "elevM",
+      "max": 20,
+      "score": { "kind": "linear", "from": 300, "to": 1350 },
+      "note": "ไม่มีคะแนนฐาน ไม่มีเพดานที่ 500 ม. — ไล่ระดับถึง P90 ของประชากรจริง"
+    },
+    {
+      "id": "G2",
+      "title": "ระยะทางถึงศาลากลางจังหวัด",
+      "group": "geo",
+      "variable": "distanceKm",
+      "max": 5,
+      "score": { "kind": "linear", "from": 40, "to": 200 }
+    },
+
+    {
+      "id": "A1",
+      "title": "ระยะทางช่วงที่รถยนต์ขับเคลื่อนสองล้อไปไม่ได้",
+      "group": "access",
+      "variable": "badRoadKm",
+      "max": 12,
+      "score": { "kind": "linear", "from": 0, "to": 10 }
+    },
+    {
+      "id": "A2",
+      "title": "การเข้าถึงด้วยระบบขนส่งสาธารณะ",
+      "group": "access",
+      "variable": "transitLevel",
+      "max": 6,
+      "score": { "kind": "map", "table": { "1": 6, "2": 5, "3": 3, "4": 1, "5": 0 }, "else": 0 },
+      "note": "ลดเพดานจาก 10 เหลือ 6 เพราะ 79% ตอบข้อเดียวกัน (ไม่มีรถประจำทาง) จึงแยกใครไม่ได้"
+    },
+
+    {
+      "id": "U1",
+      "title": "ดัชนีความขาดแคลนโครงสร้างพื้นฐาน (น้ำ/ไฟ/โทรศัพท์/อินเทอร์เน็ต)",
+      "group": "utility",
+      "variable": "infraDeprivation",
+      "max": 18,
+      "score": {
+        "kind": "band",
+        "bands": [
+          { "upTo": 0, "points": 0 },
+          { "upTo": 1, "points": 6 },
+          { "upTo": 2, "points": 11 },
+          { "upTo": 3, "points": 15 }
+        ],
+        "else": 18
+      }
+    },
+
+    {
+      "id": "L1",
+      "title": "ร้อยละนักเรียนกลุ่มชาติพันธุ์",
+      "group": "learner",
+      "variable": "ethnicPct",
+      "max": 8,
+      "score": { "kind": "linear", "from": 0, "to": 100 }
+    },
+    {
+      "id": "L2",
+      "title": "จำนวนกลุ่มชาติพันธุ์",
+      "group": "learner",
+      "variable": "ethnicGroups",
+      "max": 4,
+      "score": {
+        "kind": "band",
+        "bands": [
+          { "upTo": 0, "points": 0 },
+          { "upTo": 1, "points": 1 },
+          { "upTo": 2, "points": 2 },
+          { "upTo": 3, "points": 3 }
+        ],
+        "else": 4
+      }
+    },
+    {
+      "id": "L3",
+      "title": "ร้อยละนักเรียนยากจน/ยากจนพิเศษ",
+      "group": "learner",
+      "variable": "poorPct",
+      "max": 8,
+      "score": { "kind": "linear", "from": 0, "to": 50 }
+    },
+    {
+      "id": "L4",
+      "title": "ร้อยละนักเรียนพักนอน",
+      "group": "learner",
+      "variable": "boardingPct",
+      "max": 6,
+      "score": { "kind": "linear", "from": 0, "to": 40 }
+    },
+
+    {
+      "id": "S1",
+      "title": "จำนวนโรงเรียนสาขา/ห้องเรียนสาขา",
+      "group": "structure",
+      "variable": "branches",
+      "max": 5,
+      "score": {
+        "kind": "band",
+        "bands": [
+          { "upTo": 0, "points": 0 },
+          { "upTo": 1, "points": 3 },
+          { "upTo": 2, "points": 4 }
+        ],
+        "else": 5
+      }
+    },
+
+    {
+      "id": "R1",
+      "title": "เป็นพื้นที่พิเศษตามประกาศกระทรวงการคลัง",
+      "group": "admin",
+      "variable": "treasurySpecial",
+      "max": 5,
+      "score": { "kind": "binary", "whenPositive": 5 }
+    },
+    {
+      "id": "R2",
+      "title": "ความใกล้ชิดพื้นที่ชายแดน",
+      "group": "admin",
+      "variable": "borderLevel",
+      "max": 3,
+      "score": { "kind": "map", "table": { "1": 3, "2": 2, "3": 1, "4": 0, "5": 0 }, "else": 0 }
+    }
+  ]
+}

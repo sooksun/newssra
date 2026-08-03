@@ -1,0 +1,670 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ผลทดลองร่าง ค — เกณฑ์คัดกรองโรงเรียนพื้นที่สูง ปี 2569</title>
+<style>*{box-sizing:border-box}html,body{margin:0;padding:0}</style>
+</head>
+<body>
+<style>
+  .viz-root{
+    color-scheme: light;
+    --surface-0:#f6f5f2; --surface-1:#fcfcfb; --border:#e2e0da;
+    --text-primary:#0b0b0b; --text-secondary:#52514e; --text-muted:#7c7a73;
+    --series-1:#2a78d6; --series-2:#eb6834; --track:#e8e6e0;
+    --good:#00713a; --warn:#b9430f;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:where(:not([data-theme="light"])) .viz-root{
+      color-scheme: dark;
+      --surface-0:#111110; --surface-1:#1a1a19; --border:#33332f;
+      --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#96958b;
+      --series-1:#3987e5; --series-2:#d95926; --track:#2b2b28;
+      --good:#4fbf8a; --warn:#f08a5c;
+    }
+  }
+  :root[data-theme="dark"] .viz-root{
+    color-scheme: dark;
+    --surface-0:#111110; --surface-1:#1a1a19; --border:#33332f;
+    --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#96958b;
+    --series-1:#3987e5; --series-2:#d95926; --track:#2b2b28;
+    --good:#4fbf8a; --warn:#f08a5c;
+  }
+
+  .viz-root{
+    background:var(--surface-0); color:var(--text-primary);
+    font-family:"IBM Plex Sans Thai","Noto Sans Thai",-apple-system,"Segoe UI",sans-serif;
+    line-height:1.6; padding:32px 20px 72px; max-width:1080px; margin:0 auto;
+    font-size:15px;
+  }
+  .viz-root h1,.viz-root h2,.viz-root h3{text-wrap:balance}
+  .viz-root h1{font-size:1.7rem; line-height:1.3; margin:0 0 8px; letter-spacing:-0.01em}
+  .viz-root h2{font-size:1.15rem; margin:44px 0 4px; letter-spacing:-0.005em}
+  .viz-root h3{font-size:0.98rem; margin:24px 0 6px; color:var(--text-secondary); font-weight:600}
+  .viz-root p{margin:8px 0; color:var(--text-secondary)}
+  .lead{color:var(--text-secondary); font-size:0.95rem}
+  .src{font-size:0.82rem; color:var(--text-muted); border-left:3px solid var(--border); padding-left:12px; margin:16px 0 0}
+
+  .tiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin:24px 0 8px}
+  .tile{background:var(--surface-1); border:1px solid var(--border); border-radius:12px; padding:14px 16px}
+  .tile .v{font-size:1.7rem; font-weight:650; letter-spacing:-0.02em; font-variant-numeric:tabular-nums}
+  .tile .l{font-size:0.85rem; color:var(--text-secondary); margin-top:2px}
+  .tile .s{font-size:0.76rem; color:var(--text-muted); margin-top:4px}
+
+  .card{background:var(--surface-1); border:1px solid var(--border); border-radius:12px; padding:16px 18px; margin:12px 0}
+  .scroll{overflow-x:auto}
+  svg.chart{display:block; width:100%; height:auto; overflow:visible}
+  svg .lbl{font-size:11.5px; fill:var(--text-secondary)}
+  svg .val{font-size:11.5px; fill:var(--text-primary); font-variant-numeric:tabular-nums}
+  svg .tick{font-size:10.5px; fill:var(--text-muted); font-variant-numeric:tabular-nums}
+  svg .track{fill:var(--track)}
+  svg .grid{stroke:var(--border); stroke-width:1}
+  svg .cut{stroke:var(--text-primary); stroke-width:2; stroke-dasharray:4 3; opacity:.7}
+  svg .cutlbl{font-size:10.5px; fill:var(--text-primary)}
+  svg .bar{cursor:default; outline:none}
+  svg .bar:hover rect:not(.track){opacity:.82}
+  svg .bar:focus-visible rect:not(.track){opacity:.82; stroke:var(--text-primary); stroke-width:2; paint-order:stroke}
+
+  table{border-collapse:collapse; width:100%; font-size:0.85rem; margin:8px 0}
+  th,td{text-align:left; padding:7px 10px; border-bottom:1px solid var(--border); vertical-align:top}
+  th{font-weight:600; color:var(--text-secondary); font-size:0.8rem; white-space:nowrap}
+  td.num,th.num{text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap}
+  td.muted{color:var(--text-muted)}
+  td.warn{color:var(--warn); font-weight:600}
+  td.good{color:var(--good); font-weight:600}
+  tbody tr:hover{background:var(--surface-0)}
+
+  ol.findings{padding-left:20px; margin:12px 0}
+  ol.findings li{margin:10px 0; color:var(--text-secondary)}
+  ol.findings b{color:var(--text-primary)}
+  .legend{display:flex; gap:16px; flex-wrap:wrap; font-size:0.8rem; color:var(--text-secondary); margin:6px 0 10px}
+  .legend span{display:inline-flex; align-items:center; gap:6px}
+  .swatch{width:12px; height:12px; border-radius:3px; display:inline-block}
+  #tip{position:fixed; pointer-events:none; z-index:50; background:var(--text-primary); color:var(--surface-1);
+       font-size:12px; padding:6px 9px; border-radius:7px; opacity:0; transition:opacity .1s; max-width:280px}
+  @media (prefers-reduced-motion: reduce){ #tip{transition:none} }
+  .foot{margin-top:48px; font-size:0.8rem; color:var(--text-muted); border-top:1px solid var(--border); padding-top:16px}
+</style>
+<div class="viz-root">
+  <h1>ผลทดลองร่าง ค — เกณฑ์คัดกรองโรงเรียนพื้นที่สูง ปี 2569</h1>
+  <p class="lead">นำร่างเกณฑ์ไปคำนวณกับโรงเรียนจริง 1,481 แห่งที่ยืนยันสถานะปี 2569
+  แล้วเทียบกับเกณฑ์เดิมทุกด้าน — ใครได้ ใครเสีย ลำดับพลิกไหม และเกณฑ์ใหม่ "แยกโรงเรียนออกจากกัน" ได้ดีขึ้นจริงหรือไม่</p>
+  <p class="src">แหล่งข้อมูล: snapshot ในเครื่อง (ฐาน ssra_live — dump สร้างเมื่อ Aug 01, 2026 at 04:08 PM · นำเข้าเมื่อ 2026-08-01T09:23:53.639Z · จากไฟล์ ssrainfo_ssra (3).sql) · สร้างเมื่อ 1/8/2569 21:43:25<br>
+  ร่างเพื่อทดลองคำนวณ ยังไม่ใช่ข้อเสนอที่ผ่านความเห็นชอบ — ตัวเลขทุกตัวคำนวณสดจากข้อมูลจริง ไม่ใช่การประมาณ</p>
+
+  <div class="tiles">
+    <div class="tile"><div class="v">5/5</div><div class="l">ข้อที่ผ่านเกณฑ์ตรวจรับ</div><div class="s">น้ำหนัก ≤ 25 · ได้เต็ม ≤ 60% · ได้ 0 ≤ 70% · D ≥ 0.2</div></div><div class="tile"><div class="v">19.9</div><div class="l">SD ของคะแนนรวม</div><div class="s">เกณฑ์เดิม 9.1 — ยิ่งมาก ยิ่งแยกโรงเรียนได้จริง</div></div><div class="tile"><div class="v">0.33</div><div class="l">อำนาจจำแนกต่ำสุดในชุด</div><div class="s">เกณฑ์เดิมต่ำสุด 0.04 (ข้อความสูง)</div></div><div class="tile"><div class="v">52.7</div><div class="l">คะแนนเฉลี่ย</div><div class="s">เกณฑ์เดิม 65.8 — ต่ำลงเพราะตัดคะแนนที่แจกฟรีออก</div></div><div class="tile"><div class="v">62.7</div><div class="l">จุดตัดที่ให้จำนวนผู้ได้สิทธิ์เท่าเดิม</div><div class="s">แทนเลข 70 — ถ้าคงไว้จะเหลือ 310 จาก 490 แห่ง</div></div><div class="tile"><div class="v">0.84</div><div class="l">สหสัมพันธ์อันดับกับเกณฑ์เดิม (ρ)</div><div class="s">ได้สิทธิ์เพิ่ม 44 · เสียสิทธิ์ 224</div></div>
+  </div>
+
+  <h2>1. ร่างนี้แก้อะไรจากเกณฑ์เดิม</h2>
+  <div class="card">
+    <p>ปรับจากร่าง ข ตาม docs/RECOMMENDATIONS-เกณฑ์2569.md — (ข้อเสนอ 2) ความสูงไม่มีคะแนนฐาน ไล่ระดับถึง P90 จริง · (ข้อเสนอ 5) ตัดข้อ 'ประกาศกระทรวงการคลัง' ออกจากคะแนน เพราะอำนาจจำแนกของมันมาจากการเป็นผลของประกาศครั้งก่อน ไม่ใช่การวัดความลำบากจริง ให้ไปใช้เป็นตัวสอบทานผลแทน · (ข้อเสนอ 6) ยุบสาธารณูปโภค 4 ข้อเป็นดัชนีความรุนแรงเดียว ถ่วงน้ำหนักตามระดับความขาดแคลน · (ข้อเสนอ 7) ทุกดัชนีใช้ 'ตัวเลือกที่ลำบากที่สุดที่เลือกไว้' จึงไม่ลงโทษโรงเรียนที่กรอกครบ และผ่านการทดสอบ monotonicity · (ข้อเสนอ 8) ยุบข้อที่พื้นตัน/เพดานตันเข้าเป็นดัชนีที่แปรผันจริง แทนการปรับน้ำหนักซึ่งแก้ไม่ได้ · (ข้อเสนอ 9) ตัวชี้วัดที่นับตัวนักเรียนใช้ร้อยละทุกข้อ</p>
+  </div>
+
+  <h2>2. เทียบคุณภาพของเกณฑ์ทุกร่าง</h2>
+  <div class="card scroll">
+    
+<table>
+  <thead><tr>
+    <th>ตัวชี้วัดคุณภาพของเกณฑ์</th><th class="num">เกณฑ์เดิม</th>
+    <th class="num">ร่าง ก</th><th class="num">ร่าง ข</th><th class="num good">ร่าง ค</th>
+  </tr></thead>
+  <tbody>
+    <tr><td>ผ่านเกณฑ์ตรวจรับรายข้อ</td><td class="num">—</td>
+      <td class="num warn">5/12</td><td class="num warn">5/12</td><td class="num good">5/5</td></tr>
+    <tr><td>จำนวนตัวชี้วัดที่ให้คะแนน</td><td class="num">16</td>
+      <td class="num">12</td><td class="num">12</td><td class="num">5</td></tr>
+    <tr><td>คะแนนเฉลี่ย</td><td class="num">65.76</td>
+      <td class="num">40.28</td><td class="num">43.45</td><td class="num">52.70</td></tr>
+    <tr><td>SD (ยิ่งมาก ยิ่งแยกได้)</td><td class="num">9.07</td>
+      <td class="num">21.22</td><td class="num">15.25</td><td class="num">19.90</td></tr>
+    <tr><td>อำนาจจำแนก D ต่ำสุดในชุด</td><td class="num warn">0.04</td>
+      <td class="num warn">0.09</td><td class="num warn">0.11</td><td class="num good">0.33</td></tr>
+    <tr><td>item–rest r ต่ำสุดในชุด</td><td class="num warn">0.01</td>
+      <td class="num warn">-0.05</td><td class="num warn">0.06</td><td class="num good">0.42</td></tr>
+    <tr><td>ถูกตัดออกด้วยด่านคัดกรอง</td><td class="num">—</td>
+      <td class="num">184</td><td class="num">0</td><td class="num">0</td></tr>
+    <tr><td>ρ กับลำดับเดิม</td><td class="num">1.00</td>
+      <td class="num">0.80</td><td class="num">0.91</td><td class="num">0.84</td></tr>
+    <tr><td>จุดตัดที่ให้จำนวนเท่าเดิม</td><td class="num">70</td>
+      <td class="num">51.22</td><td class="num">49.81</td><td class="num">62.72</td></tr>
+  </tbody>
+</table>
+    <p>ตัวเลขที่ควรดูที่สุดคือ <b>อำนาจจำแนก D ต่ำสุดในชุด</b> และ <b>item–rest r ต่ำสุด</b> — ถ้าข้อที่แย่ที่สุดยังทำงานได้
+    แปลว่าไม่มีข้อไหนเป็นคะแนนแจกฟรีหรือแต้มพิเศษของกลุ่มเล็กหลงเหลืออยู่</p>
+  </div>
+
+  <h2>3. การกระจายคะแนนรวม — เกณฑ์เดิม vs ร่างนี้</h2>
+  <div class="card">
+    <h3>เกณฑ์เดิม (เฉลี่ย 65.8 · SD 9.1)</h3>
+    <svg class="chart" viewBox="0 0 680 220" role="img" aria-label="ฮิสโทแกรม"><line class="grid" x1="44" x2="668" y1="186.0" y2="186.0"/>
+              <text class="tick" x="36" y="190.0" text-anchor="end">0</text><line class="grid" x1="44" x2="668" y1="99.0" y2="99.0"/>
+              <text class="tick" x="36" y="103.0" text-anchor="end">170</text><line class="grid" x1="44" x2="668" y1="12.0" y2="12.0"/>
+              <text class="tick" x="36" y="16.0" text-anchor="end">339</text><g class="bar" tabindex="0" data-tip="30–35 คะแนน · 2 แห่ง">
+        <rect x="45.5" y="185.0" width="41.6" height="1.0" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="35–40 คะแนน · 3 แห่ง">
+        <rect x="90.1" y="184.5" width="41.6" height="1.5" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="40–45 คะแนน · 2 แห่ง">
+        <rect x="134.6" y="185.0" width="41.6" height="1.0" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="45–50 คะแนน · 3 แห่ง">
+        <rect x="179.2" y="184.5" width="41.6" height="1.5" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="50–55 คะแนน · 133 แห่ง">
+        <rect x="223.8" y="117.7" width="41.6" height="68.3" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="55–60 คะแนน · 259 แห่ง">
+        <rect x="268.4" y="53.1" width="41.6" height="132.9" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="60–65 คะแนน · 339 แห่ง">
+        <rect x="312.9" y="12.0" width="41.6" height="174.0" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="65–70 คะแนน · 249 แห่ง">
+        <rect x="357.5" y="58.2" width="41.6" height="127.8" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="70–75 คะแนน · 257 แห่ง">
+        <rect x="402.1" y="54.1" width="41.6" height="131.9" rx="4"
+              fill="var(--series-2)"/>
+      </g><g class="bar" tabindex="0" data-tip="75–80 คะแนน · 122 แห่ง">
+        <rect x="446.6" y="123.4" width="41.6" height="62.6" rx="4"
+              fill="var(--series-2)"/>
+      </g><g class="bar" tabindex="0" data-tip="80–85 คะแนน · 72 แห่ง">
+        <rect x="491.2" y="149.0" width="41.6" height="37.0" rx="4"
+              fill="var(--series-2)"/>
+      </g><g class="bar" tabindex="0" data-tip="85–90 คะแนน · 28 แห่ง">
+        <rect x="535.8" y="171.6" width="41.6" height="14.4" rx="4"
+              fill="var(--series-2)"/>
+      </g><g class="bar" tabindex="0" data-tip="90–95 คะแนน · 10 แห่ง">
+        <rect x="580.4" y="180.9" width="41.6" height="5.1" rx="4"
+              fill="var(--series-2)"/>
+      </g><g class="bar" tabindex="0" data-tip="95–100 คะแนน · 1 แห่ง">
+        <rect x="624.9" y="185.5" width="41.6" height="1.0" rx="4"
+              fill="var(--series-2)"/>
+      </g><line class="cut" x1="400.6" x2="400.6" y1="12" y2="186"/>
+         <text class="cutlbl" x="406.6" y="24">จุดตัด 70</text><text class="tick" x="44.0" y="202" text-anchor="middle">30</text><text class="tick" x="133.1" y="202" text-anchor="middle">40</text><text class="tick" x="222.3" y="202" text-anchor="middle">50</text><text class="tick" x="311.4" y="202" text-anchor="middle">60</text><text class="tick" x="400.6" y="202" text-anchor="middle">70</text><text class="tick" x="489.7" y="202" text-anchor="middle">80</text><text class="tick" x="578.9" y="202" text-anchor="middle">90</text></svg>
+    <h3>ร่าง ค (เฉลี่ย 52.7 · SD 19.9)</h3>
+    <svg class="chart" viewBox="0 0 680 220" role="img" aria-label="ฮิสโทแกรม"><line class="grid" x1="44" x2="668" y1="186.0" y2="186.0"/>
+              <text class="tick" x="36" y="190.0" text-anchor="end">0</text><line class="grid" x1="44" x2="668" y1="99.0" y2="99.0"/>
+              <text class="tick" x="36" y="103.0" text-anchor="end">69</text><line class="grid" x1="44" x2="668" y1="12.0" y2="12.0"/>
+              <text class="tick" x="36" y="16.0" text-anchor="end">137</text><g class="bar" tabindex="0" data-tip="0–5 คะแนน · 0 แห่ง">
+        <rect x="45.5" y="186.0" width="28.2" height="1.0" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="5–10 คะแนน · 2 แห่ง">
+        <rect x="76.7" y="183.5" width="28.2" height="2.5" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="10–15 คะแนน · 3 แห่ง">
+        <rect x="107.9" y="182.2" width="28.2" height="3.8" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="15–20 คะแนน · 31 แห่ง">
+        <rect x="139.1" y="146.6" width="28.2" height="39.4" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="20–25 คะแนน · 85 แห่ง">
+        <rect x="170.3" y="78.0" width="28.2" height="108.0" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="25–30 คะแนน · 125 แห่ง">
+        <rect x="201.5" y="27.2" width="28.2" height="158.8" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="30–35 คะแนน · 101 แห่ง">
+        <rect x="232.7" y="57.7" width="28.2" height="128.3" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="35–40 คะแนน · 111 แห่ง">
+        <rect x="263.9" y="45.0" width="28.2" height="141.0" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="40–45 คะแนน · 91 แห่ง">
+        <rect x="295.1" y="70.4" width="28.2" height="115.6" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="45–50 คะแนน · 116 แห่ง">
+        <rect x="326.3" y="38.7" width="28.2" height="147.3" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="50–55 คะแนน · 137 แห่ง">
+        <rect x="357.5" y="12.0" width="28.2" height="174.0" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="55–60 คะแนน · 122 แห่ง">
+        <rect x="388.7" y="31.1" width="28.2" height="154.9" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="60–65 คะแนน · 129 แห่ง">
+        <rect x="419.9" y="22.2" width="28.2" height="163.8" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="65–70 คะแนน · 118 แห่ง">
+        <rect x="451.1" y="36.1" width="28.2" height="149.9" rx="4"
+              fill="var(--series-2)"/>
+      </g><g class="bar" tabindex="0" data-tip="70–75 คะแนน · 88 แห่ง">
+        <rect x="482.3" y="74.2" width="28.2" height="111.8" rx="4"
+              fill="var(--series-2)"/>
+      </g><g class="bar" tabindex="0" data-tip="75–80 คะแนน · 77 แห่ง">
+        <rect x="513.5" y="88.2" width="28.2" height="97.8" rx="4"
+              fill="var(--series-2)"/>
+      </g><g class="bar" tabindex="0" data-tip="80–85 คะแนน · 53 แห่ง">
+        <rect x="544.7" y="118.7" width="28.2" height="67.3" rx="4"
+              fill="var(--series-2)"/>
+      </g><g class="bar" tabindex="0" data-tip="85–90 คะแนน · 48 แห่ง">
+        <rect x="575.9" y="125.0" width="28.2" height="61.0" rx="4"
+              fill="var(--series-2)"/>
+      </g><g class="bar" tabindex="0" data-tip="90–95 คะแนน · 24 แห่ง">
+        <rect x="607.1" y="155.5" width="28.2" height="30.5" rx="4"
+              fill="var(--series-2)"/>
+      </g><g class="bar" tabindex="0" data-tip="95–100 คะแนน · 20 แห่ง">
+        <rect x="638.3" y="160.6" width="28.2" height="25.4" rx="4"
+              fill="var(--series-2)"/>
+      </g><line class="cut" x1="435.4" x2="435.4" y1="12" y2="186"/>
+         <text class="cutlbl" x="441.4" y="24">จุดตัดเทียบเท่า 62.7</text><text class="tick" x="44.0" y="202" text-anchor="middle">0</text><text class="tick" x="137.6" y="202" text-anchor="middle">15</text><text class="tick" x="231.2" y="202" text-anchor="middle">30</text><text class="tick" x="324.8" y="202" text-anchor="middle">45</text><text class="tick" x="418.4" y="202" text-anchor="middle">60</text><text class="tick" x="512.0" y="202" text-anchor="middle">75</text><text class="tick" x="605.6" y="202" text-anchor="middle">90</text></svg>
+    <p>เกณฑ์เดิมอัดโรงเรียนไว้ในช่วงแคบรอบ ๆ 65 คะแนน ทำให้การขยับสูตรเพียงเล็กน้อยเปลี่ยนสถานะได้เป็นร้อยแห่ง
+    ส่วนร่างนี้กระจายกว้างกว่า (SD 19.9 เทียบกับ 9.1) จุดตัดจึงมั่นคงกว่า</p>
+  </div>
+
+  <h2>4. เส้นแบ่งระดับต้องย้ายตามสูตร</h2>
+  <div class="card scroll">
+    
+<table>
+  <thead><tr><th>กลุ่ม</th><th class="num">เส้นแบ่งเดิม</th><th class="num">จำนวนเดิม</th><th class="num">เส้นแบ่งเทียบเท่าในร่างนี้</th></tr></thead>
+  <tbody><tr><td>กลุ่มที่ 3 ยุ่งยากมากที่สุด</td><td class="num">≥ 70</td><td class="num">490</td>
+        <td class="num good">≥ 62.72</td></tr><tr><td>กลุ่มที่ 2 ขึ้นไป</td><td class="num">≥ 60</td><td class="num">1,078</td>
+        <td class="num good">≥ 37.54</td></tr><tr><td>กลุ่มที่ 1 ขึ้นไป</td><td class="num">≥ 50</td><td class="num">1,470</td>
+        <td class="num good">≥ 16.46</td></tr></tbody>
+</table>
+    <p><b>นี่คือจุดที่พลาดได้ง่ายที่สุด</b> — ถ้าเปลี่ยนสูตรแล้วคงเลข 70/60/50 ไว้เฉย ๆ
+    จำนวนโรงเรียนในแต่ละกลุ่มจะเปลี่ยนไปมากโดยไม่มีใครตั้งใจ ควรตัดสินใจที่ <em>จำนวนเป้าหมาย</em> ก่อน แล้วจึงย้อนหาเส้นแบ่ง</p>
+  </div>
+
+  <h2>5. พฤติกรรมรายข้อของร่างนี้</h2>
+  <div class="card">
+    <h3>อำนาจจำแนก D รายข้อ</h3>
+    <div class="legend">
+      <span><i class="swatch" style="background:var(--series-1)"></i> ผ่านเกณฑ์ (D ≥ 0.2)</span>
+      <span><i class="swatch" style="background:var(--series-2)"></i> ต่ำกว่าเกณฑ์</span>
+    </div>
+    <svg class="chart" viewBox="0 0 640 138" role="img" aria-label="แผนภูมิแท่งแนวนอน">
+      <g class="bar" tabindex="0" data-tip="L1. ร้อยละนักเรียนกลุ่มชาติพัน — 0.83 · เต็ม 20 คะแนน · item–rest r = 0.51">
+        <text class="lbl" x="202" y="17" text-anchor="end" dominant-baseline="middle">L1. ร้อยละนักเรียนกลุ่มชาติพัน</text>
+        <rect class="track" x="210" y="9" width="364" height="12" rx="4"/>
+        <rect x="210" y="9" width="302.12" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="17" dominant-baseline="middle">0.83</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="G1. ระดับความสูงเหนือระดับน้ำท — 0.52 · เต็ม 24 คะแนน · item–rest r = 0.43">
+        <text class="lbl" x="202" y="43" text-anchor="end" dominant-baseline="middle">G1. ระดับความสูงเหนือระดับน้ำท</text>
+        <rect class="track" x="210" y="35" width="364" height="12" rx="4"/>
+        <rect x="210" y="35" width="189.28" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="43" dominant-baseline="middle">0.52</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="L3. ร้อยละนักเรียนยากจน/ยากจนพ — 0.44 · เต็ม 14 คะแนน · item–rest r = 0.42">
+        <text class="lbl" x="202" y="69" text-anchor="end" dominant-baseline="middle">L3. ร้อยละนักเรียนยากจน/ยากจนพ</text>
+        <rect class="track" x="210" y="61" width="364" height="12" rx="4"/>
+        <rect x="210" y="61" width="160.16" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="69" dominant-baseline="middle">0.44</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="A1. ความรุนแรงของอุปสรรคการเดิ — 0.36 · เต็ม 20 คะแนน · item–rest r = 0.43">
+        <text class="lbl" x="202" y="95" text-anchor="end" dominant-baseline="middle">A1. ความรุนแรงของอุปสรรคการเดิ</text>
+        <rect class="track" x="210" y="87" width="364" height="12" rx="4"/>
+        <rect x="210" y="87" width="131.04" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="95" dominant-baseline="middle">0.36</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="U1. ความรุนแรงของการขาดแคลนโคร — 0.33 · เต็ม 22 คะแนน · item–rest r = 0.42">
+        <text class="lbl" x="202" y="121" text-anchor="end" dominant-baseline="middle">U1. ความรุนแรงของการขาดแคลนโคร</text>
+        <rect class="track" x="210" y="113" width="364" height="12" rx="4"/>
+        <rect x="210" y="113" width="120.12" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="121" dominant-baseline="middle">0.33</text>
+      </g></svg>
+  </div>
+  <div class="card">
+    <h3>น้ำหนักคะแนนที่จัดสรร</h3>
+    <svg class="chart" viewBox="0 0 640 138" role="img" aria-label="แผนภูมิแท่งแนวนอน">
+      <g class="bar" tabindex="0" data-tip="G1. ระดับความสูงเหนือระดับน้ำท — 24.00 คะแนน · ได้จริงเฉลี่ย 11.69 (48.7% ของเต็มข้อนี้)">
+        <text class="lbl" x="202" y="17" text-anchor="end" dominant-baseline="middle">G1. ระดับความสูงเหนือระดับน้ำท</text>
+        <rect class="track" x="210" y="9" width="364" height="12" rx="4"/>
+        <rect x="210" y="9" width="87.36" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="17" dominant-baseline="middle">24 คะแนน</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="U1. ความรุนแรงของการขาดแคลนโคร — 22.00 คะแนน · ได้จริงเฉลี่ย 9.87 (44.8% ของเต็มข้อนี้)">
+        <text class="lbl" x="202" y="43" text-anchor="end" dominant-baseline="middle">U1. ความรุนแรงของการขาดแคลนโคร</text>
+        <rect class="track" x="210" y="35" width="364" height="12" rx="4"/>
+        <rect x="210" y="35" width="80.08" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="43" dominant-baseline="middle">22 คะแนน</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="A1. ความรุนแรงของอุปสรรคการเดิ — 20.00 คะแนน · ได้จริงเฉลี่ย 9.45 (47.3% ของเต็มข้อนี้)">
+        <text class="lbl" x="202" y="69" text-anchor="end" dominant-baseline="middle">A1. ความรุนแรงของอุปสรรคการเดิ</text>
+        <rect class="track" x="210" y="61" width="364" height="12" rx="4"/>
+        <rect x="210" y="61" width="72.8" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="69" dominant-baseline="middle">20 คะแนน</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="L1. ร้อยละนักเรียนกลุ่มชาติพัน — 20.00 คะแนน · ได้จริงเฉลี่ย 13.57 (67.8% ของเต็มข้อนี้)">
+        <text class="lbl" x="202" y="95" text-anchor="end" dominant-baseline="middle">L1. ร้อยละนักเรียนกลุ่มชาติพัน</text>
+        <rect class="track" x="210" y="87" width="364" height="12" rx="4"/>
+        <rect x="210" y="87" width="72.8" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="95" dominant-baseline="middle">20 คะแนน</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="L3. ร้อยละนักเรียนยากจน/ยากจนพ — 14.00 คะแนน · ได้จริงเฉลี่ย 8.13 (58.1% ของเต็มข้อนี้)">
+        <text class="lbl" x="202" y="121" text-anchor="end" dominant-baseline="middle">L3. ร้อยละนักเรียนยากจน/ยากจนพ</text>
+        <rect class="track" x="210" y="113" width="364" height="12" rx="4"/>
+        <rect x="210" y="113" width="50.96000000000001" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="121" dominant-baseline="middle">14 คะแนน</text>
+      </g></svg>
+  </div>
+  <div class="card scroll">
+    <h3>ตารางสถิติรายข้อ</h3>
+    
+<table>
+  <thead><tr><th>ข้อ</th><th>ตัวชี้วัด</th><th>ตัวแปร</th><th class="num">เต็ม</th><th class="num">เฉลี่ย</th>
+    <th class="num">%ของเต็ม</th><th class="num">ได้เต็ม</th><th class="num">ได้ 0</th><th class="num">item–rest r</th><th class="num">D</th></tr></thead>
+  <tbody><tr><td>G1</td><td>ระดับความสูงเหนือระดับน้ำทะเล</td><td class="muted"><code>elevM</code></td>
+      <td class="num">24</td><td class="num">11.69</td><td class="num">48.7%</td>
+      <td class="num">10.1%</td><td class="num">1.7%</td>
+      <td class="num good">0.43</td>
+      <td class="num good">0.52</td></tr><tr><td>U1</td><td>ความรุนแรงของการขาดแคลนโครงสร้างพื้นฐาน (น้ำ/ไฟ/โทรศัพท์/อินเทอร์เน็ต)</td><td class="muted"><code>infraSeverity</code></td>
+      <td class="num">22</td><td class="num">9.87</td><td class="num">44.8%</td>
+      <td class="num">7.4%</td><td class="num">0.9%</td>
+      <td class="num good">0.42</td>
+      <td class="num good">0.33</td></tr><tr><td>A1</td><td>ความรุนแรงของอุปสรรคการเดินทาง (สภาพถนน/ขนส่งสาธารณะ/ระยะทาง)</td><td class="muted"><code>accessSeverity</code></td>
+      <td class="num">20</td><td class="num">9.45</td><td class="num">47.3%</td>
+      <td class="num">6.8%</td><td class="num">3.1%</td>
+      <td class="num good">0.43</td>
+      <td class="num good">0.36</td></tr><tr><td>L1</td><td>ร้อยละนักเรียนกลุ่มชาติพันธุ์</td><td class="muted"><code>ethnicPct</code></td>
+      <td class="num">20</td><td class="num">13.57</td><td class="num">67.8%</td>
+      <td class="num">45.2%</td><td class="num">16.2%</td>
+      <td class="num good">0.51</td>
+      <td class="num good">0.83</td></tr><tr><td>L3</td><td>ร้อยละนักเรียนยากจน/ยากจนพิเศษ</td><td class="muted"><code>poorPct</code></td>
+      <td class="num">14</td><td class="num">8.13</td><td class="num">58.1%</td>
+      <td class="num">13.0%</td><td class="num">5.4%</td>
+      <td class="num good">0.42</td>
+      <td class="num good">0.44</td></tr></tbody>
+</table>
+  </div>
+
+  <h2>6. ตัวแปรที่ใช้ "แปรผันจริง" หรือไม่</h2>
+  <p>ข้อที่พื้นตัน/เพดานตันในเกณฑ์เดิมแก้ด้วยการปรับน้ำหนักไม่ได้ เพราะตัวแปรแทบไม่แปรผันในประชากร —
+  วิธีเดียวที่ได้ผลคือเปลี่ยนไปใช้ตัวแปรที่กระจายจริง กราฟชุดนี้คือหลักฐานว่าตัวแปรของร่างนี้ผ่านเงื่อนไขนั้น</p>
+  
+  <div class="card">
+    <h3>G1 — ระดับความสูงเหนือระดับน้ำทะเล <span class="muted">(เต็ม 24 คะแนน · D = 0.52)</span></h3>
+    <p class="muted">การกระจายของค่าที่ป้อนเข้าข้อนี้ · ช่วงที่หนาแน่นที่สุดคิดเป็น 25.1% ของโรงเรียนทั้งหมด
+    — กระจายในระดับที่ใช้จำแนกได้</p>
+    <svg class="chart" viewBox="0 0 680 220" role="img" aria-label="ฮิสโทแกรม"><line class="grid" x1="44" x2="668" y1="186.0" y2="186.0"/>
+              <text class="tick" x="36" y="190.0" text-anchor="end">0</text><line class="grid" x1="44" x2="668" y1="99.0" y2="99.0"/>
+              <text class="tick" x="36" y="103.0" text-anchor="end">186</text><line class="grid" x1="44" x2="668" y1="12.0" y2="12.0"/>
+              <text class="tick" x="36" y="16.0" text-anchor="end">371</text><g class="bar" tabindex="0" data-tip="0–181.9 ม. · 9 แห่ง">
+        <rect x="45.5" y="181.8" width="59.4" height="4.2" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="181.9–363.8 ม. · 60 แห่ง">
+        <rect x="107.9" y="157.9" width="59.4" height="28.1" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="363.8–545.7 ม. · 371 แห่ง">
+        <rect x="170.3" y="12.0" width="59.4" height="174.0" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="545.7–727.6 ม. · 195 แห่ง">
+        <rect x="232.7" y="94.5" width="59.4" height="91.5" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="727.6–909.5 ม. · 344 แห่ง">
+        <rect x="295.1" y="24.7" width="59.4" height="161.3" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="909.5–1091.4 ม. · 144 แห่ง">
+        <rect x="357.5" y="118.5" width="59.4" height="67.5" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="1091.4–1273.3 ม. · 167 แห่ง">
+        <rect x="419.9" y="107.7" width="59.4" height="78.3" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="1273.3–1455.2 ม. · 110 แห่ง">
+        <rect x="482.3" y="134.4" width="59.4" height="51.6" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="1455.2–1637.1 ม. · 37 แห่ง">
+        <rect x="544.7" y="168.6" width="59.4" height="17.4" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="1637.1–1819 ม. · 44 แห่ง">
+        <rect x="607.1" y="165.4" width="59.4" height="20.6" rx="4"
+              fill="var(--series-1)"/>
+      </g><text class="tick" x="44.0" y="202" text-anchor="middle">0</text><text class="tick" x="168.8" y="202" text-anchor="middle">363.8</text><text class="tick" x="293.6" y="202" text-anchor="middle">727.6</text><text class="tick" x="418.4" y="202" text-anchor="middle">1091.4</text><text class="tick" x="543.2" y="202" text-anchor="middle">1455.2</text></svg>
+  </div>
+  <div class="card">
+    <h3>U1 — ความรุนแรงของการขาดแคลนโครงสร้างพื้นฐาน (น้ำ/ไฟ/โทรศัพท์/อินเทอร์เน็ต) <span class="muted">(เต็ม 22 คะแนน · D = 0.33)</span></h3>
+    <p class="muted">การกระจายของค่าที่ป้อนเข้าข้อนี้ · ช่วงที่หนาแน่นที่สุดคิดเป็น 32.2% ของโรงเรียนทั้งหมด
+    — กระจายในระดับที่ใช้จำแนกได้</p>
+    <svg class="chart" viewBox="0 0 680 220" role="img" aria-label="ฮิสโทแกรม"><line class="grid" x1="44" x2="668" y1="186.0" y2="186.0"/>
+              <text class="tick" x="36" y="190.0" text-anchor="end">0</text><line class="grid" x1="44" x2="668" y1="99.0" y2="99.0"/>
+              <text class="tick" x="36" y="103.0" text-anchor="end">239</text><line class="grid" x1="44" x2="668" y1="12.0" y2="12.0"/>
+              <text class="tick" x="36" y="16.0" text-anchor="end">477</text><g class="bar" tabindex="0" data-tip="0–0 · 14 แห่ง">
+        <rect x="45.5" y="180.9" width="53.7" height="5.1" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="1–1 · 109 แห่ง">
+        <rect x="102.2" y="146.2" width="53.7" height="39.8" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="2–2 · 268 แห่ง">
+        <rect x="159.0" y="88.2" width="53.7" height="97.8" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="3–3 · 477 แห่ง">
+        <rect x="215.7" y="12.0" width="53.7" height="174.0" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="4–4 · 301 แห่ง">
+        <rect x="272.4" y="76.2" width="53.7" height="109.8" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="5–5 · 80 แห่ง">
+        <rect x="329.1" y="156.8" width="53.7" height="29.2" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="6–6 · 101 แห่ง">
+        <rect x="385.9" y="149.2" width="53.7" height="36.8" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="7–7 · 21 แห่ง">
+        <rect x="442.6" y="178.3" width="53.7" height="7.7" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="8–8 · 21 แห่ง">
+        <rect x="499.3" y="178.3" width="53.7" height="7.7" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="9–9 · 32 แห่ง">
+        <rect x="556.0" y="174.3" width="53.7" height="11.7" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="10–10 · 57 แห่ง">
+        <rect x="612.8" y="165.2" width="53.7" height="20.8" rx="4"
+              fill="var(--series-1)"/>
+      </g><text class="tick" x="44.0" y="202" text-anchor="middle">0</text><text class="tick" x="157.5" y="202" text-anchor="middle">2</text><text class="tick" x="270.9" y="202" text-anchor="middle">4</text><text class="tick" x="384.4" y="202" text-anchor="middle">6</text><text class="tick" x="497.8" y="202" text-anchor="middle">8</text><text class="tick" x="611.3" y="202" text-anchor="middle">10</text></svg>
+  </div>
+  <div class="card">
+    <h3>A1 — ความรุนแรงของอุปสรรคการเดินทาง (สภาพถนน/ขนส่งสาธารณะ/ระยะทาง) <span class="muted">(เต็ม 20 คะแนน · D = 0.36)</span></h3>
+    <p class="muted">การกระจายของค่าที่ป้อนเข้าข้อนี้ · ช่วงที่หนาแน่นที่สุดคิดเป็น 40.7% ของโรงเรียนทั้งหมด
+    — กระจายในระดับที่ใช้จำแนกได้</p>
+    <svg class="chart" viewBox="0 0 680 220" role="img" aria-label="ฮิสโทแกรม"><line class="grid" x1="44" x2="668" y1="186.0" y2="186.0"/>
+              <text class="tick" x="36" y="190.0" text-anchor="end">0</text><line class="grid" x1="44" x2="668" y1="99.0" y2="99.0"/>
+              <text class="tick" x="36" y="103.0" text-anchor="end">302</text><line class="grid" x1="44" x2="668" y1="12.0" y2="12.0"/>
+              <text class="tick" x="36" y="16.0" text-anchor="end">603</text><g class="bar" tabindex="0" data-tip="0–0 · 46 แห่ง">
+        <rect x="45.5" y="172.7" width="66.3" height="13.3" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="1–1 · 129 แห่ง">
+        <rect x="114.8" y="148.8" width="66.3" height="37.2" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="2–2 · 603 แห่ง">
+        <rect x="184.2" y="12.0" width="66.3" height="174.0" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="3–3 · 284 แห่ง">
+        <rect x="253.5" y="104.0" width="66.3" height="82.0" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="4–4 · 185 แห่ง">
+        <rect x="322.8" y="132.6" width="66.3" height="53.4" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="5–5 · 133 แห่ง">
+        <rect x="392.2" y="147.6" width="66.3" height="38.4" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="6–6 · 27 แห่ง">
+        <rect x="461.5" y="178.2" width="66.3" height="7.8" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="7–7 · 32 แห่ง">
+        <rect x="530.8" y="176.8" width="66.3" height="9.2" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="8–8 · 42 แห่ง">
+        <rect x="600.2" y="173.9" width="66.3" height="12.1" rx="4"
+              fill="var(--series-1)"/>
+      </g><text class="tick" x="44.0" y="202" text-anchor="middle">0</text><text class="tick" x="182.7" y="202" text-anchor="middle">2</text><text class="tick" x="321.3" y="202" text-anchor="middle">4</text><text class="tick" x="460.0" y="202" text-anchor="middle">6</text><text class="tick" x="598.7" y="202" text-anchor="middle">8</text></svg>
+  </div>
+  <div class="card">
+    <h3>L1 — ร้อยละนักเรียนกลุ่มชาติพันธุ์ <span class="muted">(เต็ม 20 คะแนน · D = 0.83)</span></h3>
+    <p class="muted">การกระจายของค่าที่ป้อนเข้าข้อนี้ · ช่วงที่หนาแน่นที่สุดคิดเป็น 53.6% ของโรงเรียนทั้งหมด
+    — กระจายในระดับที่ใช้จำแนกได้</p>
+    <svg class="chart" viewBox="0 0 680 220" role="img" aria-label="ฮิสโทแกรม"><line class="grid" x1="44" x2="668" y1="186.0" y2="186.0"/>
+              <text class="tick" x="36" y="190.0" text-anchor="end">0</text><line class="grid" x1="44" x2="668" y1="99.0" y2="99.0"/>
+              <text class="tick" x="36" y="103.0" text-anchor="end">397</text><line class="grid" x1="44" x2="668" y1="12.0" y2="12.0"/>
+              <text class="tick" x="36" y="16.0" text-anchor="end">794</text><g class="bar" tabindex="0" data-tip="0–10 · 294 แห่ง">
+        <rect x="45.5" y="121.6" width="59.4" height="64.4" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="10–20 · 36 แห่ง">
+        <rect x="107.9" y="178.1" width="59.4" height="7.9" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="20–30 · 36 แห่ง">
+        <rect x="170.3" y="178.1" width="59.4" height="7.9" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="30–40 · 51 แห่ง">
+        <rect x="232.7" y="174.8" width="59.4" height="11.2" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="40–50 · 47 แห่ง">
+        <rect x="295.1" y="175.7" width="59.4" height="10.3" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="50–60 · 42 แห่ง">
+        <rect x="357.5" y="176.8" width="59.4" height="9.2" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="60–70 · 48 แห่ง">
+        <rect x="419.9" y="175.5" width="59.4" height="10.5" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="70–80 · 64 แห่ง">
+        <rect x="482.3" y="172.0" width="59.4" height="14.0" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="80–90 · 69 แห่ง">
+        <rect x="544.7" y="170.9" width="59.4" height="15.1" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="90–100 · 794 แห่ง">
+        <rect x="607.1" y="12.0" width="59.4" height="174.0" rx="4"
+              fill="var(--series-1)"/>
+      </g><text class="tick" x="44.0" y="202" text-anchor="middle">0</text><text class="tick" x="168.8" y="202" text-anchor="middle">20</text><text class="tick" x="293.6" y="202" text-anchor="middle">40</text><text class="tick" x="418.4" y="202" text-anchor="middle">60</text><text class="tick" x="543.2" y="202" text-anchor="middle">80</text></svg>
+  </div>
+  <div class="card">
+    <h3>L3 — ร้อยละนักเรียนยากจน/ยากจนพิเศษ <span class="muted">(เต็ม 14 คะแนน · D = 0.44)</span></h3>
+    <p class="muted">การกระจายของค่าที่ป้อนเข้าข้อนี้ · ช่วงที่หนาแน่นที่สุดคิดเป็น 20.0% ของโรงเรียนทั้งหมด
+    — กระจายในระดับที่ใช้จำแนกได้</p>
+    <svg class="chart" viewBox="0 0 680 220" role="img" aria-label="ฮิสโทแกรม"><line class="grid" x1="44" x2="668" y1="186.0" y2="186.0"/>
+              <text class="tick" x="36" y="190.0" text-anchor="end">0</text><line class="grid" x1="44" x2="668" y1="99.0" y2="99.0"/>
+              <text class="tick" x="36" y="103.0" text-anchor="end">148</text><line class="grid" x1="44" x2="668" y1="12.0" y2="12.0"/>
+              <text class="tick" x="36" y="16.0" text-anchor="end">296</text><g class="bar" tabindex="0" data-tip="0–10 · 118 แห่ง">
+        <rect x="45.5" y="116.6" width="59.4" height="69.4" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="10–20 · 91 แห่ง">
+        <rect x="107.9" y="132.5" width="59.4" height="53.5" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="20–30 · 102 แห่ง">
+        <rect x="170.3" y="126.0" width="59.4" height="60.0" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="30–40 · 118 แห่ง">
+        <rect x="232.7" y="116.6" width="59.4" height="69.4" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="40–50 · 130 แห่ง">
+        <rect x="295.1" y="109.6" width="59.4" height="76.4" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="50–60 · 175 แห่ง">
+        <rect x="357.5" y="83.1" width="59.4" height="102.9" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="60–70 · 170 แห่ง">
+        <rect x="419.9" y="86.1" width="59.4" height="99.9" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="70–80 · 162 แห่ง">
+        <rect x="482.3" y="90.8" width="59.4" height="95.2" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="80–90 · 119 แห่ง">
+        <rect x="544.7" y="116.0" width="59.4" height="70.0" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="90–100 · 296 แห่ง">
+        <rect x="607.1" y="12.0" width="59.4" height="174.0" rx="4"
+              fill="var(--series-1)"/>
+      </g><text class="tick" x="44.0" y="202" text-anchor="middle">0</text><text class="tick" x="168.8" y="202" text-anchor="middle">20</text><text class="tick" x="293.6" y="202" text-anchor="middle">40</text><text class="tick" x="418.4" y="202" text-anchor="middle">60</text><text class="tick" x="543.2" y="202" text-anchor="middle">80</text></svg>
+  </div>
+
+  <h2>7. ผลกระทบรายจังหวัด</h2>
+  <div class="card scroll">
+    
+<table>
+  <thead><tr><th>จังหวัด</th><th class="num">โรงเรียน</th><th class="num">เฉลี่ยเดิม</th><th class="num">เฉลี่ยใหม่</th>
+    <th class="num">ผ่านเดิม</th><th class="num">ผ่านใหม่ (จุดตัด 70)</th><th class="num">ผ่านใหม่ (จุดตัดเทียบเท่า)</th></tr></thead>
+  <tbody><tr><td>เชียงใหม่</td><td class="num">314</td>
+      <td class="num">65.96</td><td class="num">60.01</td>
+      <td class="num">99</td><td class="num warn">81</td>
+      <td class="num muted">ดูหมายเหตุ</td></tr><tr><td>แม่ฮ่องสอน</td><td class="num">294</td>
+      <td class="num">72.42</td><td class="num">69.05</td>
+      <td class="num">178</td><td class="num warn">148</td>
+      <td class="num muted">ดูหมายเหตุ</td></tr><tr><td>ตาก</td><td class="num">138</td>
+      <td class="num">68.74</td><td class="num">56.39</td>
+      <td class="num">68</td><td class="num warn">28</td>
+      <td class="num muted">ดูหมายเหตุ</td></tr><tr><td>น่าน</td><td class="num">132</td>
+      <td class="num">63.10</td><td class="num">45.84</td>
+      <td class="num">24</td><td class="num warn">10</td>
+      <td class="num muted">ดูหมายเหตุ</td></tr><tr><td>เชียงราย</td><td class="num">116</td>
+      <td class="num">69.99</td><td class="num">58.82</td>
+      <td class="num">66</td><td class="num warn">19</td>
+      <td class="num muted">ดูหมายเหตุ</td></tr><tr><td>เลย</td><td class="num">95</td>
+      <td class="num">56.31</td><td class="num">28.30</td>
+      <td class="num">0</td><td class="num ">0</td>
+      <td class="num muted">ดูหมายเหตุ</td></tr><tr><td>กาญจนบุรี</td><td class="num">82</td>
+      <td class="num">64.67</td><td class="num">41.22</td>
+      <td class="num">17</td><td class="num warn">7</td>
+      <td class="num muted">ดูหมายเหตุ</td></tr><tr><td>(ไม่ระบุ)</td><td class="num">79</td>
+      <td class="num">63.96</td><td class="num">47.90</td>
+      <td class="num">17</td><td class="num warn">5</td>
+      <td class="num muted">ดูหมายเหตุ</td></tr><tr><td>ลำปาง</td><td class="num">58</td>
+      <td class="num">59.61</td><td class="num">35.08</td>
+      <td class="num">5</td><td class="num warn">3</td>
+      <td class="num muted">ดูหมายเหตุ</td></tr><tr><td>พะเยา</td><td class="num">43</td>
+      <td class="num">59.07</td><td class="num">31.87</td>
+      <td class="num">3</td><td class="num warn">1</td>
+      <td class="num muted">ดูหมายเหตุ</td></tr><tr><td>ลำพูน</td><td class="num">38</td>
+      <td class="num">60.13</td><td class="num">43.17</td>
+      <td class="num">6</td><td class="num warn">5</td>
+      <td class="num muted">ดูหมายเหตุ</td></tr><tr><td>อุตรดิตถ์</td><td class="num">26</td>
+      <td class="num">60.61</td><td class="num">32.10</td>
+      <td class="num">1</td><td class="num warn">0</td>
+      <td class="num muted">ดูหมายเหตุ</td></tr><tr><td>เพชรบูรณ์</td><td class="num">23</td>
+      <td class="num">53.83</td><td class="num">33.73</td>
+      <td class="num">1</td><td class="num warn">0</td>
+      <td class="num muted">ดูหมายเหตุ</td></tr><tr><td>พิษณุโลก</td><td class="num">22</td>
+      <td class="num">61.14</td><td class="num">37.97</td>
+      <td class="num">3</td><td class="num warn">2</td>
+      <td class="num muted">ดูหมายเหตุ</td></tr><tr><td>แพร่</td><td class="num">7</td>
+      <td class="num">59.59</td><td class="num">45.20</td>
+      <td class="num">1</td><td class="num warn">0</td>
+      <td class="num muted">ดูหมายเหตุ</td></tr></tbody>
+</table>
+    <p class="muted">หมายเหตุ: คอลัมน์ "ผ่านใหม่" ใช้จุดตัด 70 ตามที่ตั้งไว้ในไฟล์ร่าง
+    ถ้าใช้จุดตัดเทียบเท่า 62.7 จำนวนรวมทั้งประเทศจะเท่ากับเกณฑ์เดิม (490 แห่ง)
+    แต่การกระจายรายจังหวัดจะยังต่างจากเดิม เพราะลำดับความลำบากถูกจัดใหม่ (ρ = 0.84)</p>
+  </div>
+
+  <h2>8. รายการที่ย้ายออกจากคะแนนหลัก</h2>
+  <div class="card scroll">
+    <p>รายการต่อไปนี้ถูกย้ายออกจากคะแนนหลักตามข้อเสนอ 5 และ 8 — ไม่ได้ถูกยกเลิก แต่ต้องตัดสินใจเชิงนโยบายว่าจะใช้ในบทบาทใด (ไม่มีผลต่อการคำนวณในไฟล์นี้)</p>
+    <table>
+  <thead><tr><th>รายการที่ย้ายออก</th><th>เหตุผล</th><th>บทบาทที่เสนอ</th></tr></thead>
+  <tbody><tr><td>ข้อ 16 เดิม — เป็นพื้นที่พิเศษตามประกาศกระทรวงการคลัง</td><td class="muted">D=0.87 สูงที่สุดในเกณฑ์เดิม แต่เป็นผลของการประกาศครั้งก่อน การให้น้ำหนักมากจะทำให้เกณฑ์รับรองการตัดสินใจเดิมของตัวเองเป็นวงจร</td><td>ตัวสอบทานผล — ถ้าเกณฑ์ใหม่ให้ผลต่างจากประกาศคลังมาก ให้ตรวจสอบว่าฝ่ายใดคลาดเคลื่อน</td></tr><tr><td>ข้อ 15 เดิม — จำนวนโรงเรียนสาขา/ห้องเรียนสาขา</td><td class="muted">91.4% ไม่มีสาขา ตัวแปรแทบไม่แปรผันในประชากร ปรับน้ำหนักเท่าไรก็ยังจำแนกไม่ได้</td><td>แต้มพิเศษที่ประกาศแยก หรือเปลี่ยนหน่วยการประเมินเป็นจุดจัดการศึกษา ตามที่เอกสาร GAPS ข้อ A3 เสนอ</td></tr><tr><td>ข้อ 14 เดิม — จำนวนนักเรียนพักนอน</td><td class="muted">71.2% ไม่มีนักเรียนพักนอน เป็นลักษณะของกลุ่มเฉพาะ ไม่ใช่ตัวชี้วัดร่วมของทั้งประชากร</td><td>แต้มพิเศษ หรือใช้เป็นเงื่อนไขจัดสรรงบประมาณเฉพาะรายการ แยกจากคะแนนคัดกรอง</td></tr><tr><td>ข้อ 2 เดิม — ความใกล้ชิดพื้นที่ชายแดน</td><td class="muted">D=0.13–0.15 ต่ำกว่าเกณฑ์ตรวจรับ และซ้อนทับกับความสูง/ระยะทางอยู่แล้ว</td><td>ข้อมูลประกอบการพิจารณา หรือรวมกับปัจจัยด้านความมั่นคงเป็นด้านแยกถ้าคณะกรรมการเห็นว่าจำเป็น</td></tr><tr><td>ข้อ 3 เดิม — เขตการปกครองส่วนท้องถิ่น</td><td class="muted">82.5% อยู่ในเขต อบต. เหมือนกันหมด (D=0.05)</td><td>เงื่อนไขคุณสมบัติ — เช่น กำหนดว่าโรงเรียนในเขตเทศบาลนคร/เทศบาลเมืองไม่เข้าข่าย ตามข้อเสนอ 1</td></tr><tr><td>ข้อ 12 เดิม — จำนวนกลุ่มชาติพันธุ์</td><td class="muted">D=0.09–0.16 และสัมพันธ์กับร้อยละนักเรียนชาติพันธุ์อยู่แล้ว (r=0.36) จึงนับความลำบากเดียวซ้ำ</td><td>ข้อมูลประกอบสำหรับการวางแผนการสอนสองภาษา ไม่ใช่คะแนนคัดกรอง</td></tr></tbody>
+</table>
+  </div>
+
+  <p class="foot">สร้างจาก <code>scripts/simulate-criteria.mjs</code> → <code>scripts/report-criteria-html.mjs</code> ·
+  ไฟล์ร่าง: <code>scripts/criteria/2569-draft-c.json</code> ·
+  รายงานฉบับข้อความ: <code>docs/ANALYSIS-ผลทดลองเกณฑ์2569.md</code> ·
+  ข้อเสนอที่ร่างนี้อ้างอิง: <code>docs/RECOMMENDATIONS-เกณฑ์2569.md</code></p>
+</div>
+<div id="tip" role="status"></div>
+<script>
+(() => {
+  const tip = document.getElementById("tip");
+  const show = (e) => {
+    const el = e.target.closest("[data-tip]");
+    if (!el) return;
+    tip.textContent = el.dataset.tip;
+    tip.style.opacity = "1";
+    const r = el.getBoundingClientRect();
+    const x = Math.min(window.innerWidth - 300, (e.clientX || r.left) + 12);
+    const y = (e.clientY || r.top) + 16;
+    tip.style.left = x + "px";
+    tip.style.top = y + "px";
+  };
+  const hide = () => { tip.style.opacity = "0"; };
+  document.addEventListener("mousemove", (e) => (e.target.closest("[data-tip]") ? show(e) : hide()));
+  document.addEventListener("focusin", show);
+  document.addEventListener("focusout", hide);
+})();
+</script>
+
+</body>
+</html>

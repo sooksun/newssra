@@ -1,0 +1,1090 @@
+{
+  "generatedAt": "2026-08-01T14:43:41.438Z",
+  "source": "snapshot ในเครื่อง (ฐาน ssra_live — dump สร้างเมื่อ Aug 01, 2026 at 04:08 PM · นำเข้าเมื่อ 2026-08-01T09:23:53.639Z · จากไฟล์ ssrainfo_ssra (3).sql)",
+  "config": {
+    "id": "2569-draft-c",
+    "name": "ร่าง ค — ร่าง ข ที่ปรับตามข้อเสนอทั้ง 11 ข้อ",
+    "file": "scripts/criteria/2569-draft-c.json"
+  },
+  "cuts": {
+    "old": 70,
+    "newEquivalent": 62.72
+  },
+  "population": 1481,
+  "gainers": [
+    {
+      "sc_id": "1050130316",
+      "province": "เชียงใหม่",
+      "year": 2565,
+      "students": 16,
+      "oldTotal": 64,
+      "newTotal": 88.75,
+      "delta": 24.75,
+      "oldPass": false,
+      "newPass": true,
+      "oldItems": {
+        "elev": {
+          "value": 1244,
+          "score": 30
+        },
+        "water": {
+          "value": "1",
+          "score": 6
+        },
+        "power": {
+          "value": "1,2",
+          "score": 0
+        },
+        "phone": {
+          "value": "3",
+          "score": 1
+        },
+        "net": {
+          "value": "3,4",
+          "score": 0
+        },
+        "treasury": {
+          "value": 2,
+          "score": 0
+        },
+        "poor": {
+          "count": 16,
+          "pct": 50,
+          "score": 5
+        },
+        "boarding": {
+          "count": 0,
+          "score": 0
+        }
+      },
+      "newItems": [
+        {
+          "id": "G1",
+          "title": "ระดับความสูงเหนือระดับน้ำทะเล",
+          "variable": "elevM",
+          "value": 1244,
+          "score": 21.58,
+          "max": 24
+        },
+        {
+          "id": "U1",
+          "title": "ความรุนแรงของการขาดแคลนโครงสร้างพื้นฐาน (น้ำ/ไฟ/โทรศัพท์/อินเทอร์เน็ต)",
+          "variable": "infraSeverity",
+          "value": 6,
+          "score": 16.5,
+          "max": 22
+        },
+        {
+          "id": "A1",
+          "title": "ความรุนแรงของอุปสรรคการเดินทาง (สภาพถนน/ขนส่งสาธารณะ/ระยะทาง)",
+          "variable": "accessSeverity",
+          "value": 5,
+          "score": 16.67,
+          "max": 20
+        },
+        {
+          "id": "L1",
+          "title": "ร้อยละนักเรียนกลุ่มชาติพันธุ์",
+          "variable": "ethnicPct",
+          "value": 100,
+          "score": 20,
+          "max": 20
+        },
+        {
+          "id": "L3",
+          "title": "ร้อยละนักเรียนยากจน/ยากจนพิเศษ",
+          "variable": "poorPct",
+          "value": 100,
+          "score": 14,
+          "max": 14
+        }
+      ]
+    },
+    {
+      "sc_id": "1050130309",
+      "province": "เชียงใหม่",
+      "year": 2565,
+      "students": 42,
+      "oldTotal": 75,
+      "newTotal": 97.25,
+      "delta": 22.25,
+      "oldPass": true,
+      "newPass": true,
+      "oldItems": {
+        "elev": {
+          "value": 1722,
+          "score": 30
+        },
+        "water": {
+          "value": "1,2",
+          "score": 5
+        },
+        "power": {
+          "value": "1,2",
+          "score": 0
+        },
+        "phone": {
+          "value": "3",
+          "score": 1
+        },
+        "net": {
+          "value": "2,3",
+          "score": 1
+        },
+        "treasury": {
+          "value": 1,
+          "score": 5
+        },
+        "poor": {
+          "count": 42,
+          "pct": 50,
+          "score": 5
+        },
+        "boarding": {
+          "count": 0,
+          "score": 0
+        }
+      },
+      "newItems": [
+        {
+          "id": "G1",
+          "title": "ระดับความสูงเหนือระดับน้ำทะเล",
+          "variable": "elevM",
+          "value": 1722,
+          "score": 24,
+          "max": 24
+        },
+        {
+          "id": "U1",
+          "title": "ความรุนแรงของการขาดแคลนโครงสร้างพื้นฐาน (น้ำ/ไฟ/โทรศัพท์/อินเทอร์เน็ต)",
+          "variable": "infraSeverity",
+          "value": 7,
+          "score": 19.25,
+          "max": 22
+        },
+        {
+          "id": "A1",
+          "title": "ความรุนแรงของอุปสรรคการเดินทาง (สภาพถนน/ขนส่งสาธารณะ/ระยะทาง)",
+          "variable": "accessSeverity",
+          "value": 7,
+          "score": 20,
+          "max": 20
+        },
+        {
+          "id": "L1",
+          "title": "ร้อยละนักเรียนกลุ่มชาติพันธุ์",
+          "variable": "ethnicPct",
+          "value": 100,
+          "score": 20,
+          "max": 20
+        },
+        {
+          "id": "L3",
+          "title": "ร้อยละนักเรียนยากจน/ยากจนพิเศษ",
+          "variable": "poorPct",
+          "value": 100,
+          "score": 14,
+          "max": 14
+        }
+      ]
+    },
+    {
+      "sc_id": "1058420275",
+      "province": "แม่ฮ่องสอน",
+      "year": 2565,
+      "students": 60,
+      "oldTotal": 67,
+      "newTotal": 87.4,
+      "delta": 20.4,
+      "oldPass": false,
+      "newPass": true,
+      "oldItems": {
+        "elev": {
+          "value": 1185,
+          "score": 30
+        },
+        "water": {
+          "value": "1,5",
+          "score": 2
+        },
+        "power": {
+          "value": "1,2",
+          "score": 0
+        },
+        "phone": {
+          "value": "3",
+          "score": 1
+        },
+        "net": {
+          "value": "3,4",
+          "score": 0
+        },
+        "treasury": {
+          "value": 1,
+          "score": 5
+        },
+        "poor": {
+          "count": 60,
+          "pct": 50,
+          "score": 5
+        },
+        "boarding": {
+          "count": 0,
+          "score": 0
+        }
+      },
+      "newItems": [
+        {
+          "id": "G1",
+          "title": "ระดับความสูงเหนือระดับน้ำทะเล",
+          "variable": "elevM",
+          "value": 1185,
+          "score": 20.23,
+          "max": 24
+        },
+        {
+          "id": "U1",
+          "title": "ความรุนแรงของการขาดแคลนโครงสร้างพื้นฐาน (น้ำ/ไฟ/โทรศัพท์/อินเทอร์เน็ต)",
+          "variable": "infraSeverity",
+          "value": 6,
+          "score": 16.5,
+          "max": 22
+        },
+        {
+          "id": "A1",
+          "title": "ความรุนแรงของอุปสรรคการเดินทาง (สภาพถนน/ขนส่งสาธารณะ/ระยะทาง)",
+          "variable": "accessSeverity",
+          "value": 5,
+          "score": 16.67,
+          "max": 20
+        },
+        {
+          "id": "L1",
+          "title": "ร้อยละนักเรียนกลุ่มชาติพันธุ์",
+          "variable": "ethnicPct",
+          "value": 100,
+          "score": 20,
+          "max": 20
+        },
+        {
+          "id": "L3",
+          "title": "ร้อยละนักเรียนยากจน/ยากจนพิเศษ",
+          "variable": "poorPct",
+          "value": 100,
+          "score": 14,
+          "max": 14
+        }
+      ]
+    }
+  ],
+  "losers": [
+    {
+      "sc_id": "1071020452",
+      "province": "กาญจนบุรี",
+      "year": 2566,
+      "students": 1240,
+      "oldTotal": 59.98,
+      "newTotal": 16.16,
+      "delta": -43.82,
+      "oldPass": false,
+      "newPass": false,
+      "oldItems": {
+        "elev": {
+          "value": 296,
+          "score": 23.88
+        },
+        "water": {
+          "value": "4",
+          "score": 3
+        },
+        "power": {
+          "value": "2",
+          "score": 0
+        },
+        "phone": {
+          "value": "3,4",
+          "score": 0
+        },
+        "net": {
+          "value": "3,4",
+          "score": 0
+        },
+        "treasury": {
+          "value": 2,
+          "score": 0
+        },
+        "poor": {
+          "count": 139,
+          "pct": 11.21,
+          "score": 1.12
+        },
+        "boarding": {
+          "count": 53,
+          "score": 5
+        }
+      },
+      "newItems": [
+        {
+          "id": "G1",
+          "title": "ระดับความสูงเหนือระดับน้ำทะเล",
+          "variable": "elevM",
+          "value": 296,
+          "score": 0,
+          "max": 24
+        },
+        {
+          "id": "U1",
+          "title": "ความรุนแรงของการขาดแคลนโครงสร้างพื้นฐาน (น้ำ/ไฟ/โทรศัพท์/อินเทอร์เน็ต)",
+          "variable": "infraSeverity",
+          "value": 2,
+          "score": 5.5,
+          "max": 22
+        },
+        {
+          "id": "A1",
+          "title": "ความรุนแรงของอุปสรรคการเดินทาง (สภาพถนน/ขนส่งสาธารณะ/ระยะทาง)",
+          "variable": "accessSeverity",
+          "value": 2,
+          "score": 6.67,
+          "max": 20
+        },
+        {
+          "id": "L1",
+          "title": "ร้อยละนักเรียนกลุ่มชาติพันธุ์",
+          "variable": "ethnicPct",
+          "value": 12.1,
+          "score": 2.42,
+          "max": 20
+        },
+        {
+          "id": "L3",
+          "title": "ร้อยละนักเรียนยากจน/ยากจนพิเศษ",
+          "variable": "poorPct",
+          "value": 11.21,
+          "score": 1.57,
+          "max": 14
+        }
+      ]
+    },
+    {
+      "sc_id": "1071020349",
+      "province": "กาญจนบุรี",
+      "year": 2566,
+      "students": 83,
+      "oldTotal": 50.19,
+      "newTotal": 8.25,
+      "delta": -41.94,
+      "oldPass": false,
+      "newPass": false,
+      "oldItems": {
+        "elev": {
+          "value": 397,
+          "score": 26.91
+        },
+        "water": {
+          "value": "4",
+          "score": 3
+        },
+        "power": {
+          "value": "2",
+          "score": 0
+        },
+        "phone": {
+          "value": "4",
+          "score": 0
+        },
+        "net": {
+          "value": "4",
+          "score": 0
+        },
+        "treasury": {
+          "value": 2,
+          "score": 0
+        },
+        "poor": {
+          "count": 10,
+          "pct": 12.05,
+          "score": 1.2
+        },
+        "boarding": {
+          "count": 0,
+          "score": 0
+        }
+      },
+      "newItems": [
+        {
+          "id": "G1",
+          "title": "ระดับความสูงเหนือระดับน้ำทะเล",
+          "variable": "elevM",
+          "value": 397,
+          "score": 2.22,
+          "max": 24
+        },
+        {
+          "id": "U1",
+          "title": "ความรุนแรงของการขาดแคลนโครงสร้างพื้นฐาน (น้ำ/ไฟ/โทรศัพท์/อินเทอร์เน็ต)",
+          "variable": "infraSeverity",
+          "value": 0,
+          "score": 0,
+          "max": 22
+        },
+        {
+          "id": "A1",
+          "title": "ความรุนแรงของอุปสรรคการเดินทาง (สภาพถนน/ขนส่งสาธารณะ/ระยะทาง)",
+          "variable": "accessSeverity",
+          "value": 0,
+          "score": 0,
+          "max": 20
+        },
+        {
+          "id": "L1",
+          "title": "ร้อยละนักเรียนกลุ่มชาติพันธุ์",
+          "variable": "ethnicPct",
+          "value": 21.69,
+          "score": 4.34,
+          "max": 20
+        },
+        {
+          "id": "L3",
+          "title": "ร้อยละนักเรียนยากจน/ยากจนพิเศษ",
+          "variable": "poorPct",
+          "value": 12.05,
+          "score": 1.69,
+          "max": 14
+        }
+      ]
+    },
+    {
+      "sc_id": "1071020470",
+      "province": "กาญจนบุรี",
+      "year": 2566,
+      "students": 1082,
+      "oldTotal": 56.3,
+      "newTotal": 15.48,
+      "delta": -40.82,
+      "oldPass": false,
+      "newPass": false,
+      "oldItems": {
+        "elev": {
+          "value": 333,
+          "score": 24.99
+        },
+        "water": {
+          "value": "1,2,3",
+          "score": 4
+        },
+        "power": {
+          "value": "2",
+          "score": 0
+        },
+        "phone": {
+          "value": "4",
+          "score": 0
+        },
+        "net": {
+          "value": "4",
+          "score": 0
+        },
+        "treasury": {
+          "value": 2,
+          "score": 0
+        },
+        "poor": {
+          "count": 140,
+          "pct": 12.94,
+          "score": 1.29
+        },
+        "boarding": {
+          "count": 102,
+          "score": 5
+        }
+      },
+      "newItems": [
+        {
+          "id": "G1",
+          "title": "ระดับความสูงเหนือระดับน้ำทะเล",
+          "variable": "elevM",
+          "value": 333,
+          "score": 0.75,
+          "max": 24
+        },
+        {
+          "id": "U1",
+          "title": "ความรุนแรงของการขาดแคลนโครงสร้างพื้นฐาน (น้ำ/ไฟ/โทรศัพท์/อินเทอร์เน็ต)",
+          "variable": "infraSeverity",
+          "value": 2,
+          "score": 5.5,
+          "max": 22
+        },
+        {
+          "id": "A1",
+          "title": "ความรุนแรงของอุปสรรคการเดินทาง (สภาพถนน/ขนส่งสาธารณะ/ระยะทาง)",
+          "variable": "accessSeverity",
+          "value": 1,
+          "score": 3.33,
+          "max": 20
+        },
+        {
+          "id": "L1",
+          "title": "ร้อยละนักเรียนกลุ่มชาติพันธุ์",
+          "variable": "ethnicPct",
+          "value": 20.43,
+          "score": 4.09,
+          "max": 20
+        },
+        {
+          "id": "L3",
+          "title": "ร้อยละนักเรียนยากจน/ยากจนพิเศษ",
+          "variable": "poorPct",
+          "value": 12.94,
+          "score": 1.81,
+          "max": 14
+        }
+      ]
+    }
+  ],
+  "solarCase": {
+    "sc_id": "1042520183",
+    "province": "เลย",
+    "year": 2565,
+    "students": 14,
+    "oldTotal": 56,
+    "newTotal": 48.07,
+    "delta": -7.93,
+    "oldPass": false,
+    "newPass": false,
+    "oldItems": {
+      "elev": {
+        "value": 777,
+        "score": 30
+      },
+      "water": {
+        "value": "1,2,4,5",
+        "score": 2
+      },
+      "power": {
+        "value": "1,2",
+        "score": 0
+      },
+      "phone": {
+        "value": "3",
+        "score": 1
+      },
+      "net": {
+        "value": "3,4",
+        "score": 0
+      },
+      "treasury": {
+        "value": 2,
+        "score": 0
+      },
+      "poor": {
+        "count": 22,
+        "pct": 50,
+        "score": 5
+      },
+      "boarding": {
+        "count": 0,
+        "score": 0
+      }
+    },
+    "newItems": [
+      {
+        "id": "G1",
+        "title": "ระดับความสูงเหนือระดับน้ำทะเล",
+        "variable": "elevM",
+        "value": 777,
+        "score": 10.9,
+        "max": 24
+      },
+      {
+        "id": "U1",
+        "title": "ความรุนแรงของการขาดแคลนโครงสร้างพื้นฐาน (น้ำ/ไฟ/โทรศัพท์/อินเทอร์เน็ต)",
+        "variable": "infraSeverity",
+        "value": 6,
+        "score": 16.5,
+        "max": 22
+      },
+      {
+        "id": "A1",
+        "title": "ความรุนแรงของอุปสรรคการเดินทาง (สภาพถนน/ขนส่งสาธารณะ/ระยะทาง)",
+        "variable": "accessSeverity",
+        "value": 2,
+        "score": 6.67,
+        "max": 20
+      },
+      {
+        "id": "L1",
+        "title": "ร้อยละนักเรียนกลุ่มชาติพันธุ์",
+        "variable": "ethnicPct",
+        "value": 0,
+        "score": 0,
+        "max": 20
+      },
+      {
+        "id": "L3",
+        "title": "ร้อยละนักเรียนยากจน/ยากจนพิเศษ",
+        "variable": "poorPct",
+        "value": 100,
+        "score": 14,
+        "max": 14
+      }
+    ]
+  },
+  "exactly500": {
+    "count": 198,
+    "meanOld": 60.21,
+    "meanNew": 34.38,
+    "sample": [
+      {
+        "sc_id": "1042520129",
+        "province": "เลย",
+        "year": 2566,
+        "students": 148,
+        "oldTotal": 54,
+        "newTotal": 24.3,
+        "delta": -29.7,
+        "oldPass": false,
+        "newPass": false,
+        "oldItems": {
+          "elev": {
+            "value": 500,
+            "score": 30
+          },
+          "water": {
+            "value": "5,6",
+            "score": 1
+          },
+          "power": {
+            "value": "2",
+            "score": 0
+          },
+          "phone": {
+            "value": "3",
+            "score": 1
+          },
+          "net": {
+            "value": "4",
+            "score": 0
+          },
+          "treasury": {
+            "value": 2,
+            "score": 0
+          },
+          "poor": {
+            "count": 109,
+            "pct": 50,
+            "score": 5
+          },
+          "boarding": {
+            "count": 0,
+            "score": 0
+          }
+        },
+        "newItems": [
+          {
+            "id": "G1",
+            "title": "ระดับความสูงเหนือระดับน้ำทะเล",
+            "variable": "elevM",
+            "value": 500,
+            "score": 4.57,
+            "max": 24
+          },
+          {
+            "id": "U1",
+            "title": "ความรุนแรงของการขาดแคลนโครงสร้างพื้นฐาน (น้ำ/ไฟ/โทรศัพท์/อินเทอร์เน็ต)",
+            "variable": "infraSeverity",
+            "value": 1,
+            "score": 2.75,
+            "max": 22
+          },
+          {
+            "id": "A1",
+            "title": "ความรุนแรงของอุปสรรคการเดินทาง (สภาพถนน/ขนส่งสาธารณะ/ระยะทาง)",
+            "variable": "accessSeverity",
+            "value": 2,
+            "score": 6.67,
+            "max": 20
+          },
+          {
+            "id": "L1",
+            "title": "ร้อยละนักเรียนกลุ่มชาติพันธุ์",
+            "variable": "ethnicPct",
+            "value": 0,
+            "score": 0,
+            "max": 20
+          },
+          {
+            "id": "L3",
+            "title": "ร้อยละนักเรียนยากจน/ยากจนพิเศษ",
+            "variable": "poorPct",
+            "value": 73.65,
+            "score": 10.31,
+            "max": 14
+          }
+        ]
+      },
+      {
+        "sc_id": "1042520130",
+        "province": "เลย",
+        "year": 2566,
+        "students": 914,
+        "oldTotal": 53.38,
+        "newTotal": 21.59,
+        "delta": -31.79,
+        "oldPass": false,
+        "newPass": false,
+        "oldItems": {
+          "elev": {
+            "value": 500,
+            "score": 30
+          },
+          "water": {
+            "value": "3,6",
+            "score": 1
+          },
+          "power": {
+            "value": "2",
+            "score": 0
+          },
+          "phone": {
+            "value": "3,4",
+            "score": 0
+          },
+          "net": {
+            "value": "4",
+            "score": 0
+          },
+          "treasury": {
+            "value": 2,
+            "score": 0
+          },
+          "poor": {
+            "count": 305,
+            "pct": 33.37,
+            "score": 3.34
+          },
+          "boarding": {
+            "count": 0,
+            "score": 0
+          }
+        },
+        "newItems": [
+          {
+            "id": "G1",
+            "title": "ระดับความสูงเหนือระดับน้ำทะเล",
+            "variable": "elevM",
+            "value": 500,
+            "score": 4.57,
+            "max": 24
+          },
+          {
+            "id": "U1",
+            "title": "ความรุนแรงของการขาดแคลนโครงสร้างพื้นฐาน (น้ำ/ไฟ/โทรศัพท์/อินเทอร์เน็ต)",
+            "variable": "infraSeverity",
+            "value": 2,
+            "score": 5.5,
+            "max": 22
+          },
+          {
+            "id": "A1",
+            "title": "ความรุนแรงของอุปสรรคการเดินทาง (สภาพถนน/ขนส่งสาธารณะ/ระยะทาง)",
+            "variable": "accessSeverity",
+            "value": 2,
+            "score": 6.67,
+            "max": 20
+          },
+          {
+            "id": "L1",
+            "title": "ร้อยละนักเรียนกลุ่มชาติพันธุ์",
+            "variable": "ethnicPct",
+            "value": 0.88,
+            "score": 0.18,
+            "max": 20
+          },
+          {
+            "id": "L3",
+            "title": "ร้อยละนักเรียนยากจน/ยากจนพิเศษ",
+            "variable": "poorPct",
+            "value": 33.37,
+            "score": 4.67,
+            "max": 14
+          }
+        ]
+      }
+    ]
+  },
+  "highestSchool": {
+    "sc_id": "1050130198",
+    "province": "(ไม่ระบุ)",
+    "year": 2565,
+    "students": 242,
+    "oldTotal": 73.86,
+    "newTotal": 66.5,
+    "delta": -7.36,
+    "oldPass": true,
+    "newPass": true,
+    "oldItems": {
+      "elev": {
+        "value": 1819,
+        "score": 30
+      },
+      "water": {
+        "value": "1",
+        "score": 6
+      },
+      "power": {
+        "value": "2",
+        "score": 0
+      },
+      "phone": {
+        "value": "4",
+        "score": 0
+      },
+      "net": {
+        "value": "4",
+        "score": 0
+      },
+      "treasury": {
+        "value": 1,
+        "score": 5
+      },
+      "poor": {
+        "count": 72,
+        "pct": 29.75,
+        "score": 2.98
+      },
+      "boarding": {
+        "count": 0,
+        "score": 0
+      }
+    },
+    "newItems": [
+      {
+        "id": "G1",
+        "title": "ระดับความสูงเหนือระดับน้ำทะเล",
+        "variable": "elevM",
+        "value": 1819,
+        "score": 24,
+        "max": 24
+      },
+      {
+        "id": "U1",
+        "title": "ความรุนแรงของการขาดแคลนโครงสร้างพื้นฐาน (น้ำ/ไฟ/โทรศัพท์/อินเทอร์เน็ต)",
+        "variable": "infraSeverity",
+        "value": 2,
+        "score": 5.5,
+        "max": 22
+      },
+      {
+        "id": "A1",
+        "title": "ความรุนแรงของอุปสรรคการเดินทาง (สภาพถนน/ขนส่งสาธารณะ/ระยะทาง)",
+        "variable": "accessSeverity",
+        "value": 4,
+        "score": 13.33,
+        "max": 20
+      },
+      {
+        "id": "L1",
+        "title": "ร้อยละนักเรียนกลุ่มชาติพันธุ์",
+        "variable": "ethnicPct",
+        "value": 97.52,
+        "score": 19.5,
+        "max": 20
+      },
+      {
+        "id": "L3",
+        "title": "ร้อยละนักเรียนยากจน/ยากจนพิเศษ",
+        "variable": "poorPct",
+        "value": 29.75,
+        "score": 4.17,
+        "max": 14
+      }
+    ]
+  },
+  "sizeBias": {
+    "corrOld": 0.06,
+    "corrNew": -0.05,
+    "bands": [
+      {
+        "label": "ต่ำกว่า 30 คน",
+        "n": 134,
+        "meanOld": 64.77,
+        "meanNew": 52.81
+      },
+      {
+        "label": "30–59 คน",
+        "n": 260,
+        "meanOld": 65.1,
+        "meanNew": 51.58
+      },
+      {
+        "label": "60–119 คน",
+        "n": 337,
+        "meanOld": 66.21,
+        "meanNew": 55.18
+      },
+      {
+        "label": "120–299 คน",
+        "n": 486,
+        "meanOld": 65.53,
+        "meanNew": 52.63
+      },
+      {
+        "label": "300 คนขึ้นไป",
+        "n": 264,
+        "meanOld": 66.77,
+        "meanNew": 50.72
+      }
+    ]
+  },
+  "legacyHealth": {
+    "thresholds": {
+      "maxWeight": 25,
+      "maxFullPct": 60,
+      "maxZeroPct": 70,
+      "minD": 0.2
+    },
+    "passed": 5,
+    "total": 16,
+    "failing": [
+      {
+        "no": 1,
+        "short": "ความสูงจุดสูงสุด",
+        "max": 30,
+        "issues": [
+          "น้ำหนัก 30 คะแนน",
+          "ได้เต็ม 87.58%",
+          "D = 0.04"
+        ]
+      },
+      {
+        "no": 3,
+        "short": "เขต อปท.",
+        "max": 5,
+        "issues": [
+          "ได้เต็ม 82.44%",
+          "D = 0.05"
+        ]
+      },
+      {
+        "no": 4,
+        "short": "ถนนรถ 2 ล้อไปไม่ได้",
+        "max": 5,
+        "issues": [
+          "ได้ 0 คะแนน 87.17%"
+        ]
+      },
+      {
+        "no": 5,
+        "short": "ระยะทางถึงศาลากลาง",
+        "max": 5,
+        "issues": [
+          "ได้เต็ม 74.68%",
+          "D = 0.06"
+        ]
+      },
+      {
+        "no": 6,
+        "short": "ขนส่งสาธารณะ",
+        "max": 5,
+        "issues": [
+          "ได้เต็ม 79.27%",
+          "D = 0.11"
+        ]
+      },
+      {
+        "no": 8,
+        "short": "ไฟฟ้า",
+        "max": 3,
+        "issues": [
+          "ได้ 0 คะแนน 89.74%"
+        ]
+      },
+      {
+        "no": 10,
+        "short": "อินเทอร์เน็ต",
+        "max": 3,
+        "issues": [
+          "ได้ 0 คะแนน 76.91%"
+        ]
+      },
+      {
+        "no": 12,
+        "short": "จำนวนกลุ่มชาติพันธุ์",
+        "max": 5,
+        "issues": [
+          "D = 0.16"
+        ]
+      },
+      {
+        "no": 13,
+        "short": "นักเรียนยากจน",
+        "max": 5,
+        "issues": [
+          "ได้เต็ม 62.26%"
+        ]
+      },
+      {
+        "no": 14,
+        "short": "นักเรียนพักนอน",
+        "max": 5,
+        "issues": [
+          "ได้ 0 คะแนน 71.17%"
+        ]
+      },
+      {
+        "no": 15,
+        "short": "สาขา",
+        "max": 5,
+        "issues": [
+          "ได้ 0 คะแนน 91.42%",
+          "D = 0.14"
+        ]
+      }
+    ],
+    "failingWeight": 76
+  },
+  "elevationLadder": [
+    {
+      "metres": 300,
+      "oldScore": null,
+      "newScore": 0
+    },
+    {
+      "metres": 400,
+      "oldScore": null,
+      "newScore": 2.29
+    },
+    {
+      "metres": 500,
+      "oldScore": 30,
+      "newScore": 4.57
+    },
+    {
+      "metres": 600,
+      "oldScore": 30,
+      "newScore": 6.86
+    },
+    {
+      "metres": 800,
+      "oldScore": 30,
+      "newScore": 11.43
+    },
+    {
+      "metres": 1000,
+      "oldScore": 30,
+      "newScore": 16
+    },
+    {
+      "metres": 1350,
+      "oldScore": 30,
+      "newScore": 24
+    },
+    {
+      "metres": 1800,
+      "oldScore": 30,
+      "newScore": 24
+    }
+  ]
+}

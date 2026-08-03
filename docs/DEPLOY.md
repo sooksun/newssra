@@ -99,12 +99,17 @@ git pull                      # หรือ rsync ไฟล์ใหม่ท�
 docker compose up -d --build
 ```
 
-### Index ผังอาคาร (ทำครั้งเดียว ถ้า `map_buildings` มีข้อมูลอยู่แล้ว)
+### Index ผังอาคาร (อัตโนมัติแล้ว — ไม่ต้องทำเอง)
 
 ตาราง `map_buildings` ถูกสร้างแบบ lazy โดย `lib/map/msBuildings.ts` — สคีมาปัจจุบันมี covering index
-`idx_qk_lat_lng (quadkey, lat, lng, area_m2)` แล้ว แต่ **ฐานข้อมูลที่สร้างตารางไว้ก่อนหน้านี้จะยังมีแค่
-`idx_qk_lat (quadkey, lat)`** ซึ่งบังคับให้ MySQL อ่านแถวจริงมากรอง `lng` ทิ้ง (วัดบนข้อมูล 27 ล้านแถว:
-1,808 ms ต่อคำขอ เทียบกับ 241 ms หลังเพิ่ม index) เพิ่มเองครั้งเดียวด้วย:
+`idx_qk_lat_lng (quadkey, lat, lng, area_m2)` และ **ฐานข้อมูลที่สร้างตารางไว้ก่อนหน้านี้ (มีแค่
+`idx_qk_lat (quadkey, lat)`) จะถูก migrate ให้อัตโนมัติ** โดย `ensureBuildingTables()` ตอนคำขอผังอาคารครั้งแรก
+หลังอัปเดต (เรียก `ensureIndex()` ใน `lib/db.ts` — เช็ค `information_schema` ก่อน จึงรันซ้ำได้ไม่มีผลข้างเคียง)
+
+เหตุผลที่ต้องมี: index เก่าบังคับให้ MySQL อ่านแถวจริงมากรอง `lng` ทิ้ง — วัดบนข้อมูล 27 ล้านแถวได้
+1,808 ms ต่อคำขอ เทียบกับ 241 ms หลังเพิ่ม index เดิมเป็นขั้นตอนมือที่ถ้าลืมก็ช้าลง 7.5 เท่าโดยไม่มีสัญญาณเตือน
+
+คำสั่งที่ระบบรันให้ (ถ้าอยากทำเองล่วงหน้า หรือ ALTER ล้มแล้วเห็น warning `[db] ไม่สามารถเพิ่ม index`):
 
 ```sql
 ALTER TABLE map_buildings ADD INDEX idx_qk_lat_lng (quadkey, lat, lng, area_m2), ALGORITHM=INPLACE, LOCK=NONE;

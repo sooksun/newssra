@@ -1,0 +1,906 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>สถิติผลประเมินเดิมรายข้อ — ฐานกำหนดเกณฑ์โรงเรียนพื้นที่สูง ปี 2569</title>
+<style>*{box-sizing:border-box}html,body{margin:0;padding:0}</style>
+</head>
+<body>
+<style>
+  .viz-root{
+    color-scheme: light;
+    --surface-0:#f6f5f2; --surface-1:#fcfcfb; --border:#e2e0da;
+    --text-primary:#0b0b0b; --text-secondary:#52514e; --text-muted:#7c7a73;
+    --series-1:#2a78d6; --series-2:#eb6834; --track:#e8e6e0;
+    --good:#00713a; --warn:#b9430f;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:where(:not([data-theme="light"])) .viz-root{
+      color-scheme: dark;
+      --surface-0:#111110; --surface-1:#1a1a19; --border:#33332f;
+      --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#96958b;
+      --series-1:#3987e5; --series-2:#d95926; --track:#2b2b28;
+      --good:#4fbf8a; --warn:#f08a5c;
+    }
+  }
+  :root[data-theme="dark"] .viz-root{
+    color-scheme: dark;
+    --surface-0:#111110; --surface-1:#1a1a19; --border:#33332f;
+    --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#96958b;
+    --series-1:#3987e5; --series-2:#d95926; --track:#2b2b28;
+    --good:#4fbf8a; --warn:#f08a5c;
+  }
+
+  .viz-root{
+    background:var(--surface-0); color:var(--text-primary);
+    font-family:"IBM Plex Sans Thai","Noto Sans Thai",-apple-system,"Segoe UI",sans-serif;
+    line-height:1.6; padding:32px 20px 72px; max-width:1080px; margin:0 auto;
+    font-size:15px;
+  }
+  .viz-root h1,.viz-root h2,.viz-root h3{text-wrap:balance}
+  .viz-root h1{font-size:1.7rem; line-height:1.3; margin:0 0 8px; letter-spacing:-0.01em}
+  .viz-root h2{font-size:1.15rem; margin:44px 0 4px; letter-spacing:-0.005em}
+  .viz-root h3{font-size:0.98rem; margin:24px 0 6px; color:var(--text-secondary); font-weight:600}
+  .viz-root p{margin:8px 0; color:var(--text-secondary)}
+  .lead{color:var(--text-secondary); font-size:0.95rem}
+  .src{font-size:0.82rem; color:var(--text-muted); border-left:3px solid var(--border); padding-left:12px; margin:16px 0 0}
+
+  .tiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin:24px 0 8px}
+  .tile{background:var(--surface-1); border:1px solid var(--border); border-radius:12px; padding:14px 16px}
+  .tile .v{font-size:1.7rem; font-weight:650; letter-spacing:-0.02em; font-variant-numeric:tabular-nums}
+  .tile .l{font-size:0.85rem; color:var(--text-secondary); margin-top:2px}
+  .tile .s{font-size:0.76rem; color:var(--text-muted); margin-top:4px}
+
+  .card{background:var(--surface-1); border:1px solid var(--border); border-radius:12px; padding:16px 18px; margin:12px 0}
+  .scroll{overflow-x:auto}
+  svg.chart{display:block; width:100%; height:auto; overflow:visible}
+  svg .lbl{font-size:11.5px; fill:var(--text-secondary)}
+  svg .val{font-size:11.5px; fill:var(--text-primary); font-variant-numeric:tabular-nums}
+  svg .tick{font-size:10.5px; fill:var(--text-muted); font-variant-numeric:tabular-nums}
+  svg .track{fill:var(--track)}
+  svg .grid{stroke:var(--border); stroke-width:1}
+  svg .cut{stroke:var(--text-primary); stroke-width:2; stroke-dasharray:4 3; opacity:.7}
+  svg .cutlbl{font-size:10.5px; fill:var(--text-primary)}
+  svg .bar{cursor:default; outline:none}
+  svg .bar:hover rect:not(.track){opacity:.82}
+  svg .bar:focus-visible rect:not(.track){opacity:.82; stroke:var(--text-primary); stroke-width:2; paint-order:stroke}
+
+  table{border-collapse:collapse; width:100%; font-size:0.85rem; margin:8px 0}
+  th,td{text-align:left; padding:7px 10px; border-bottom:1px solid var(--border); vertical-align:top}
+  th{font-weight:600; color:var(--text-secondary); font-size:0.8rem; white-space:nowrap}
+  td.num,th.num{text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap}
+  td.muted{color:var(--text-muted)}
+  td.warn{color:var(--warn); font-weight:600}
+  td.good{color:var(--good); font-weight:600}
+  tbody tr:hover{background:var(--surface-0)}
+
+  ol.findings{padding-left:20px; margin:12px 0}
+  ol.findings li{margin:10px 0; color:var(--text-secondary)}
+  ol.findings b{color:var(--text-primary)}
+  .legend{display:flex; gap:16px; flex-wrap:wrap; font-size:0.8rem; color:var(--text-secondary); margin:6px 0 10px}
+  .legend span{display:inline-flex; align-items:center; gap:6px}
+  .swatch{width:12px; height:12px; border-radius:3px; display:inline-block}
+  #tip{position:fixed; pointer-events:none; z-index:50; background:var(--text-primary); color:var(--surface-1);
+       font-size:12px; padding:6px 9px; border-radius:7px; opacity:0; transition:opacity .1s; max-width:280px}
+  @media (prefers-reduced-motion: reduce){ #tip{transition:none} }
+  .foot{margin-top:48px; font-size:0.8rem; color:var(--text-muted); border-top:1px solid var(--border); padding-top:16px}
+</style>
+<div class="viz-root">
+  <h1>สถิติผลการประเมินเดิมรายข้อ — ฐานสำหรับกำหนดเกณฑ์โรงเรียนพื้นที่สูง ปี 2569</h1>
+  <p class="lead">วิเคราะห์แบบประเมิน 16 ข้อของพื้นที่สูงและ 15 ข้อของพื้นที่เกาะจากฐานข้อมูล <code>ssrainfo_ssra</code>
+  โดยคำนวณคะแนนใหม่จากค่าดิบทุกแถวด้วยสูตรเดียวกัน เพื่อดูว่าแต่ละข้อ <em>ทำงานจริงแค่ไหน</em> ก่อนนำไปออกแบบเกณฑ์ปีใหม่</p>
+  <p class="src">แหล่งข้อมูล: snapshot ในเครื่อง (ฐาน ssra_live — dump สร้างเมื่อ Aug 01, 2026 at 04:08 PM · นำเข้าเมื่อ 2026-08-01T09:23:53.639Z · จากไฟล์ ssrainfo_ssra (3).sql) · ประชากร: พื้นที่สูง 1,481 แห่ง / พื้นที่เกาะ 123 แห่ง
+  (รอบประเมินล่าสุดของแต่ละโรงเรียน เฉพาะที่ยืนยันสถานะปี 2569) · สร้างเมื่อ 1/8/2569 16:55:37<br>
+  เอกสารวิเคราะห์เชิงสถิติ ไม่ใช่ประกาศเกณฑ์ — ตัวเลขทุกตัวคำนวณสดจากฐานข้อมูล</p>
+
+  <div class="tiles">
+    <div class="tile"><div class="v">1,481</div><div class="l">โรงเรียนพื้นที่สูงที่วิเคราะห์</div><div class="s">พื้นที่เกาะอีก 123 แห่ง</div></div><div class="tile"><div class="v">65.8</div><div class="l">คะแนนรวมเฉลี่ย (เต็ม 100)</div><div class="s">SD 9.1 · มัธยฐาน 65.0</div></div><div class="tile"><div class="v">33.1%</div><div class="l">ผ่านจุดตัด 70 คะแนน</div><div class="s">490 แห่ง</div></div><div class="tile"><div class="v">43.6</div><div class="l">คะแนนที่แจกให้แทบทุกโรงเรียน</div><div class="s">จากข้อ 1, 3, 5, 6 รวมเต็ม 45 คะแนน</div></div><div class="tile"><div class="v">34.2%</div><div class="l">อยู่ในช่วง 65–75 คะแนน</div><div class="s">506 แห่ง — กลุ่มที่ผลพลิกง่ายที่สุด</div></div><div class="tile"><div class="v">17.8%</div><div class="l">คะแนนที่เก็บไว้ไม่ตรงกับสูตรปัจจุบัน</div><div class="s">เพราะสูตรข้อ 1 เปลี่ยนระหว่างรอบปี</div></div>
+  </div>
+
+  <h2>1. ข้อค้นพบหลัก</h2>
+  <ol class="findings">
+    <li><b>เกณฑ์ปัจจุบันใช้พื้นที่คะแนนจริงเพียงประมาณ 56 จาก 100 คะแนน</b> —
+      ข้อ 1, 3, 5, 6 (รวมเต็ม 45 คะแนน)
+      โรงเรียนได้เฉลี่ยเกิน 90% ของคะแนนเต็มและแทบไม่จำแนกใครออกจากใคร</li>
+    <li><b>ข้อ 1 (ความสูง) ถือน้ำหนัก 30 คะแนน แต่มีอำนาจจำแนก D = 0.04</b> —
+      87.6% ได้เต็ม เพราะสูตรให้คะแนนฐาน 15 ทันทีที่ผ่านด่าน แล้วตันที่ 500 ม.
+      ขณะที่มัธยฐานความสูงจริงคือ 760 ม.</li>
+    <li><b>สูตรข้อ 1 เปลี่ยนระหว่างรอบปี</b> — รอบ 2565 ใช้สูตรเชิงเส้น 0–600 ม. รอบ 2566 เป็นต้นมาใช้คะแนนฐาน 15 + เพดาน 500 ม.
+      ทำให้ 17.8% ของเรคคอร์ดมีคะแนนที่เก็บไว้ไม่ตรงกับสูตรปัจจุบัน และเทียบข้ามปีตรง ๆ ไม่ได้</li>
+    <li><b>มีการรายงานความสูงเท่ากับ 500 ม. พอดีมากผิดปกติ</b> — สูงสุดในรอบ 2566 ที่ 53.1% ของแถวทั้งหมด ซึ่งเป็นรอบแรกที่เปลี่ยนมาใช้เกณฑ์ 500 ม.</li>
+    <li><b>ข้อที่จำแนกได้ดีที่สุดกลับได้น้ำหนักน้อยที่สุด</b> —
+      ข้อ 16 ประกาศคลัง (D=0.87, เต็ม 5) · ข้อ 11 % ชาติพันธุ์ (D=0.71, เต็ม 5) · ข้อ 13 นักเรียนยากจน (D=0.35, เต็ม 5)</li>
+    <li><b>ไฟฟ้า–โทรศัพท์–อินเทอร์เน็ตวัดสิ่งเดียวกัน</b> — สหสัมพันธ์ระหว่างกัน 0.58–0.68 แต่ให้คะแนนแยกกัน 3 ข้อ รวม 9 คะแนน</li>
+    <li><b>กติกา “ใช้ id สูงสุด” ลงโทษโรงเรียนที่กรอกครบตามจริง</b> —
+      ข้อ 7 แหล่งน้ำ 320 แห่ง · ข้อ 8 ไฟฟ้า 93 แห่ง · ข้อ 9 โทรศัพท์ 201 แห่ง · ข้อ 10 อินเทอร์เน็ต 410 แห่ง
+      กรณีชัดที่สุดคือข้อ 8: โรงเรียนที่มีทั้งโซลาร์เซลล์และไฟฟ้าส่วนภูมิภาคได้ 0 คะแนน เท่ากับโรงเรียนที่มีไฟฟ้าปกติอย่างเดียว</li>
+  </ol>
+
+  <h2>2. คะแนนรวมและความไวของจุดตัด</h2>
+  <div class="card">
+    <h3>การกระจายคะแนนรวม (พื้นที่สูง 1,481 แห่ง)</h3>
+    <div class="legend">
+      <span><i class="swatch" style="background:var(--series-1)"></i> ต่ำกว่าจุดตัด 70</span>
+      <span><i class="swatch" style="background:var(--series-2)"></i> ตั้งแต่ 70 ขึ้นไป</span>
+    </div>
+    <svg class="chart" viewBox="0 0 680 220" role="img" aria-label="ฮิสโทแกรม"><line class="grid" x1="44" x2="668" y1="186.0" y2="186.0"/>
+              <text class="tick" x="36" y="190.0" text-anchor="end">0</text><line class="grid" x1="44" x2="668" y1="99.0" y2="99.0"/>
+              <text class="tick" x="36" y="103.0" text-anchor="end">170</text><line class="grid" x1="44" x2="668" y1="12.0" y2="12.0"/>
+              <text class="tick" x="36" y="16.0" text-anchor="end">339</text><g class="bar" tabindex="0" data-tip="30–35 คะแนน · 2 แห่ง">
+        <rect x="45.5" y="185.0" width="41.6" height="1.0" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="35–40 คะแนน · 3 แห่ง">
+        <rect x="90.1" y="184.5" width="41.6" height="1.5" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="40–45 คะแนน · 2 แห่ง">
+        <rect x="134.6" y="185.0" width="41.6" height="1.0" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="45–50 คะแนน · 3 แห่ง">
+        <rect x="179.2" y="184.5" width="41.6" height="1.5" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="50–55 คะแนน · 133 แห่ง">
+        <rect x="223.8" y="117.7" width="41.6" height="68.3" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="55–60 คะแนน · 259 แห่ง">
+        <rect x="268.4" y="53.1" width="41.6" height="132.9" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="60–65 คะแนน · 339 แห่ง">
+        <rect x="312.9" y="12.0" width="41.6" height="174.0" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="65–70 คะแนน · 249 แห่ง">
+        <rect x="357.5" y="58.2" width="41.6" height="127.8" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="70–75 คะแนน · 257 แห่ง">
+        <rect x="402.1" y="54.1" width="41.6" height="131.9" rx="4"
+              fill="var(--series-2)"/>
+      </g><g class="bar" tabindex="0" data-tip="75–80 คะแนน · 122 แห่ง">
+        <rect x="446.6" y="123.4" width="41.6" height="62.6" rx="4"
+              fill="var(--series-2)"/>
+      </g><g class="bar" tabindex="0" data-tip="80–85 คะแนน · 72 แห่ง">
+        <rect x="491.2" y="149.0" width="41.6" height="37.0" rx="4"
+              fill="var(--series-2)"/>
+      </g><g class="bar" tabindex="0" data-tip="85–90 คะแนน · 28 แห่ง">
+        <rect x="535.8" y="171.6" width="41.6" height="14.4" rx="4"
+              fill="var(--series-2)"/>
+      </g><g class="bar" tabindex="0" data-tip="90–95 คะแนน · 10 แห่ง">
+        <rect x="580.4" y="180.9" width="41.6" height="5.1" rx="4"
+              fill="var(--series-2)"/>
+      </g><g class="bar" tabindex="0" data-tip="95–100 คะแนน · 1 แห่ง">
+        <rect x="624.9" y="185.5" width="41.6" height="1.0" rx="4"
+              fill="var(--series-2)"/>
+      </g><line class="cut" x1="400.6" x2="400.6" y1="12" y2="186"/>
+         <text class="cutlbl" x="406.6" y="24">จุดตัด 70</text><text class="tick" x="44.0" y="202" text-anchor="middle">30</text><text class="tick" x="133.1" y="202" text-anchor="middle">40</text><text class="tick" x="222.3" y="202" text-anchor="middle">50</text><text class="tick" x="311.4" y="202" text-anchor="middle">60</text><text class="tick" x="400.6" y="202" text-anchor="middle">70</text><text class="tick" x="489.7" y="202" text-anchor="middle">80</text><text class="tick" x="578.9" y="202" text-anchor="middle">90</text></svg>
+    <p>ช่วง 65–75 คะแนนมี 506 แห่ง (34.2%) —
+    การขยับสูตรข้อใดข้อหนึ่งเพียงเล็กน้อยเปลี่ยนสถานะได้เป็นร้อยโรงเรียน</p>
+  </div>
+  <div class="card scroll">
+    <h3>จำนวนที่ผ่านแต่ละจุดตัด</h3>
+    <table>
+      <thead><tr><th>จุดตัด</th><th class="num">พื้นที่สูง</th><th class="num">%</th><th class="num">พื้นที่เกาะ</th><th class="num">%</th></tr></thead>
+      <tbody><tr><td class="num">50</td><td class="num">1,470</td><td class="num">99.3%</td><td class="num">123</td><td class="num">100.0%</td></tr><tr><td class="num">55</td><td class="num">1,337</td><td class="num">90.3%</td><td class="num">94</td><td class="num">76.4%</td></tr><tr><td class="num">60</td><td class="num">1,078</td><td class="num">72.8%</td><td class="num">72</td><td class="num">58.5%</td></tr><tr><td class="num">65</td><td class="num">739</td><td class="num">49.9%</td><td class="num">62</td><td class="num">50.4%</td></tr><tr><td class="num">68</td><td class="num">576</td><td class="num">38.9%</td><td class="num">55</td><td class="num">44.7%</td></tr><tr><td class="num">70</td><td class="num">490</td><td class="num">33.1%</td><td class="num">47</td><td class="num">38.2%</td></tr><tr><td class="num">72</td><td class="num">375</td><td class="num">25.3%</td><td class="num">36</td><td class="num">29.3%</td></tr><tr><td class="num">75</td><td class="num">233</td><td class="num">15.7%</td><td class="num">27</td><td class="num">21.9%</td></tr><tr><td class="num">80</td><td class="num">111</td><td class="num">7.5%</td><td class="num">14</td><td class="num">11.4%</td></tr></tbody>
+    </table>
+  </div>
+
+  <h2>3. แต่ละข้อใช้พื้นที่คะแนนไปเท่าไร</h2>
+  <div class="card">
+    <h3>สัดส่วนคะแนนที่โรงเรียนได้จริง เทียบกับคะแนนเต็มของข้อนั้น (%)</h3>
+    <div class="legend">
+      <span><i class="swatch" style="background:var(--series-2)"></i> ได้เกือบเต็มทุกแห่ง + จำแนกไม่ได้ (คะแนนแจกฟรี)</span>
+      <span><i class="swatch" style="background:var(--series-1)"></i> ข้ออื่น</span>
+    </div>
+    <svg class="chart" viewBox="0 0 640 424" role="img" aria-label="แผนภูมิแท่งแนวนอน">
+      <g class="bar" tabindex="0" data-tip="1. ความสูงจุดสูงสุด — 98.21% · เต็ม 30 คะแนน · ได้จริงเฉลี่ย 29.46">
+        <text class="lbl" x="182" y="17" text-anchor="end" dominant-baseline="middle">1. ความสูงจุดสูงสุด</text>
+        <rect class="track" x="190" y="9" width="384" height="12" rx="4"/>
+        <rect x="190" y="9" width="377.1264" height="12" rx="4" fill="var(--series-2)"/>
+        <text class="val" x="582" y="17" dominant-baseline="middle">98.2%</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="2. ชายแดน — 56.54% · เต็ม 5 คะแนน · ได้จริงเฉลี่ย 2.83">
+        <text class="lbl" x="182" y="43" text-anchor="end" dominant-baseline="middle">2. ชายแดน</text>
+        <rect class="track" x="190" y="35" width="384" height="12" rx="4"/>
+        <rect x="190" y="35" width="217.11360000000002" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="43" dominant-baseline="middle">56.5%</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="3. เขต อปท. — 96.42% · เต็ม 5 คะแนน · ได้จริงเฉลี่ย 4.82">
+        <text class="lbl" x="182" y="69" text-anchor="end" dominant-baseline="middle">3. เขต อปท.</text>
+        <rect class="track" x="190" y="61" width="384" height="12" rx="4"/>
+        <rect x="190" y="61" width="370.25280000000004" height="12" rx="4" fill="var(--series-2)"/>
+        <text class="val" x="582" y="69" dominant-baseline="middle">96.4%</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="4. ถนนรถ 2 ล้อไปไม่ได้ — 11.62% · เต็ม 5 คะแนน · ได้จริงเฉลี่ย 0.58">
+        <text class="lbl" x="182" y="95" text-anchor="end" dominant-baseline="middle">4. ถนนรถ 2 ล้อไปไม่ได้</text>
+        <rect class="track" x="190" y="87" width="384" height="12" rx="4"/>
+        <rect x="190" y="87" width="44.6208" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="95" dominant-baseline="middle">11.6%</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="5. ระยะทางถึงศาลากลาง — 92.72% · เต็ม 5 คะแนน · ได้จริงเฉลี่ย 4.64">
+        <text class="lbl" x="182" y="121" text-anchor="end" dominant-baseline="middle">5. ระยะทางถึงศาลากลาง</text>
+        <rect class="track" x="190" y="113" width="384" height="12" rx="4"/>
+        <rect x="190" y="113" width="356.0448" height="12" rx="4" fill="var(--series-2)"/>
+        <text class="val" x="582" y="121" dominant-baseline="middle">92.7%</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="6. ขนส่งสาธารณะ — 92.56% · เต็ม 5 คะแนน · ได้จริงเฉลี่ย 4.63">
+        <text class="lbl" x="182" y="147" text-anchor="end" dominant-baseline="middle">6. ขนส่งสาธารณะ</text>
+        <rect class="track" x="190" y="139" width="384" height="12" rx="4"/>
+        <rect x="190" y="139" width="355.43039999999996" height="12" rx="4" fill="var(--series-2)"/>
+        <text class="val" x="582" y="147" dominant-baseline="middle">92.6%</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="7. แหล่งน้ำ — 80.05% · เต็ม 6 คะแนน · ได้จริงเฉลี่ย 4.80">
+        <text class="lbl" x="182" y="173" text-anchor="end" dominant-baseline="middle">7. แหล่งน้ำ</text>
+        <rect class="track" x="190" y="165" width="384" height="12" rx="4"/>
+        <rect x="190" y="165" width="307.392" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="173" dominant-baseline="middle">80.0%</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="8. ไฟฟ้า — 10.26% · เต็ม 3 คะแนน · ได้จริงเฉลี่ย 0.31">
+        <text class="lbl" x="182" y="199" text-anchor="end" dominant-baseline="middle">8. ไฟฟ้า</text>
+        <rect class="track" x="190" y="191" width="384" height="12" rx="4"/>
+        <rect x="190" y="191" width="39.398399999999995" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="199" dominant-baseline="middle">10.3%</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="9. โทรศัพท์ — 32.82% · เต็ม 3 คะแนน · ได้จริงเฉลี่ย 0.98">
+        <text class="lbl" x="182" y="225" text-anchor="end" dominant-baseline="middle">9. โทรศัพท์</text>
+        <rect class="track" x="190" y="217" width="384" height="12" rx="4"/>
+        <rect x="190" y="217" width="126.02879999999999" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="225" dominant-baseline="middle">32.8%</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="10. อินเทอร์เน็ต — 11.70% · เต็ม 3 คะแนน · ได้จริงเฉลี่ย 0.35">
+        <text class="lbl" x="182" y="251" text-anchor="end" dominant-baseline="middle">10. อินเทอร์เน็ต</text>
+        <rect class="track" x="190" y="243" width="384" height="12" rx="4"/>
+        <rect x="190" y="243" width="44.928" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="251" dominant-baseline="middle">11.7%</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="11. % ชาติพันธุ์ — 67.83% · เต็ม 5 คะแนน · ได้จริงเฉลี่ย 3.39">
+        <text class="lbl" x="182" y="277" text-anchor="end" dominant-baseline="middle">11. % ชาติพันธุ์</text>
+        <rect class="track" x="190" y="269" width="384" height="12" rx="4"/>
+        <rect x="190" y="269" width="260.4672" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="277" dominant-baseline="middle">67.8%</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="12. จำนวนกลุ่มชาติพันธุ์ — 38.56% · เต็ม 5 คะแนน · ได้จริงเฉลี่ย 1.93">
+        <text class="lbl" x="182" y="303" text-anchor="end" dominant-baseline="middle">12. จำนวนกลุ่มชาติพันธุ์</text>
+        <rect class="track" x="190" y="295" width="384" height="12" rx="4"/>
+        <rect x="190" y="295" width="148.0704" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="303" dominant-baseline="middle">38.6%</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="13. นักเรียนยากจน — 81.45% · เต็ม 5 คะแนน · ได้จริงเฉลี่ย 4.07">
+        <text class="lbl" x="182" y="329" text-anchor="end" dominant-baseline="middle">13. นักเรียนยากจน</text>
+        <rect class="track" x="190" y="321" width="384" height="12" rx="4"/>
+        <rect x="190" y="321" width="312.76800000000003" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="329" dominant-baseline="middle">81.5%</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="14. นักเรียนพักนอน — 18.23% · เต็ม 5 คะแนน · ได้จริงเฉลี่ย 0.91">
+        <text class="lbl" x="182" y="355" text-anchor="end" dominant-baseline="middle">14. นักเรียนพักนอน</text>
+        <rect class="track" x="190" y="347" width="384" height="12" rx="4"/>
+        <rect x="190" y="347" width="70.0032" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="355" dominant-baseline="middle">18.2%</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="15. สาขา — 5.85% · เต็ม 5 คะแนน · ได้จริงเฉลี่ย 0.29">
+        <text class="lbl" x="182" y="381" text-anchor="end" dominant-baseline="middle">15. สาขา</text>
+        <rect class="track" x="190" y="373" width="384" height="12" rx="4"/>
+        <rect x="190" y="373" width="22.464" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="381" dominant-baseline="middle">5.8%</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="16. ประกาศคลัง — 35.31% · เต็ม 5 คะแนน · ได้จริงเฉลี่ย 1.77">
+        <text class="lbl" x="182" y="407" text-anchor="end" dominant-baseline="middle">16. ประกาศคลัง</text>
+        <rect class="track" x="190" y="399" width="384" height="12" rx="4"/>
+        <rect x="190" y="399" width="135.59040000000002" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="407" dominant-baseline="middle">35.3%</text>
+      </g></svg>
+  </div>
+  <div class="card">
+    <h3>อำนาจจำแนก D รายข้อ (เรียงจากมากไปน้อย)</h3>
+    <div class="legend">
+      <span><i class="swatch" style="background:var(--series-2)"></i> D &lt; 0.15 — แทบไม่จำแนก</span>
+      <span><i class="swatch" style="background:var(--series-1)"></i> ข้ออื่น</span>
+    </div>
+    <svg class="chart" viewBox="0 0 640 424" role="img" aria-label="แผนภูมิแท่งแนวนอน">
+      <g class="bar" tabindex="0" data-tip="16. ประกาศคลัง — 0.87 · คะแนนเต็มข้อนี้ 5 · item–rest r = 0.49">
+        <text class="lbl" x="182" y="17" text-anchor="end" dominant-baseline="middle">16. ประกาศคลัง</text>
+        <rect class="track" x="190" y="9" width="384" height="12" rx="4"/>
+        <rect x="190" y="9" width="334.08" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="17" dominant-baseline="middle">0.87</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="11. % ชาติพันธุ์ — 0.71 · คะแนนเต็มข้อนี้ 5 · item–rest r = 0.47">
+        <text class="lbl" x="182" y="43" text-anchor="end" dominant-baseline="middle">11. % ชาติพันธุ์</text>
+        <rect class="track" x="190" y="35" width="384" height="12" rx="4"/>
+        <rect x="190" y="35" width="272.64" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="43" dominant-baseline="middle">0.71</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="13. นักเรียนยากจน — 0.35 · คะแนนเต็มข้อนี้ 5 · item–rest r = 0.29">
+        <text class="lbl" x="182" y="69" text-anchor="end" dominant-baseline="middle">13. นักเรียนยากจน</text>
+        <rect class="track" x="190" y="61" width="384" height="12" rx="4"/>
+        <rect x="190" y="61" width="134.39999999999998" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="69" dominant-baseline="middle">0.35</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="4. ถนนรถ 2 ล้อไปไม่ได้ — 0.34 · คะแนนเต็มข้อนี้ 5 · item–rest r = 0.38">
+        <text class="lbl" x="182" y="95" text-anchor="end" dominant-baseline="middle">4. ถนนรถ 2 ล้อไปไม่ได้</text>
+        <rect class="track" x="190" y="87" width="384" height="12" rx="4"/>
+        <rect x="190" y="87" width="130.56" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="95" dominant-baseline="middle">0.34</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="8. ไฟฟ้า — 0.33 · คะแนนเต็มข้อนี้ 3 · item–rest r = 0.45">
+        <text class="lbl" x="182" y="121" text-anchor="end" dominant-baseline="middle">8. ไฟฟ้า</text>
+        <rect class="track" x="190" y="113" width="384" height="12" rx="4"/>
+        <rect x="190" y="113" width="126.72" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="121" dominant-baseline="middle">0.33</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="14. นักเรียนพักนอน — 0.33 · คะแนนเต็มข้อนี้ 5 · item–rest r = 0.24">
+        <text class="lbl" x="182" y="147" text-anchor="end" dominant-baseline="middle">14. นักเรียนพักนอน</text>
+        <rect class="track" x="190" y="139" width="384" height="12" rx="4"/>
+        <rect x="190" y="139" width="126.72" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="147" dominant-baseline="middle">0.33</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="10. อินเทอร์เน็ต — 0.26 · คะแนนเต็มข้อนี้ 3 · item–rest r = 0.43">
+        <text class="lbl" x="182" y="173" text-anchor="end" dominant-baseline="middle">10. อินเทอร์เน็ต</text>
+        <rect class="track" x="190" y="165" width="384" height="12" rx="4"/>
+        <rect x="190" y="165" width="99.84" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="173" dominant-baseline="middle">0.26</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="7. แหล่งน้ำ — 0.25 · คะแนนเต็มข้อนี้ 6 · item–rest r = 0.28">
+        <text class="lbl" x="182" y="199" text-anchor="end" dominant-baseline="middle">7. แหล่งน้ำ</text>
+        <rect class="track" x="190" y="191" width="384" height="12" rx="4"/>
+        <rect x="190" y="191" width="96" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="199" dominant-baseline="middle">0.25</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="2. ชายแดน — 0.24 · คะแนนเต็มข้อนี้ 5 · item–rest r = 0.15">
+        <text class="lbl" x="182" y="225" text-anchor="end" dominant-baseline="middle">2. ชายแดน</text>
+        <rect class="track" x="190" y="217" width="384" height="12" rx="4"/>
+        <rect x="190" y="217" width="92.16" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="225" dominant-baseline="middle">0.24</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="9. โทรศัพท์ — 0.24 · คะแนนเต็มข้อนี้ 3 · item–rest r = 0.40">
+        <text class="lbl" x="182" y="251" text-anchor="end" dominant-baseline="middle">9. โทรศัพท์</text>
+        <rect class="track" x="190" y="243" width="384" height="12" rx="4"/>
+        <rect x="190" y="243" width="92.16" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="251" dominant-baseline="middle">0.24</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="12. จำนวนกลุ่มชาติพันธุ์ — 0.16 · คะแนนเต็มข้อนี้ 5 · item–rest r = 0.01">
+        <text class="lbl" x="182" y="277" text-anchor="end" dominant-baseline="middle">12. จำนวนกลุ่มชาติพันธุ์</text>
+        <rect class="track" x="190" y="269" width="384" height="12" rx="4"/>
+        <rect x="190" y="269" width="61.44" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="277" dominant-baseline="middle">0.16</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="15. สาขา — 0.14 · คะแนนเต็มข้อนี้ 5 · item–rest r = 0.23">
+        <text class="lbl" x="182" y="303" text-anchor="end" dominant-baseline="middle">15. สาขา</text>
+        <rect class="track" x="190" y="295" width="384" height="12" rx="4"/>
+        <rect x="190" y="295" width="53.760000000000005" height="12" rx="4" fill="var(--series-2)"/>
+        <text class="val" x="582" y="303" dominant-baseline="middle">0.14</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="6. ขนส่งสาธารณะ — 0.11 · คะแนนเต็มข้อนี้ 5 · item–rest r = 0.13">
+        <text class="lbl" x="182" y="329" text-anchor="end" dominant-baseline="middle">6. ขนส่งสาธารณะ</text>
+        <rect class="track" x="190" y="321" width="384" height="12" rx="4"/>
+        <rect x="190" y="321" width="42.24" height="12" rx="4" fill="var(--series-2)"/>
+        <text class="val" x="582" y="329" dominant-baseline="middle">0.11</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="5. ระยะทางถึงศาลากลาง — 0.06 · คะแนนเต็มข้อนี้ 5 · item–rest r = 0.12">
+        <text class="lbl" x="182" y="355" text-anchor="end" dominant-baseline="middle">5. ระยะทางถึงศาลากลาง</text>
+        <rect class="track" x="190" y="347" width="384" height="12" rx="4"/>
+        <rect x="190" y="347" width="23.04" height="12" rx="4" fill="var(--series-2)"/>
+        <text class="val" x="582" y="355" dominant-baseline="middle">0.06</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="3. เขต อปท. — 0.05 · คะแนนเต็มข้อนี้ 5 · item–rest r = 0.18">
+        <text class="lbl" x="182" y="381" text-anchor="end" dominant-baseline="middle">3. เขต อปท.</text>
+        <rect class="track" x="190" y="373" width="384" height="12" rx="4"/>
+        <rect x="190" y="373" width="19.200000000000003" height="12" rx="4" fill="var(--series-2)"/>
+        <text class="val" x="582" y="381" dominant-baseline="middle">0.05</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="1. ความสูงจุดสูงสุด — 0.04 · คะแนนเต็มข้อนี้ 30 · item–rest r = 0.03">
+        <text class="lbl" x="182" y="407" text-anchor="end" dominant-baseline="middle">1. ความสูงจุดสูงสุด</text>
+        <rect class="track" x="190" y="399" width="384" height="12" rx="4"/>
+        <rect x="190" y="399" width="15.36" height="12" rx="4" fill="var(--series-2)"/>
+        <text class="val" x="582" y="407" dominant-baseline="middle">0.04</text>
+      </g></svg>
+    <p>D คือคะแนนเฉลี่ยของกลุ่มคะแนนรวมสูงสุด 27% ลบกลุ่มต่ำสุด 27% หารด้วยคะแนนเต็มของข้อนั้น
+    (≥0.40 ดีมาก · 0.30–0.39 ใช้ได้ · &lt;0.20 ควรออกแบบใหม่)</p>
+  </div>
+  <div class="card scroll">
+    <h3>ตารางสถิติครบทุกข้อ</h3>
+    
+<table>
+  <thead><tr>
+    <th>ข้อ</th><th>ตัวชี้วัด</th><th>กลุ่มข้อมูล</th><th class="num">เต็ม</th><th class="num">เฉลี่ย</th>
+    <th class="num">%ของเต็ม</th><th class="num">ได้เต็ม</th><th class="num">ได้ 0</th>
+    <th class="num">item–rest r</th><th class="num">D</th><th class="num">ตัดทิ้งแล้วสลับผล</th>
+  </tr></thead>
+  <tbody>
+    <tr>
+      <td class="num">1</td><td>ความสูงจุดสูงสุด</td><td class="muted">ภูมิศาสตร์ (วัดอัตโนมัติ)</td>
+      <td class="num">30</td><td class="num">29.46</td>
+      <td class="num">98.2%</td><td class="num">87.6%</td>
+      <td class="num">0.4%</td>
+      <td class="num">0.03</td>
+      <td class="num warn">0.04</td>
+      <td class="num">24.3%</td>
+    </tr><tr>
+      <td class="num">2</td><td>ชายแดน</td><td class="muted">เขตปกครองและสถานะทางการ</td>
+      <td class="num">5</td><td class="num">2.83</td>
+      <td class="num">56.5%</td><td class="num">16.5%</td>
+      <td class="num">13.2%</td>
+      <td class="num">0.15</td>
+      <td class="num ">0.24</td>
+      <td class="num">2.6%</td>
+    </tr><tr>
+      <td class="num">3</td><td>เขต อปท.</td><td class="muted">เขตปกครองและสถานะทางการ</td>
+      <td class="num">5</td><td class="num">4.82</td>
+      <td class="num">96.4%</td><td class="num">82.4%</td>
+      <td class="num">0.1%</td>
+      <td class="num">0.18</td>
+      <td class="num warn">0.05</td>
+      <td class="num">6.1%</td>
+    </tr><tr>
+      <td class="num">4</td><td>ถนนรถ 2 ล้อไปไม่ได้</td><td class="muted">การเข้าถึงและคมนาคม</td>
+      <td class="num">5</td><td class="num">0.58</td>
+      <td class="num">11.6%</td><td class="num">10.3%</td>
+      <td class="num">87.2%</td>
+      <td class="num">0.38</td>
+      <td class="num good">0.34</td>
+      <td class="num">10.5%</td>
+    </tr><tr>
+      <td class="num">5</td><td>ระยะทางถึงศาลากลาง</td><td class="muted">ภูมิศาสตร์ (วัดอัตโนมัติ)</td>
+      <td class="num">5</td><td class="num">4.64</td>
+      <td class="num">92.7%</td><td class="num">74.7%</td>
+      <td class="num">0.6%</td>
+      <td class="num">0.12</td>
+      <td class="num warn">0.06</td>
+      <td class="num">5.9%</td>
+    </tr><tr>
+      <td class="num">6</td><td>ขนส่งสาธารณะ</td><td class="muted">การเข้าถึงและคมนาคม</td>
+      <td class="num">5</td><td class="num">4.63</td>
+      <td class="num">92.6%</td><td class="num">79.3%</td>
+      <td class="num">0.1%</td>
+      <td class="num">0.13</td>
+      <td class="num warn">0.11</td>
+      <td class="num">6.1%</td>
+    </tr><tr>
+      <td class="num">7</td><td>แหล่งน้ำ</td><td class="muted">สาธารณูปโภคพื้นฐาน</td>
+      <td class="num">6</td><td class="num">4.80</td>
+      <td class="num">80.0%</td><td class="num">49.0%</td>
+      <td class="num">0.1%</td>
+      <td class="num">0.28</td>
+      <td class="num ">0.25</td>
+      <td class="num">6.0%</td>
+    </tr><tr>
+      <td class="num">8</td><td>ไฟฟ้า</td><td class="muted">สาธารณูปโภคพื้นฐาน</td>
+      <td class="num">3</td><td class="num">0.31</td>
+      <td class="num">10.3%</td><td class="num">10.3%</td>
+      <td class="num">89.7%</td>
+      <td class="num">0.45</td>
+      <td class="num good">0.33</td>
+      <td class="num">6.3%</td>
+    </tr><tr>
+      <td class="num">9</td><td>โทรศัพท์</td><td class="muted">สาธารณูปโภคพื้นฐาน</td>
+      <td class="num">3</td><td class="num">0.98</td>
+      <td class="num">32.8%</td><td class="num">7.4%</td>
+      <td class="num">17.9%</td>
+      <td class="num">0.40</td>
+      <td class="num ">0.24</td>
+      <td class="num">3.7%</td>
+    </tr><tr>
+      <td class="num">10</td><td>อินเทอร์เน็ต</td><td class="muted">สาธารณูปโภคพื้นฐาน</td>
+      <td class="num">3</td><td class="num">0.35</td>
+      <td class="num">11.7%</td><td class="num">3.6%</td>
+      <td class="num">76.9%</td>
+      <td class="num">0.43</td>
+      <td class="num ">0.26</td>
+      <td class="num">5.5%</td>
+    </tr><tr>
+      <td class="num">11</td><td>% ชาติพันธุ์</td><td class="muted">ลักษณะผู้เรียน</td>
+      <td class="num">5</td><td class="num">3.39</td>
+      <td class="num">67.8%</td><td class="num">45.3%</td>
+      <td class="num">16.2%</td>
+      <td class="num">0.47</td>
+      <td class="num good">0.71</td>
+      <td class="num">6.3%</td>
+    </tr><tr>
+      <td class="num">12</td><td>จำนวนกลุ่มชาติพันธุ์</td><td class="muted">ลักษณะผู้เรียน</td>
+      <td class="num">5</td><td class="num">1.93</td>
+      <td class="num">38.6%</td><td class="num">9.2%</td>
+      <td class="num">16.2%</td>
+      <td class="num">0.01</td>
+      <td class="num ">0.16</td>
+      <td class="num">4.5%</td>
+    </tr><tr>
+      <td class="num">13</td><td>นักเรียนยากจน</td><td class="muted">ลักษณะผู้เรียน</td>
+      <td class="num">5</td><td class="num">4.07</td>
+      <td class="num">81.5%</td><td class="num">62.3%</td>
+      <td class="num">5.4%</td>
+      <td class="num">0.29</td>
+      <td class="num good">0.35</td>
+      <td class="num">6.3%</td>
+    </tr><tr>
+      <td class="num">14</td><td>นักเรียนพักนอน</td><td class="muted">ลักษณะผู้เรียน</td>
+      <td class="num">5</td><td class="num">0.91</td>
+      <td class="num">18.2%</td><td class="num">9.4%</td>
+      <td class="num">71.2%</td>
+      <td class="num">0.24</td>
+      <td class="num good">0.33</td>
+      <td class="num">8.8%</td>
+    </tr><tr>
+      <td class="num">15</td><td>สาขา</td><td class="muted">โครงสร้างสถานศึกษา</td>
+      <td class="num">5</td><td class="num">0.29</td>
+      <td class="num">5.8%</td><td class="num">1.4%</td>
+      <td class="num">91.4%</td>
+      <td class="num">0.23</td>
+      <td class="num warn">0.14</td>
+      <td class="num">9.7%</td>
+    </tr><tr>
+      <td class="num">16</td><td>ประกาศคลัง</td><td class="muted">เขตปกครองและสถานะทางการ</td>
+      <td class="num">5</td><td class="num">1.77</td>
+      <td class="num">35.3%</td><td class="num">35.3%</td>
+      <td class="num">64.7%</td>
+      <td class="num">0.49</td>
+      <td class="num good">0.87</td>
+      <td class="num">10.1%</td>
+    </tr>
+  </tbody>
+</table>
+  </div>
+
+  <h2>4. กลุ่มข้อมูลพื้นฐาน</h2>
+  <div class="card">
+    <h3>สัดส่วนพื้นที่คะแนนที่ถูกใช้ไปจริงในแต่ละกลุ่ม (%)</h3>
+    <svg class="chart" viewBox="0 0 640 164" role="img" aria-label="แผนภูมิแท่งแนวนอน">
+      <g class="bar" tabindex="0" data-tip="ภูมิศาสตร์ (วัดอัตโนมัติ) — 97.43% · เต็ม 35 คะแนน · ได้จริง 34.10">
+        <text class="lbl" x="202" y="17" text-anchor="end" dominant-baseline="middle">ภูมิศาสตร์ (วัดอัตโนมัติ)</text>
+        <rect class="track" x="210" y="9" width="364" height="12" rx="4"/>
+        <rect x="210" y="9" width="354.64520000000005" height="12" rx="4" fill="var(--series-2)"/>
+        <text class="val" x="582" y="17" dominant-baseline="middle">97.4%</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="เขตปกครองและสถานะทางการ — 62.80% · เต็ม 15 คะแนน · ได้จริง 9.42">
+        <text class="lbl" x="202" y="43" text-anchor="end" dominant-baseline="middle">เขตปกครองและสถานะทางการ</text>
+        <rect class="track" x="210" y="35" width="364" height="12" rx="4"/>
+        <rect x="210" y="35" width="228.592" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="43" dominant-baseline="middle">62.8%</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="การเข้าถึงและคมนาคม — 52.10% · เต็ม 10 คะแนน · ได้จริง 5.21">
+        <text class="lbl" x="202" y="69" text-anchor="end" dominant-baseline="middle">การเข้าถึงและคมนาคม</text>
+        <rect class="track" x="210" y="61" width="364" height="12" rx="4"/>
+        <rect x="210" y="61" width="189.644" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="69" dominant-baseline="middle">52.1%</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="สาธารณูปโภคพื้นฐาน — 42.93% · เต็ม 15 คะแนน · ได้จริง 6.44">
+        <text class="lbl" x="202" y="95" text-anchor="end" dominant-baseline="middle">สาธารณูปโภคพื้นฐาน</text>
+        <rect class="track" x="210" y="87" width="364" height="12" rx="4"/>
+        <rect x="210" y="87" width="156.2652" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="95" dominant-baseline="middle">42.9%</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="ลักษณะผู้เรียน — 51.50% · เต็ม 20 คะแนน · ได้จริง 10.30">
+        <text class="lbl" x="202" y="121" text-anchor="end" dominant-baseline="middle">ลักษณะผู้เรียน</text>
+        <rect class="track" x="210" y="113" width="364" height="12" rx="4"/>
+        <rect x="210" y="113" width="187.46" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="121" dominant-baseline="middle">51.5%</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="โครงสร้างสถานศึกษา — 5.80% · เต็ม 5 คะแนน · ได้จริง 0.29">
+        <text class="lbl" x="202" y="147" text-anchor="end" dominant-baseline="middle">โครงสร้างสถานศึกษา</text>
+        <rect class="track" x="210" y="139" width="364" height="12" rx="4"/>
+        <rect x="210" y="139" width="21.112" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="147" dominant-baseline="middle">5.8%</text>
+      </g></svg>
+    <div class="scroll">
+    <table>
+      <thead><tr><th>กลุ่ม</th><th>ข้อ</th><th class="num">คะแนนเต็ม</th><th class="num">ได้จริงเฉลี่ย</th><th>แหล่งข้อมูล</th><th>ตรวจย้อนได้</th></tr></thead>
+      <tbody><tr><td>ภูมิศาสตร์ (วัดอัตโนมัติ)</td><td class="num">1, 5</td><td class="num">35</td>
+             <td class="num">34.10</td><td class="muted">Google Maps Elevation/Directions API — ระบบคำนวณให้ ไม่ต้องกรอก</td>
+             <td>อัตโนมัติ (GIS)</td></tr><tr><td>เขตปกครองและสถานะทางการ</td><td class="num">2, 3, 16</td><td class="num">15</td>
+             <td class="num">9.42</td><td class="muted">ทะเบียนราชการ (อปท./ชายแดน/ประกาศกระทรวงการคลัง) — ตรวจสอบย้อนได้</td>
+             <td>ทะเบียนราชการ</td></tr><tr><td>การเข้าถึงและคมนาคม</td><td class="num">4, 6</td><td class="num">10</td>
+             <td class="num">5.21</td><td class="muted">โรงเรียนกรอก + เขตรับรอง (ยังไม่มีชั้นข้อมูลกลาง)</td>
+             <td>โรงเรียนกรอกเอง</td></tr><tr><td>สาธารณูปโภคพื้นฐาน</td><td class="num">7, 8, 9, 10</td><td class="num">15</td>
+             <td class="num">6.44</td><td class="muted">โรงเรียนกรอก (น้ำ/ไฟ/โทรศัพท์/อินเทอร์เน็ต)</td>
+             <td>โรงเรียนกรอกเอง</td></tr><tr><td>ลักษณะผู้เรียน</td><td class="num">11, 12, 13, 14</td><td class="num">20</td>
+             <td class="num">10.30</td><td class="muted">DMC/ทะเบียนนักเรียน + ระบบ ปัจจัยพื้นฐานนักเรียนยากจน (กสศ.)</td>
+             <td>ทะเบียนราชการ</td></tr><tr><td>โครงสร้างสถานศึกษา</td><td class="num">15</td><td class="num">5</td>
+             <td class="num">0.29</td><td class="muted">ทะเบียนโรงเรียน (สาขา/ห้องเรียนสาขา)</td>
+             <td>ทะเบียนราชการ</td></tr></tbody>
+    </table>
+    </div>
+  </div>
+
+  <h2>5. จำแนกตามชนิดของค่าที่วัด</h2>
+  <p>หัวข้อก่อนหน้าถามว่า <em>ข้อมูลมาจากไหน</em> · หัวข้อนี้ถามว่า <em>ค่าที่ได้เป็นอะไร</em> —
+  ซึ่งเป็นตัวกำหนดว่าสถิติแบบใดใช้กับข้อนั้นได้ ต้อง validate อย่างไร และเทียบข้ามโรงเรียนได้ตรง ๆ หรือไม่</p>
+  <div class="tiles">
+    <div class="tile"><div class="v">65%</div>
+      <div class="l">พื้นที่สูง — คะแนนจากค่าเชิงปริมาณ</div>
+      <div class="s">65 คะแนน (ค่าวัดต่อเนื่อง + จำนวนนับ + ร้อยละ)</div></div>
+    <div class="tile"><div class="v">35%</div>
+      <div class="l">พื้นที่สูง — คะแนนจากข้อความเชิงคุณภาพ</div>
+      <div class="s">35 คะแนน (เรียงระดับ + สองค่า + เลือกหลายข้อ)</div></div>
+    <div class="tile"><div class="v">78%</div>
+      <div class="l">พื้นที่เกาะ — คะแนนจากข้อความเชิงคุณภาพ</div>
+      <div class="s">78 คะแนน — กลับด้านกับพื้นที่สูง</div></div>
+    <div class="tile"><div class="v">55%</div>
+      <div class="l">พื้นที่สูง — คะแนนจากค่าที่ผู้ใช้กรอกเอง</div>
+      <div class="s">ระบบวัดให้เอง 35% · คำนวณจากข้อมูลอื่น 10%</div></div>
+  </div>
+  <div class="card">
+    <h3>น้ำหนักคะแนนแยกตามชนิดของค่า (พื้นที่สูง)</h3>
+    <svg class="chart" viewBox="0 0 640 164" role="img" aria-label="แผนภูมิแท่งแนวนอน">
+      <g class="bar" tabindex="0" data-tip="ค่าวัดต่อเนื่อง — 40.00 คะแนน · ข้อ 1, 4, 5 · ใช้พื้นที่คะแนนไป 86.7%">
+        <text class="lbl" x="222" y="17" text-anchor="end" dominant-baseline="middle">ค่าวัดต่อเนื่อง</text>
+        <rect class="track" x="230" y="9" width="344" height="12" rx="4"/>
+        <rect x="230" y="9" width="137.6" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="17" dominant-baseline="middle">40 คะแนน</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="จำนวนนับ — 20.00 คะแนน · ข้อ 12, 13, 14, 15 · ใช้พื้นที่คะแนนไป 36.0%">
+        <text class="lbl" x="222" y="43" text-anchor="end" dominant-baseline="middle">จำนวนนับ</text>
+        <rect class="track" x="230" y="35" width="344" height="12" rx="4"/>
+        <rect x="230" y="35" width="68.8" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="43" dominant-baseline="middle">20 คะแนน</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="ข้อความเชิงคุณภาพ (เรียงระดับได้) — 15.00 คะแนน · ข้อ 2, 3, 6 · ใช้พื้นที่คะแนนไป 81.9%">
+        <text class="lbl" x="222" y="69" text-anchor="end" dominant-baseline="middle">ข้อความเชิงคุณภาพ (เรียงระดับได้)</text>
+        <rect class="track" x="230" y="61" width="344" height="12" rx="4"/>
+        <rect x="230" y="61" width="51.6" height="12" rx="4" fill="var(--series-2)"/>
+        <text class="val" x="582" y="69" dominant-baseline="middle">15 คะแนน</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="ข้อความเชิงคุณภาพ (เลือกได้หลายข้อ) — 15.00 คะแนน · ข้อ 7, 8, 9, 10 · ใช้พื้นที่คะแนนไป 42.9%">
+        <text class="lbl" x="222" y="95" text-anchor="end" dominant-baseline="middle">ข้อความเชิงคุณภาพ (เลือกได้หลายข้อ)</text>
+        <rect class="track" x="230" y="87" width="344" height="12" rx="4"/>
+        <rect x="230" y="87" width="51.6" height="12" rx="4" fill="var(--series-2)"/>
+        <text class="val" x="582" y="95" dominant-baseline="middle">15 คะแนน</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="ร้อยละ / สัดส่วน — 5.00 คะแนน · ข้อ 11 · ใช้พื้นที่คะแนนไป 67.8%">
+        <text class="lbl" x="222" y="121" text-anchor="end" dominant-baseline="middle">ร้อยละ / สัดส่วน</text>
+        <rect class="track" x="230" y="113" width="344" height="12" rx="4"/>
+        <rect x="230" y="113" width="17.2" height="12" rx="4" fill="var(--series-1)"/>
+        <text class="val" x="582" y="121" dominant-baseline="middle">5 คะแนน</text>
+      </g>
+      <g class="bar" tabindex="0" data-tip="ข้อความเชิงคุณภาพสองค่า — 5.00 คะแนน · ข้อ 16 · ใช้พื้นที่คะแนนไป 35.4%">
+        <text class="lbl" x="222" y="147" text-anchor="end" dominant-baseline="middle">ข้อความเชิงคุณภาพสองค่า</text>
+        <rect class="track" x="230" y="139" width="344" height="12" rx="4"/>
+        <rect x="230" y="139" width="17.2" height="12" rx="4" fill="var(--series-2)"/>
+        <text class="val" x="582" y="147" dominant-baseline="middle">5 คะแนน</text>
+      </g></svg>
+    <div class="legend">
+      <span><i class="swatch" style="background:var(--series-1)"></i> ค่าเชิงปริมาณ (วัดเป็นหน่วยได้)</span>
+      <span><i class="swatch" style="background:var(--series-2)"></i> ข้อความเชิงคุณภาพ</span>
+    </div>
+  </div>
+  <div class="card scroll">
+    <h3>ตารางจำแนกรายข้อ — พื้นที่สูง</h3>
+    <table>
+      <thead><tr><th>ข้อ</th><th>ตัวชี้วัด</th><th>ชนิดของค่า</th><th>ระดับการวัด</th><th>หน่วย</th><th>ที่มา</th><th>ปรับตามขนาดโรงเรียน</th><th class="num">เต็ม</th></tr></thead>
+      <tbody><tr><td class="num">1</td><td>ความสูงจุดสูงสุด</td><td>ค่าวัดต่อเนื่อง</td>
+            <td class="muted">อัตราส่วน</td><td class="muted">เมตร</td>
+            <td class="muted">ระบบวัดให้อัตโนมัติ (GIS)</td><td><span class="muted">—</span></td><td class="num">30</td></tr><tr><td class="num">2</td><td>ชายแดน</td><td>ข้อความเชิงคุณภาพ (เรียงระดับได้)</td>
+            <td class="muted">เรียงอันดับ</td><td class="muted">—</td>
+            <td class="muted">ผู้ใช้กรอก</td><td><span class="muted">—</span></td><td class="num">5</td></tr><tr><td class="num">3</td><td>เขต อปท.</td><td>ข้อความเชิงคุณภาพ (เรียงระดับได้)</td>
+            <td class="muted">เรียงอันดับ</td><td class="muted">—</td>
+            <td class="muted">ผู้ใช้กรอก</td><td><span class="muted">—</span></td><td class="num">5</td></tr><tr><td class="num">4</td><td>ถนนรถ 2 ล้อไปไม่ได้</td><td>ค่าวัดต่อเนื่อง</td>
+            <td class="muted">อัตราส่วน</td><td class="muted">กิโลเมตร</td>
+            <td class="muted">ผู้ใช้กรอก</td><td><span class="muted">—</span></td><td class="num">5</td></tr><tr><td class="num">5</td><td>ระยะทางถึงศาลากลาง</td><td>ค่าวัดต่อเนื่อง</td>
+            <td class="muted">อัตราส่วน</td><td class="muted">กิโลเมตร</td>
+            <td class="muted">ระบบวัดให้อัตโนมัติ (GIS)</td><td><span class="muted">—</span></td><td class="num">5</td></tr><tr><td class="num">6</td><td>ขนส่งสาธารณะ</td><td>ข้อความเชิงคุณภาพ (เรียงระดับได้)</td>
+            <td class="muted">เรียงอันดับ</td><td class="muted">—</td>
+            <td class="muted">ผู้ใช้กรอก</td><td><span class="muted">—</span></td><td class="num">5</td></tr><tr><td class="num">7</td><td>แหล่งน้ำ</td><td>ข้อความเชิงคุณภาพ (เลือกได้หลายข้อ)</td>
+            <td class="muted">เรียงอันดับ</td><td class="muted">—</td>
+            <td class="muted">ผู้ใช้กรอก</td><td><span class="muted">—</span></td><td class="num">6</td></tr><tr><td class="num">8</td><td>ไฟฟ้า</td><td>ข้อความเชิงคุณภาพ (เลือกได้หลายข้อ)</td>
+            <td class="muted">เรียงอันดับ</td><td class="muted">—</td>
+            <td class="muted">ผู้ใช้กรอก</td><td><span class="muted">—</span></td><td class="num">3</td></tr><tr><td class="num">9</td><td>โทรศัพท์</td><td>ข้อความเชิงคุณภาพ (เลือกได้หลายข้อ)</td>
+            <td class="muted">เรียงอันดับ</td><td class="muted">—</td>
+            <td class="muted">ผู้ใช้กรอก</td><td><span class="muted">—</span></td><td class="num">3</td></tr><tr><td class="num">10</td><td>อินเทอร์เน็ต</td><td>ข้อความเชิงคุณภาพ (เลือกได้หลายข้อ)</td>
+            <td class="muted">เรียงอันดับ</td><td class="muted">—</td>
+            <td class="muted">ผู้ใช้กรอก</td><td><span class="muted">—</span></td><td class="num">3</td></tr><tr><td class="num">11</td><td>% ชาติพันธุ์</td><td>ร้อยละ / สัดส่วน</td>
+            <td class="muted">อัตราส่วน</td><td class="muted">ร้อยละ</td>
+            <td class="muted">ระบบคำนวณจากข้อมูลอื่น</td><td><span class="good">ปรับแล้ว</span></td><td class="num">5</td></tr><tr><td class="num">12</td><td>จำนวนกลุ่มชาติพันธุ์</td><td>จำนวนนับ</td>
+            <td class="muted">อัตราส่วน</td><td class="muted">กลุ่ม</td>
+            <td class="muted">ระบบคำนวณจากข้อมูลอื่น</td><td><span class="warn">ไม่ปรับ</span></td><td class="num">5</td></tr><tr><td class="num">13</td><td>นักเรียนยากจน</td><td>จำนวนนับ</td>
+            <td class="muted">อัตราส่วน</td><td class="muted">คน</td>
+            <td class="muted">ผู้ใช้กรอก</td><td><span class="good">ปรับแล้ว</span></td><td class="num">5</td></tr><tr><td class="num">14</td><td>นักเรียนพักนอน</td><td>จำนวนนับ</td>
+            <td class="muted">อัตราส่วน</td><td class="muted">คน</td>
+            <td class="muted">ผู้ใช้กรอก</td><td><span class="warn">ไม่ปรับ</span></td><td class="num">5</td></tr><tr><td class="num">15</td><td>สาขา</td><td>จำนวนนับ</td>
+            <td class="muted">อัตราส่วน</td><td class="muted">แห่ง</td>
+            <td class="muted">ผู้ใช้กรอก</td><td><span class="warn">ไม่ปรับ</span></td><td class="num">5</td></tr><tr><td class="num">16</td><td>ประกาศคลัง</td><td>ข้อความเชิงคุณภาพสองค่า</td>
+            <td class="muted">นามบัญญัติ</td><td class="muted">—</td>
+            <td class="muted">ผู้ใช้กรอก</td><td><span class="muted">—</span></td><td class="num">5</td></tr></tbody>
+    </table>
+  </div>
+  <div class="card scroll">
+    <h3>สถิติที่ใช้ได้กับแต่ละชนิดของค่า</h3>
+    <table>
+      <thead><tr><th>ชนิดของค่า</th><th>ใช้ได้</th><th>ใช้ไม่ได้</th><th>กติกา validate ที่ควรบังคับในโค้ด</th></tr></thead>
+      <tbody><tr><td>ค่าวัดต่อเนื่อง</td><td class="muted">ค่าเฉลี่ย · มัธยฐาน · SD · เปอร์เซ็นไทล์ · ช่วงควอไทล์</td><td class="muted">—</td><td class="muted">ต้องไม่ติดลบ · ต้องอยู่ในพิสัยที่เป็นไปได้จริง · ถ้ามาจาก GIS ต้องล็อกไม่ให้แก้ด้วยมือ</td></tr><tr><td>จำนวนนับ</td><td class="muted">ค่าเฉลี่ย · มัธยฐาน · SD · เปอร์เซ็นไทล์ (แต่ควรดูคู่กับร้อยละต่อขนาดโรงเรียนเสมอ)</td><td class="muted">การเทียบข้ามโรงเรียนโดยไม่ปรับขนาด</td><td class="muted">จำนวนเต็ม ≥ 0 · ต้องไม่เกินจำนวนนักเรียนทั้งหมดเมื่อเป็นการนับตัวนักเรียน</td></tr><tr><td>ข้อความเชิงคุณภาพ (เรียงระดับได้)</td><td class="muted">ฐานนิยม · มัธยฐานของระดับ · การแจกแจงความถี่</td><td class="muted">**ค่าเฉลี่ยของรหัสตัวเลือก** — ตัวเลข 1–5 เป็นชื่อของระดับ ไม่ใช่ปริมาณ</td><td class="muted">ค่าที่รับได้ต้องอยู่ในรายการตัวเลือกเท่านั้น · ต้องมีหลักฐานประกอบเมื่อเลือกระดับที่ให้คะแนนสูง</td></tr><tr><td>ข้อความเชิงคุณภาพ (เลือกได้หลายข้อ)</td><td class="muted">ความถี่รายตัวเลือก · จำนวนตัวเลือกที่เลือกต่อแห่ง</td><td class="muted">ค่าเฉลี่ยของรหัส · การถือว่า id สูงสุดแทนทั้งเซตโดยไม่ประกาศกติกา</td><td class="muted">ทุกรหัสต้องอยู่ในรายการ · ต้องระบุกติกาย่อเซตเป็นคะแนนไว้ในเกณฑ์</td></tr><tr><td>ร้อยละ / สัดส่วน</td><td class="muted">ค่าเฉลี่ย · มัธยฐาน · SD · เปอร์เซ็นไทล์</td><td class="muted">—</td><td class="muted">อยู่ในช่วง 0–100 · ตัวหารต้องไม่เป็นศูนย์</td></tr><tr><td>ข้อความเชิงคุณภาพสองค่า</td><td class="muted">สัดส่วนที่ตอบว่าใช่</td><td class="muted">ค่าเฉลี่ย · SD ของรหัส</td><td class="muted">รับได้เฉพาะสองค่า · ถ้าอ้างอิงประกาศราชการต้องตรวจกับทะเบียนได้</td></tr></tbody>
+    </table>
+    <p>ข้อความเชิงคุณภาพใช้ <b>ฐานนิยม</b> และ <b>มัธยฐานของระดับ</b> แทนค่าเฉลี่ย เพราะรหัสตัวเลือก 1–5 เป็นชื่อของระดับ ไม่ใช่ปริมาณ
+    ระยะห่างระหว่างระดับไม่เท่ากันและวัดไม่ได้ — การเฉลี่ยรหัสจึงให้ตัวเลขที่ไม่มีความหมาย</p>
+  </div>
+  <div class="card scroll">
+    <h3>จุดที่ “เก็บอย่างหนึ่ง แต่คิดคะแนนอีกอย่าง”</h3>
+    <table>
+      <thead><tr><th>ข้อ</th><th>ตัวชี้วัด</th><th>เก็บเป็น</th><th>คิดคะแนนเป็น</th><th>ประเด็น</th></tr></thead>
+      <tbody><tr><td class="num">1</td><td>ความสูงจุดสูงสุด</td><td class="muted">ความสูง ณ จุดสูงสุดของเส้นทาง (เมตร)</td><td class="muted">ด่านผ่าน/ไม่ผ่านที่ 500 ม. + คะแนนต่อเนื่องที่ตันตั้งแต่ 500 ม.</td><td>เก็บเป็นค่าต่อเนื่องถึง 1,819 ม. แต่คะแนนตันที่ 500 ม. — ข้อมูลที่วัดมาได้ถูกทิ้งไปเกือบทั้งช่วง</td></tr><tr><td class="num">3</td><td>เขต อปท.</td><td class="muted">ประเภท อปท. 4 ระดับ (อบต. → เทศบาลนคร)</td><td class="muted">แปลงระดับเป็นคะแนน 5/4/3/0</td><td>ตรวจกับทะเบียน อปท. ได้อยู่แล้ว แต่ระบบให้โรงเรียนเลือกเอง</td></tr><tr><td class="num">5</td><td>ระยะทางถึงศาลากลาง</td><td class="muted">ระยะทางถนนถึงศาลากลางจังหวัด (กม.)</td><td class="muted">สัดส่วนของเพดาน 80 กม.</td><td>เพดาน 80 กม. ต่ำกว่ามัธยฐานจริง (106 กม.) — 3 ใน 4 ของโรงเรียนชนเพดาน</td></tr><tr><td class="num">6</td><td>ขนส่งสาธารณะ</td><td class="muted">ความถี่รถประจำทาง 5 ระดับ (ไม่มีรถ → เกิน 6 เที่ยว/วัน)</td><td class="muted">แปลงระดับเป็นคะแนน 5/4/3/1/1</td><td>ระดับ 4 กับ 5 ให้คะแนนเท่ากัน — เหลือระดับที่ใช้จริง 4 ระดับ</td></tr><tr><td class="num">7</td><td>แหล่งน้ำ</td><td class="muted">เลือกแหล่งน้ำได้หลายแหล่ง จาก 6 ตัวเลือก</td><td class="muted">ใช้ id สูงสุดที่เลือก (= แหล่งที่ทันสมัยที่สุด) แปลงเป็นคะแนน</td><td>กรอกครบตามจริงแล้วเสียคะแนน เพราะกติกาหยิบตัวเลือกที่ได้คะแนนต่ำสุดมาใช้</td></tr><tr><td class="num">8</td><td>ไฟฟ้า</td><td class="muted">เลือกระบบไฟฟ้าได้หลายแบบ จาก 2 ตัวเลือก</td><td class="muted">ใช้ id สูงสุดที่เลือก</td><td>โรงเรียนที่มีทั้งโซลาร์เซลล์และไฟฟ้าส่วนภูมิภาคได้ 0 คะแนน เท่ากับที่มีไฟฟ้าปกติอย่างเดียว</td></tr><tr><td class="num">9</td><td>โทรศัพท์</td><td class="muted">เลือกระบบโทรศัพท์ได้หลายแบบ จาก 4 ตัวเลือก</td><td class="muted">ใช้ id สูงสุดที่เลือก</td><td>เช่นเดียวกับข้อ 7</td></tr><tr><td class="num">10</td><td>อินเทอร์เน็ต</td><td class="muted">เลือกระบบอินเทอร์เน็ตได้หลายแบบ จาก 4 ตัวเลือก</td><td class="muted">ใช้ id สูงสุดที่เลือก</td><td>เช่นเดียวกับข้อ 7</td></tr><tr><td class="num">13</td><td>นักเรียนยากจน</td><td class="muted">จำนวนนักเรียนยากจน/ยากจนพิเศษ (คน)</td><td class="muted">แปลงเป็น **ร้อยละ** ของนักเรียนทั้งหมด เพดาน 50%</td><td>เก็บเป็นจำนวนคน แต่คิดคะแนนเป็นร้อยละ — ต่างจากข้อ 14 ที่เก็บเป็นคนแล้วคิดเป็นคน</td></tr><tr><td class="num">14</td><td>นักเรียนพักนอน</td><td class="muted">จำนวนนักเรียนพักนอน (คน)</td><td class="muted">จำนวนคนตรง ๆ เพดาน 50 คน</td><td>ไม่ปรับตามขนาดโรงเรียน — โรงเรียน 60 คนที่พักนอนทั้งหมดได้คะแนนเท่ากับโรงเรียน 800 คนที่พักนอน 50 คน</td></tr><tr><td class="num">15</td><td>สาขา</td><td class="muted">จำนวนโรงเรียนสาขา/ห้องเรียนสาขา (แห่ง)</td><td class="muted">แปลงเป็นช่วง 1→3, 2→4, ≥3→5 คะแนน</td><td>จำนวนนับที่ถูกยุบเป็นช่วงเพียง 3 ช่วง</td></tr><tr><td class="num">16</td><td>ประกาศคลัง</td><td class="muted">เป็นพื้นที่พิเศษตามประกาศกระทรวงการคลังหรือไม่ (ใช่/ไม่ใช่)</td><td class="muted">ใช่ = 5 คะแนน · ไม่ใช่ = 0</td><td>อ้างอิงประกาศราชการที่ตรวจสอบได้ แต่ระบบให้โรงเรียนตอบเอง ไม่ได้เชื่อมทะเบียน</td></tr></tbody>
+    </table>
+  </div>
+
+  <h2>6. เจาะลึกข้อ 1 — ความสูง</h2>
+  <div class="card">
+    <h3>ความสูงจริงของโรงเรียน (เมตร)</h3>
+    <div class="legend">
+      <span><i class="swatch" style="background:var(--series-1)"></i> ต่ำกว่าเกณฑ์ 500 ม.</span>
+      <span><i class="swatch" style="background:var(--series-2)"></i> ตั้งแต่ 500 ม. ขึ้นไป</span>
+    </div>
+    <svg class="chart" viewBox="0 0 680 220" role="img" aria-label="ฮิสโทแกรม"><line class="grid" x1="44" x2="668" y1="186.0" y2="186.0"/>
+              <text class="tick" x="36" y="190.0" text-anchor="end">0</text><line class="grid" x1="44" x2="668" y1="99.0" y2="99.0"/>
+              <text class="tick" x="36" y="103.0" text-anchor="end">157</text><line class="grid" x1="44" x2="668" y1="12.0" y2="12.0"/>
+              <text class="tick" x="36" y="16.0" text-anchor="end">314</text><g class="bar" tabindex="0" data-tip="0–200 ม. · 10 แห่ง">
+        <rect x="45.5" y="180.5" width="53.7" height="5.5" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="200–400 ม. · 91 แห่ง">
+        <rect x="102.2" y="135.6" width="53.7" height="50.4" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="400–500 ม. · 83 แห่ง">
+        <rect x="159.0" y="140.0" width="53.7" height="46.0" rx="4"
+              fill="var(--series-1)"/>
+      </g><g class="bar" tabindex="0" data-tip="500–600 ม. · 314 แห่ง">
+        <rect x="215.7" y="12.0" width="53.7" height="174.0" rx="4"
+              fill="var(--series-2)"/>
+      </g><g class="bar" tabindex="0" data-tip="600–700 ม. · 121 แห่ง">
+        <rect x="272.4" y="118.9" width="53.7" height="67.1" rx="4"
+              fill="var(--series-2)"/>
+      </g><g class="bar" tabindex="0" data-tip="700–800 ม. · 198 แห่ง">
+        <rect x="329.1" y="76.3" width="53.7" height="109.7" rx="4"
+              fill="var(--series-2)"/>
+      </g><g class="bar" tabindex="0" data-tip="800–900 ม. · 158 แห่ง">
+        <rect x="385.9" y="98.4" width="53.7" height="87.6" rx="4"
+              fill="var(--series-2)"/>
+      </g><g class="bar" tabindex="0" data-tip="900–1000 ม. · 82 แห่ง">
+        <rect x="442.6" y="140.6" width="53.7" height="45.4" rx="4"
+              fill="var(--series-2)"/>
+      </g><g class="bar" tabindex="0" data-tip="1000–1200 ม. · 182 แห่ง">
+        <rect x="499.3" y="85.1" width="53.7" height="100.9" rx="4"
+              fill="var(--series-2)"/>
+      </g><g class="bar" tabindex="0" data-tip="1200–1500 ม. · 180 แห่ง">
+        <rect x="556.0" y="86.3" width="53.7" height="99.7" rx="4"
+              fill="var(--series-2)"/>
+      </g><g class="bar" tabindex="0" data-tip="1500–2000 ม. · 62 แห่ง">
+        <rect x="612.8" y="151.6" width="53.7" height="34.4" rx="4"
+              fill="var(--series-2)"/>
+      </g><line class="cut" x1="200.0" x2="200.0" y1="12" y2="186"/>
+         <text class="cutlbl" x="206.0" y="24">เกณฑ์ 500 ม.</text><text class="tick" x="44.0" y="202" text-anchor="middle">0</text><text class="tick" x="157.5" y="202" text-anchor="middle">400</text><text class="tick" x="270.9" y="202" text-anchor="middle">600</text><text class="tick" x="384.4" y="202" text-anchor="middle">800</text><text class="tick" x="497.8" y="202" text-anchor="middle">1000</text><text class="tick" x="611.3" y="202" text-anchor="middle">1500</text></svg>
+    <p>มัธยฐาน 760 ม. · P25 500 ม. · P75 1074 ม. ·
+    ต่ำกว่า 500 ม. 12.4% — สูตรที่ตันตั้งแต่ 500 ม. จึงมองไม่เห็นความต่างของโรงเรียนส่วนใหญ่</p>
+  </div>
+  <div class="card scroll">
+    <h3>การรายงานความสูงเท่ากับ 500 ม. พอดี แยกตามรอบปี</h3>
+    
+<table>
+  <thead><tr><th>รอบปี</th><th class="num">แถวประเมิน</th><th class="num">ระบุความสูง 500 ม. พอดี</th><th class="num">สัดส่วน</th></tr></thead>
+  <tbody><tr><td>2560</td><td class="num">1</td><td class="num">0</td><td class="num ">0.0%</td></tr><tr><td>2565</td><td class="num">1,623</td><td class="num">87</td><td class="num ">5.4%</td></tr><tr><td>2566</td><td class="num">228</td><td class="num">121</td><td class="num warn">53.1%</td></tr><tr><td>2567</td><td class="num">61</td><td class="num">25</td><td class="num warn">41.0%</td></tr><tr><td>2569</td><td class="num">73</td><td class="num">0</td><td class="num ">0.0%</td></tr></tbody>
+</table>
+    <p>สัดส่วนพุ่งขึ้นตั้งแต่รอบ 2566 ซึ่งเป็นรอบที่เปลี่ยนมาใช้สูตร "ผ่านด่าน 500 ม. แล้วได้คะแนนฐาน 15" —
+    รูปแบบของการรายงานให้พอดีเกณฑ์ ทั้งที่ข้อนี้ระบุให้ระบบดึงค่าจาก Google Maps Elevation API อัตโนมัติ</p>
+  </div>
+  <div class="card scroll">
+    <h3>ผลของสูตรสองแบบต่อการจำแนก</h3>
+    <table>
+      <thead><tr><th>สูตร</th><th class="num">คะแนนเฉลี่ยข้อ 1</th><th class="num">SD</th><th class="num">ได้เต็ม 30</th><th class="num">item–rest r</th><th class="num">คะแนนรวมเฉลี่ย</th><th class="num">ผ่าน 70</th></tr></thead>
+      <tbody>
+        <tr><td>ฐาน 15 + เพดาน 500 ม. (ใช้อยู่)</td><td class="num">29.46</td><td class="num">2.38</td>
+          <td class="num">87.6%</td><td class="num warn">0.03</td>
+          <td class="num">65.76</td><td class="num">33.1%</td></tr>
+        <tr><td>เชิงเส้น 0–600 ม. (รอบ 2565)</td><td class="num">27.73</td><td class="num">4.29</td>
+          <td class="num">66.4%</td><td class="num good">0.17</td>
+          <td class="num">64.03</td><td class="num">31.0%</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>7. ความซ้ำซ้อนระหว่างข้อ</h2>
+  <div class="card scroll">
+    <h3>คู่ที่สัมพันธ์กันสูงสุด 10 คู่</h3>
+    
+<table>
+  <thead><tr><th>ข้อ A</th><th>ข้อ B</th><th class="num">r</th></tr></thead>
+  <tbody><tr><td>8. ไฟฟ้า</td><td>10. อินเทอร์เน็ต</td><td class="num warn">0.68</td></tr><tr><td>9. โทรศัพท์</td><td>10. อินเทอร์เน็ต</td><td class="num warn">0.64</td></tr><tr><td>8. ไฟฟ้า</td><td>9. โทรศัพท์</td><td class="num warn">0.58</td></tr><tr><td>4. ถนนรถ 2 ล้อไปไม่ได้</td><td>8. ไฟฟ้า</td><td class="num warn">0.50</td></tr><tr><td>4. ถนนรถ 2 ล้อไปไม่ได้</td><td>10. อินเทอร์เน็ต</td><td class="num ">0.47</td></tr><tr><td>4. ถนนรถ 2 ล้อไปไม่ได้</td><td>9. โทรศัพท์</td><td class="num ">0.39</td></tr><tr><td>8. ไฟฟ้า</td><td>16. ประกาศคลัง</td><td class="num ">0.39</td></tr><tr><td>4. ถนนรถ 2 ล้อไปไม่ได้</td><td>16. ประกาศคลัง</td><td class="num ">0.38</td></tr><tr><td>11. % ชาติพันธุ์</td><td>12. จำนวนกลุ่มชาติพันธุ์</td><td class="num ">0.36</td></tr><tr><td>10. อินเทอร์เน็ต</td><td>16. ประกาศคลัง</td><td class="num ">0.33</td></tr></tbody>
+</table>
+  </div>
+
+  <h2>8. ถ้าปรับน้ำหนัก จะเกิดอะไรขึ้น</h2>
+  <div class="card scroll">
+    
+<table>
+  <thead><tr><th>ฉากทัศน์</th><th class="num">เฉลี่ย</th><th class="num">SD</th><th class="num">ผ่าน 70</th><th class="num">%</th><th class="num">เปลี่ยนสถานะ</th><th class="num">ρ</th><th class="num">จุดตัดที่ให้จำนวนเท่าเดิม</th></tr></thead>
+  <tbody><tr><td>S0 — เกณฑ์ปัจจุบัน (ฐาน 15 + เพดาน 500 ม.)</td><td class="num">65.76</td><td class="num">9.07</td>
+      <td class="num">490</td><td class="num">33.1%</td>
+      <td class="num">0 (0.0%)</td>
+      <td class="num">1.00</td>
+      <td class="num">70.00</td></tr><tr><td>S1 — ข้อ 1 กลับไปใช้สูตรเชิงเส้น 0–600 ม. (แบบรอบ 2565)</td><td class="num">64.03</td><td class="num">10.31</td>
+      <td class="num">459</td><td class="num">31.0%</td>
+      <td class="num">31 (2.1%)</td>
+      <td class="num">0.96</td>
+      <td class="num">69.00</td></tr><tr><td>S2 — ข้อ 1 เชิงเส้น 0–1,000 ม. เต็ม 30 (ตัดคะแนนฐาน)</td><td class="num">58.61</td><td class="num">12.88</td>
+      <td class="num">341</td><td class="num">23.0%</td>
+      <td class="num">149 (10.1%)</td>
+      <td class="num">0.90</td>
+      <td class="num">65.14</td></tr><tr><td>S3 — ลดน้ำหนักข้อ 1 เหลือ 15 แล้วโยกไปข้อที่จำแนกได้ (4/8/10/14/16 ×2)</td><td class="num">54.95</td><td class="num">13.16</td>
+      <td class="num">206</td><td class="num">13.9%</td>
+      <td class="num">286 (19.3%)</td>
+      <td class="num">0.98</td>
+      <td class="num">59.84</td></tr><tr><td>S4 — ตัดข้อที่แทบไม่จำแนก (1/3/5/6) ออก แล้วปรับสเกลเป็น 100</td><td class="num">40.39</td><td class="num">15.20</td>
+      <td class="num">58</td><td class="num">3.9%</td>
+      <td class="num">432 (29.2%)</td>
+      <td class="num">0.96</td>
+      <td class="num">46.95</td></tr></tbody>
+</table>
+    <p>ρ คือสหสัมพันธ์อันดับ (Spearman) กับผลจัดอันดับของเกณฑ์ปัจจุบัน — ทุกฉากทัศน์ให้ ρ ≥ 0.90
+    แปลว่า <em>ลำดับ</em> ความยากลำบากแทบไม่เปลี่ยน สิ่งที่เปลี่ยนคือระดับคะแนนและจำนวนที่ผ่าน
+    ดังนั้นการปรับสูตรต้องย้ายจุดตัดตามไปด้วย (คอลัมน์สุดท้าย) ไม่เช่นนั้นจำนวนโรงเรียนที่ได้สิทธิ์จะลดลงโดยไม่ตั้งใจ</p>
+  </div>
+
+  <h2>9. คุณภาพข้อมูลที่โค้ดเกณฑ์ใหม่ต้องรับมือ</h2>
+  <div class="card scroll">
+    <table>
+      <thead><tr><th>รายการตรวจ</th><th class="num">จำนวน</th><th class="num">สัดส่วน</th></tr></thead>
+      <tbody><tr><td>จำนวนนักเรียนรวม = 0</td><td class="num">1</td><td class="num">0.07%</td></tr><tr><td>ความสูง = 0 เมตร</td><td class="num">9</td><td class="num">0.61%</td></tr><tr><td>ความสูงจุดสูงสุด < ค่าเฉลี่ยความสูง</td><td class="num">59</td><td class="num">3.98%</td></tr><tr><td>ไม่มีพิกัด lat/lng</td><td class="num">3</td><td class="num">0.20%</td></tr><tr><td>ระยะทางถึงศาลากลาง = 0 กม.</td><td class="num">9</td><td class="num">0.61%</td></tr><tr><td>ไม่ได้เลือกแหล่งน้ำ</td><td class="num">1</td><td class="num">0.07%</td></tr><tr><td>นักเรียนยากจน > นักเรียนทั้งหมด</td><td class="num">19</td><td class="num">1.28%</td></tr><tr><td>นักเรียนพักนอน > นักเรียนทั้งหมด</td><td class="num">0</td><td class="num">0.00%</td></tr><tr><td>กรอกนักเรียนพักนอน > 0 แต่ไม่แนบหลักฐาน</td><td class="num">427</td><td class="num">28.83%</td></tr></tbody>
+    </table>
+  </div>
+
+  <h2>10. ภาพรายจังหวัด</h2>
+  <div class="card scroll">
+    
+<table>
+  <thead><tr><th>จังหวัด</th><th class="num">โรงเรียน</th><th class="num">คะแนนเฉลี่ย</th><th class="num">ผ่าน 70</th><th class="num">อัตราผ่าน</th><th class="num">คะแนนข้อ 1</th><th class="num">สาธารณูปโภค /15</th><th class="num">ผู้เรียน /20</th></tr></thead>
+  <tbody><tr><td>เชียงใหม่</td><td class="num">348</td>
+      <td class="num">65.90</td><td class="num">108</td><td class="num">31.0%</td>
+      <td class="num">29.65</td><td class="num">6.15</td><td class="num">11.82</td></tr><tr><td>แม่ฮ่องสอน</td><td class="num">301</td>
+      <td class="num">72.31</td><td class="num">179</td><td class="num">59.5%</td>
+      <td class="num">29.94</td><td class="num">7.64</td><td class="num">12.49</td></tr><tr><td>ตาก</td><td class="num">139</td>
+      <td class="num">68.71</td><td class="num">68</td><td class="num">48.9%</td>
+      <td class="num">29.56</td><td class="num">5.99</td><td class="num">11.52</td></tr><tr><td>น่าน</td><td class="num">132</td>
+      <td class="num">63.10</td><td class="num">24</td><td class="num">18.2%</td>
+      <td class="num">29.52</td><td class="num">6.20</td><td class="num">9.10</td></tr><tr><td>เชียงราย</td><td class="num">124</td>
+      <td class="num">70.29</td><td class="num">72</td><td class="num">58.1%</td>
+      <td class="num">29.64</td><td class="num">7.03</td><td class="num">13.20</td></tr><tr><td>เลย</td><td class="num">105</td>
+      <td class="num">56.65</td><td class="num">0</td><td class="num">0.0%</td>
+      <td class="num">29.71</td><td class="num">5.40</td><td class="num">3.23</td></tr><tr><td>กาญจนบุรี</td><td class="num">83</td>
+      <td class="num">64.71</td><td class="num">17</td><td class="num">20.5%</td>
+      <td class="num">26.15</td><td class="num">6.13</td><td class="num">11.31</td></tr><tr><td>ลำปาง</td><td class="num">59</td>
+      <td class="num">59.48</td><td class="num">5</td><td class="num">8.5%</td>
+      <td class="num">29.68</td><td class="num">6.42</td><td class="num">7.64</td></tr><tr><td>พะเยา</td><td class="num">43</td>
+      <td class="num">59.07</td><td class="num">3</td><td class="num">7.0%</td>
+      <td class="num">30.00</td><td class="num">5.37</td><td class="num">6.64</td></tr><tr><td>ลำพูน</td><td class="num">38</td>
+      <td class="num">60.13</td><td class="num">6</td><td class="num">15.8%</td>
+      <td class="num">29.87</td><td class="num">6.45</td><td class="num">8.65</td></tr><tr><td>เพชรบูรณ์</td><td class="num">35</td>
+      <td class="num">54.39</td><td class="num">1</td><td class="num">2.9%</td>
+      <td class="num">29.77</td><td class="num">4.77</td><td class="num">4.80</td></tr><tr><td>อุตรดิตถ์</td><td class="num">26</td>
+      <td class="num">60.61</td><td class="num">1</td><td class="num">3.9%</td>
+      <td class="num">29.93</td><td class="num">5.73</td><td class="num">4.19</td></tr><tr><td>พิษณุโลก</td><td class="num">26</td>
+      <td class="num">60.66</td><td class="num">3</td><td class="num">11.5%</td>
+      <td class="num">28.59</td><td class="num">6.77</td><td class="num">4.79</td></tr><tr><td>แพร่</td><td class="num">7</td>
+      <td class="num">59.59</td><td class="num">1</td><td class="num">14.3%</td>
+      <td class="num">29.56</td><td class="num">8.00</td><td class="num">7.90</td></tr><tr><td>เพชรบุรี</td><td class="num">4</td>
+      <td class="num">62.36</td><td class="num">0</td><td class="num">0.0%</td>
+      <td class="num">23.42</td><td class="num">6.75</td><td class="num">7.08</td></tr></tbody>
+</table>
+    <p>คะแนนข้อ 1 เฉลี่ยของทุกจังหวัดเกาะกลุ่มใกล้ 30 เท่ากันหมด — ความต่างที่แท้จริงระหว่างจังหวัดมาจากกลุ่มสาธารณูปโภคและกลุ่มผู้เรียน</p>
+  </div>
+
+  <p class="foot">สร้างจาก <code>scripts/analyze-legacy-items.mjs</code> → <code>scripts/report-legacy-html.mjs</code> ·
+  รายงานฉบับข้อความ: <code>docs/ANALYSIS-เกณฑ์เดิมรายข้อ.md</code> ·
+  ค่าคงที่สำหรับโค้ดเกณฑ์: <code>lib/legacy-baseline.ts</code></p>
+</div>
+<div id="tip" role="status"></div>
+<script>
+(() => {
+  const tip = document.getElementById("tip");
+  const show = (e) => {
+    const el = e.target.closest("[data-tip]");
+    if (!el) return;
+    tip.textContent = el.dataset.tip;
+    tip.style.opacity = "1";
+    const r = el.getBoundingClientRect();
+    const x = Math.min(window.innerWidth - 300, (e.clientX || r.left) + 12);
+    const y = (e.clientY || r.top) + 16;
+    tip.style.left = x + "px";
+    tip.style.top = y + "px";
+  };
+  const hide = () => { tip.style.opacity = "0"; };
+  document.addEventListener("mousemove", (e) => (e.target.closest("[data-tip]") ? show(e) : hide()));
+  document.addEventListener("focusin", show);
+  document.addEventListener("focusout", hide);
+})();
+</script>
+
+</body>
+</html>
