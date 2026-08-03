@@ -9,6 +9,9 @@ docs
 .agents
 .codex
 .claude
+.superpowers
+.github
+.worktrees
 .env
 .env.local
 .env.production
@@ -18,3 +21,19 @@ Dockerfile
 docker-compose.yml
 *.md
 !README.md
+
+# ข้อมูลดิบ/เอกสารไบนารีที่ไม่ได้ใช้ตอน build — เดิมถูกส่งเข้า build context ทั้งหมด (ssrainfo_ssra*.sql ~439MB
+# + legacy-tables-*.zip + คู่มือ .pdf/.docx รวม ~445MB ต่อการ build หนึ่งครั้ง)
+# db/schema.sql เป็นสคีมาอ้างอิงเท่านั้น ไม่มีโค้ดอ่าน (แอปสร้างตารางเองใน lib/db.ts) จึงตัดได้ปลอดภัย
+*.sql
+*.zip
+*.pdf
+*.docx
+
+# โปรเจกต์วิเคราะห์ข้อมูล/เครื่องมือ session ที่ไม่เกี่ยวกับแอป
+ssra-policy-report
+mcps
+
+# asset ของ Cesium ถูกคัดลอกใหม่โดย prebuild (scripts/copy-cesium.mjs) ระหว่าง build อยู่แล้ว
+public/cesium
+tsconfig.tsbuildinfo

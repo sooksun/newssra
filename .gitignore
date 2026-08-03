@@ -24,6 +24,8 @@ npm-debug.log*
 .env.local
 .env.production
 .env*.local
+# credential ฐานข้อมูลเดิม ssrainfo_ssra (สคริปต์วิเคราะห์) — ห้าม commit
+.env.newssra
 
 # typescript
 *.tsbuildinfo
@@ -45,3 +47,14 @@ npm-debug.log*
 
 # Claude Code scheduled-task lock (pid/sessionId ของ process ปัจจุบัน)
 /.claude/scheduled_tasks.lock
+
+# dump ของฐานเดิมที่ดาวน์โหลดมา (ไฟล์ใหญ่ ไม่เก็บใน git)
+/ssrainfo_ssra*.sql
+/*.sql
+
+# ข้อมูลจริงของระบบเดิมที่ export มาวิเคราะห์ (zip ตาราง legacy — มีข้อมูลสถานศึกษาจริงและตาราง `user`
+# ที่รหัสผ่านเป็น plaintext) ห้ามหลุดเข้า git เด็ดขาด — ระบุเฉพาะระดับ root เพื่อไม่กระทบ zip/pdf ใน docs/
+/legacy-tables-*.zip
+/*.zip
+/*.docx
+/*.pdf
