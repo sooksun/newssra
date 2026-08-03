@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getAssessment, saveAssessment } from "@/lib/repo";
+import { getAssessment, mutateAssessmentStateAtomic } from "@/lib/repo";
 import { requireAssessmentAccess } from "@/lib/api-auth";
 import { deleteAllSiteSnapshots, saveSiteSnapshot, sniffMimeType } from "@/lib/uploads";
 import { isAllowedMimeType, MAX_FILE_SIZE, MAX_SITE_SNAPSHOTS } from "@/lib/upload-constants";
 import { SNAPSHOT_VIEWS } from "@/lib/map/snapshotViews";
-import type { SnapshotFile } from "@/lib/types";
+import { SNAPSHOT_IMAGERY_SOURCES, SNAPSHOT_TERRAIN_SOURCES } from "@/lib/types";
+import type { SnapshotFile, SnapshotImagerySource, SnapshotTerrainSource } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,19 @@ export async function POST(request: NextRequest, { params }: Ctx) {
     viewKeys = [];
   }
 
+  // แหล่งภาพ/ภูมิประเทศตอนเรนเดอร์ — client เป็นผู้เดียวที่รู้ (เรนเดอร์เกิดในเบราว์เซอร์) แต่รับเฉพาะค่าที่
+  // อยู่ในรายการที่รู้จักเท่านั้น ค่านอกรายการ = ไม่บันทึก (ปล่อยว่าง) ดีกว่าบันทึกค่าที่เชื่อไม่ได้ลงหลักฐาน
+  const rawImagery = formData.get("imagerySource");
+  const imagerySource =
+    typeof rawImagery === "string" && (SNAPSHOT_IMAGERY_SOURCES as readonly string[]).includes(rawImagery)
+      ? (rawImagery as SnapshotImagerySource)
+      : undefined;
+  const rawTerrain = formData.get("terrainSource");
+  const terrainSource =
+    typeof rawTerrain === "string" && (SNAPSHOT_TERRAIN_SOURCES as readonly string[]).includes(rawTerrain)
+      ? (rawTerrain as SnapshotTerrainSource)
+      : undefined;
+
   const record = await getAssessment(assessmentId);
   if (!record) return NextResponse.json({ error: "ไม่พบแบบประเมิน" }, { status: 404 });
   if (record.state.submitted) {
@@ -86,10 +100,23 @@ export async function POST(request: NextRequest, { params }: Ctx) {
     const saved: SnapshotFile[] = [];
     for (const b of buffers) {
       const meta = await saveSiteSnapshot(assessmentId, b.name, b.mime, b.buffer);
-      saved.push({ ...meta, viewKey: b.viewKey, viewLabel: b.viewLabel });
+      saved.push({
+        ...meta,
+        viewKey: b.viewKey,
+        viewLabel: b.viewLabel,
+        ...(imagerySource ? { imagerySource } : {}),
+        ...(terrainSource ? { terrainSource } : {}),
+      });
     }
-    const nextState = { ...record.state, unit: { ...record.state.unit, siteSnapshots: saved } };
-    await saveAssessment(assessmentId, nextState);
+    // อ่าน state สดใต้ล็อกแล้วแตะเฉพาะ siteSnapshots — ระหว่างที่อัปโหลด/เขียนไฟล์อยู่ ผู้ใช้อาจ autosave
+    // ฟอร์มไปแล้ว การเขียนทั้งก้อนจากสำเนาที่อ่านไว้ตอนต้นคำขอจะย้อนคำตอบที่เพิ่งกรอกกลับไป
+    const stored = await mutateAssessmentStateAtomic(assessmentId, (current) =>
+      current.submitted ? null : { ...current, unit: { ...current.unit, siteSnapshots: saved } },
+    );
+    if (!stored.found) return NextResponse.json({ error: "ไม่พบแบบประเมิน" }, { status: 404 });
+    if (!stored.applied) {
+      return NextResponse.json({ error: "แบบประเมินถูกยื่นแล้ว แก้ไขภาพไม่ได้" }, { status: 409 });
+    }
     return NextResponse.json({ files: saved }, { status: 201 });
   } catch (error) {
     console.error("[api] site snapshot upload failed:", error);

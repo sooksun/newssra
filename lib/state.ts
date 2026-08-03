@@ -3,7 +3,14 @@
 import { currentBuddhistYear } from "./assessment-year";
 import { sanitizeGis } from "./gis";
 import { MAX_FILES_PER_INDICATOR, MAX_SITE_SNAPSHOTS } from "./upload-constants";
-import { FEEDBACK_OPINIONS, INDICATOR_IDS, SETTING_TYPES, UNIT_TYPES } from "./types";
+import {
+  FEEDBACK_OPINIONS,
+  INDICATOR_IDS,
+  SETTING_TYPES,
+  SNAPSHOT_IMAGERY_SOURCES,
+  SNAPSHOT_TERRAIN_SOURCES,
+  UNIT_TYPES,
+} from "./types";
 import type {
   AssessmentState,
   EvidenceFile,
@@ -14,6 +21,8 @@ import type {
   ResponseData,
   SettingType,
   SnapshotFile,
+  SnapshotImagerySource,
+  SnapshotTerrainSource,
   SubmittedInfo,
   TerrainSuggestion,
   UnitInfo,
@@ -97,8 +106,25 @@ function cleanSnapshotFiles(value: unknown): SnapshotFile[] {
       uploadedAt: cleanString(item.uploadedAt, 40),
       viewKey: cleanString(item.viewKey, 32),
       viewLabel: cleanString(item.viewLabel, 64),
+      // allowlist เข้ม: ค่านอกรายการ (หรือแถวเก่าที่ไม่มีฟีลด์นี้) → ไม่ใส่ key เลย
+      // ห้ามเดาเป็นค่า default เด็ดขาด — เท่ากับสร้างหลักฐานเท็จว่าภาพมาจากแหล่งที่ไม่รู้จริง
+      ...cleanSnapshotSource(item),
     }))
     .filter((f) => f.id.length > 0);
+}
+
+/** คัดเฉพาะ imagerySource/terrainSource ที่อยู่ในรายการที่รู้จัก — คืน object ว่างเมื่อไม่มี/ไม่ถูกต้อง */
+function cleanSnapshotSource(item: Record<string, unknown>): Partial<SnapshotFile> {
+  const out: Partial<SnapshotFile> = {};
+  const imagery = cleanString(item.imagerySource, 16);
+  if ((SNAPSHOT_IMAGERY_SOURCES as readonly string[]).includes(imagery)) {
+    out.imagerySource = imagery as SnapshotImagerySource;
+  }
+  const terrain = cleanString(item.terrainSource, 24);
+  if ((SNAPSHOT_TERRAIN_SOURCES as readonly string[]).includes(terrain)) {
+    out.terrainSource = terrain as SnapshotTerrainSource;
+  }
+  return out;
 }
 
 const CONFIDENCE_SET = ["high", "medium", "low"] as const;

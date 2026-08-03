@@ -163,6 +163,31 @@ describe("siteSnapshots — ภาพยืนยันที่ตั้ง (se
     assert.equal(s.unit.siteSnapshots![0].viewLabel, "มุมมองจากด้านบน");
   });
 
+  test("imagerySource/terrainSource — รับเฉพาะค่าที่รู้จัก", () => {
+    const s = sanitizeState({
+      unit: { siteSnapshots: [snap({ imagerySource: "google", terrainSource: "google-3dtiles" })] },
+    });
+    assert.equal(s.unit.siteSnapshots![0].imagerySource, "google");
+    assert.equal(s.unit.siteSnapshots![0].terrainSource, "google-3dtiles");
+  });
+
+  test("imagerySource/terrainSource นอก allowlist → ไม่งอก key (ห้ามเดาเป็นค่า default)", () => {
+    // ค่าปลอมต้องไม่กลายเป็นหลักฐานว่าภาพมาจากแหล่งใดแหล่งหนึ่ง — ไม่รู้ต้องเป็น "ไม่รู้"
+    const s = sanitizeState({
+      unit: { siteSnapshots: [snap({ imagerySource: "mapbox", terrainSource: "srtm" })] },
+    });
+    const f = s.unit.siteSnapshots![0];
+    assert.equal("imagerySource" in f, false);
+    assert.equal("terrainSource" in f, false);
+  });
+
+  test("แถวเก่าที่ไม่มีฟีลด์ที่มา → round-trip ไม่งอก key", () => {
+    const s = sanitizeState({ unit: { siteSnapshots: [snap()] } });
+    const f = s.unit.siteSnapshots![0];
+    assert.equal("imagerySource" in f, false);
+    assert.equal("terrainSource" in f, false);
+  });
+
   test("preserveServerOwned — siteSnapshots มาจาก DB, client แก้ไม่ได้", () => {
     const existing = makeBlankState();
     existing.unit.siteSnapshots = [snap()];

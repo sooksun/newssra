@@ -4,11 +4,20 @@
 // เก็บสถานะไว้ในคอมโพเนนต์นี้ล้วน ๆ (ไม่กระทบ state ของแบบประเมิน); ซ่อนทั้งบล็อกตอนพิมพ์ผ่าน .unit-snapshots
 
 import { useCallback, useEffect, useState } from "react";
+import { SNAPSHOT_IMAGERY_LABELS, SNAPSHOT_TERRAIN_LABELS } from "@/lib/types";
 import type { SnapshotFile } from "@/lib/types";
 
 interface Props {
   assessmentId: number;
   snapshots: SnapshotFile[];
+}
+
+/** บรรทัดที่มาของภาพ — ภาพที่จับก่อนมีการบันทึกฟีลด์นี้จะไม่มีค่า จึงแสดง "ไม่มีข้อมูล" ตามความจริง
+ *  (ไม่เดาว่าเป็น provider ปัจจุบัน — ผู้ตรวจต้องแยกออกว่าอันไหนรู้แน่กับอันไหนไม่รู้) */
+function sourceLine(s: SnapshotFile): string {
+  const imagery = s.imagerySource ? SNAPSHOT_IMAGERY_LABELS[s.imagerySource] : "ไม่มีข้อมูล";
+  const terrain = s.terrainSource ? SNAPSHOT_TERRAIN_LABELS[s.terrainSource] : "ไม่มีข้อมูล";
+  return `ภาพถ่าย: ${imagery} · ภูมิประเทศ: ${terrain}`;
 }
 
 export default function SiteSnapshotGallery({ assessmentId, snapshots }: Props) {
@@ -44,9 +53,12 @@ export default function SiteSnapshotGallery({ assessmentId, snapshots }: Props) 
 
   const srcOf = (s: SnapshotFile) => `/api/assessments/${assessmentId}/site-snapshots/${s.id}`;
   const current = openIndex === null ? null : snapshots[openIndex];
+  // ทั้งชุดจับพร้อมกันครั้งเดียวเสมอ (route แทนที่ทั้งชุด) จึงสรุปที่มาระดับชุดได้จากภาพแรก
+  const setSourceLine = sourceLine(snapshots[0]);
 
   return (
     <>
+      <p className="site-snapshot-source">{setSourceLine}</p>
       <div className="site-snapshot-gallery">
         {snapshots.map((s, i) => (
           <figure key={s.id} className="site-snapshot-item">
@@ -94,7 +106,11 @@ export default function SiteSnapshotGallery({ assessmentId, snapshots }: Props) 
               ›
             </button>
             <p className="snapshot-lightbox-caption">
-              {current.viewLabel} <span className="snapshot-lightbox-count">{openIndex! + 1} / {total}</span>
+              {current.viewLabel}{" "}
+              <span className="snapshot-lightbox-count">
+                {openIndex! + 1} / {total}
+              </span>
+              <span className="snapshot-lightbox-source">{sourceLine(current)}</span>
             </p>
             <div className="snapshot-lightbox-strip">
               {snapshots.map((s, i) => (

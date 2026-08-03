@@ -113,6 +113,25 @@ export interface EvidenceFile {
 }
 
 /** ภาพจับหน้าจอ 3D ยืนยันที่ตั้ง — metadata เท่านั้น; ไฟล์จริงอยู่ที่ uploads/{id}/__site/ (lib/uploads.ts) */
+/** แหล่งภาพถ่ายที่ใช้เรนเดอร์ภาพ 3D — บันทึกคู่กับไฟล์เพื่อให้ตรวจย้อนหลังได้ว่าหลักฐานมาจากอะไร */
+export const SNAPSHOT_IMAGERY_SOURCES = ["google", "ion", "esri"] as const;
+export type SnapshotImagerySource = (typeof SNAPSHOT_IMAGERY_SOURCES)[number];
+
+/** แหล่งภูมิประเทศที่ใช้เรนเดอร์ — terrarium คือ globe ปกติ, google-3dtiles คือ mesh ของ Google */
+export const SNAPSHOT_TERRAIN_SOURCES = ["terrarium", "google-3dtiles"] as const;
+export type SnapshotTerrainSource = (typeof SNAPSHOT_TERRAIN_SOURCES)[number];
+
+export const SNAPSHOT_IMAGERY_LABELS: Record<SnapshotImagerySource, string> = {
+  google: "Google Maps Satellite",
+  ion: "Cesium ion / Bing Maps",
+  esri: "Esri World Imagery",
+};
+
+export const SNAPSHOT_TERRAIN_LABELS: Record<SnapshotTerrainSource, string> = {
+  terrarium: "Terrarium (AWS Open Data)",
+  "google-3dtiles": "Google Photorealistic 3D Tiles",
+};
+
 export interface SnapshotFile {
   id: string;
   originalName: string;
@@ -124,6 +143,10 @@ export interface SnapshotFile {
   viewKey: string;
   /** ป้ายไทยของมุม เช่น "ใกล้–เหนือ" */
   viewLabel: string;
+  /** แหล่งภาพถ่าย/ภูมิประเทศตอนจับภาพ — optional เพราะภาพที่จับก่อนมีฟีลด์นี้จะไม่มีค่า
+   *  (แสดงเป็น "ไม่มีข้อมูล" แทนการเดา — ระบบนี้ห้ามแทนค่าที่ไม่รู้ด้วยค่าสมมติ) */
+  imagerySource?: SnapshotImagerySource;
+  terrainSource?: SnapshotTerrainSource;
 }
 
 /** คำแนะนำลักษณะที่ตั้งจาก AI (วิเคราะห์ภาพ 3D) — server-owned, optional (แถวเก่าไม่งอก key) */
