@@ -113,8 +113,8 @@ export const FOREST_STATUS_LABELS: Record<ForestOverlayStatus, string> = {
 };
 
 // endpoint ชุดเดียวกับ adminBoundaries / fetch-borders
-const OVERPASS_ENDPOINTS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
-const OVERPASS_TIMEOUT_MS = 30_000;
+export const OVERPASS_ENDPOINTS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter"];
+export const OVERPASS_TIMEOUT_MS = 30_000;
 const MIN_RING_POINTS = 4;
 
 /**
