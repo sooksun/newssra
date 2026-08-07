@@ -28,6 +28,22 @@ rsync -av --exclude node_modules --exclude .next --exclude data --exclude upload
 
 หรือ `git clone` ลงที่ path นั้นโดยตรงก็ได้
 
+### ชั้นแนวเขตป่า (ต้องคัดลอกแยก — ไม่อยู่ใน git)
+
+`data/` ถูก gitignore ทั้งก้อน ชั้นป่าทั้งสองชุด (สภาพป่าจริง ~152 MB + แนวเขตป่าสงวน ~30 MB รวม ~182 MB) จึง **ไม่ติดไปกับ repo หรือ image**
+ถ้าไม่คัดลอกขึ้นเซิร์ฟเวอร์ แอปจะยังทำงานปกติแต่ตอบว่า "ไม่มีข้อมูลเขตป่า" ทุกโรงเรียน
+(ระบบออกแบบให้ล้มแบบปลอดภัย — ไม่เดาว่า "ไม่อยู่ในป่า") ทำให้เกณฑ์ที่ใช้ชั้นป่าไม่ทำงานเงียบ ๆ
+
+```bash
+rsync -av ./data/forest-status/ user@SERVER:/DATA/AppData/www/newssra/data/forest-status/
+```
+
+ต้องมี `manifest.json` ติดไปด้วยเสมอ — ไฟล์นี้คือคำรับรองว่าชุดข้อมูลติดตั้งครบทั้งประเทศ
+ซึ่งเป็นเงื่อนไขเดียวที่ทำให้ระบบแปล "ไม่พบ cell" ว่า "ไม่มีป่าสงวนแถวนั้นจริง" แทน "ข้อมูลขาด"
+`docker-compose.yml` mount โฟลเดอร์นี้เข้า container แบบอ่านอย่างเดียวไว้แล้ว
+
+ตรวจหลัง deploy: `curl -s 'http://SERVER:9950/api/forest-status?lat=19.05&lng=100.65'` ต้องได้ `"available":true`
+
 ## 3. ตั้งค่า .env.production (ทำเองครั้งเดียว)
 
 ```bash

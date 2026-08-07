@@ -169,6 +169,38 @@ export function communityFlags(state: AssessmentState): Flag[] {
     });
   }
 
+  // V27 / V28 — ทับซ้อนแนวเขตป่า (info เท่านั้น; OSM = อ้างอิง ไม่ใช่ประตูคะแนน)
+  const forest = gis.forestOverlay;
+  if (forest?.status === "in") {
+    const names = forest.zones
+      .filter((z) => z.relation === "in")
+      .map((z) => z.name)
+      .slice(0, 3)
+      .join(", ");
+    const auth =
+      forest.dataAuthority === "authoritative"
+        ? "ชั้นทางการ"
+        : "อ้างอิง OpenStreetMap — ยังไม่ใช่ชั้นประกาศราชการ";
+    items.push({
+      code: "V27",
+      id: null,
+      tone: "info",
+      text: `พิกัดโรงเรียนทับแนวเขตป่า/พื้นที่คุ้มครอง${names ? ` (${names})` : ""} · ${auth}`,
+    });
+  } else if (forest?.status === "near") {
+    const d = forest.nearestDistanceM;
+    const auth =
+      forest.dataAuthority === "authoritative"
+        ? "ชั้นทางการ"
+        : "อ้างอิง OpenStreetMap — ยังไม่ใช่ชั้นประกาศราชการ";
+    items.push({
+      code: "V28",
+      id: null,
+      tone: "info",
+      text: `พิกัดโรงเรียนชิดแนวเขตป่า${d !== null ? ` (ระยะใกล้สุด ${d.toLocaleString("th-TH")} ม.)` : ""} · ${auth}`,
+    });
+  }
+
   return items;
 }
 

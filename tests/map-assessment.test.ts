@@ -108,6 +108,58 @@ test("applyMapGisToState keeps existing areaSummary/radiusSummaries when the new
   assert.equal(next.gis?.radiusSummaries?.length, 1);
 });
 
+test("applyMapGisToState keeps existing sectorElevations/sectorConfig when the new gis payload omits them", () => {
+  const existing = makeBlankState();
+  existing.gis = {
+    ...gis,
+    sectorElevations: [
+      {
+        sector: "N",
+        highest: { lat: 18.71, lng: 98.9, elevationM: 1400, deltaFromSchoolM: 200, meetsThreshold: true },
+        lowest: { lat: 18.705, lng: 98.9, elevationM: 1100, deltaFromSchoolM: -100, meetsThreshold: true },
+        reliefM: 300,
+        aboveThreshold: true,
+      },
+    ],
+    sectorConfig: {
+      radiusM: 1000,
+      thresholdM: 50,
+      schoolElevationM: 1200,
+      schoolElevationSource: "route-profile",
+    },
+  };
+  const next = applyMapGisToState(existing, gis, { syncUnitLocation: false });
+  assert.equal(next.gis?.sectorElevations?.length, 1);
+  assert.equal(next.gis?.sectorElevations?.[0].reliefM, 300);
+  assert.equal(next.gis?.sectorConfig?.schoolElevationM, 1200);
+});
+
+test("applyMapGisToState ใช้ธง 8 ทิศชุดใหม่เมื่อ payload ส่งมา (ไม่ค้างของเดิม)", () => {
+  const existing = makeBlankState();
+  existing.gis = {
+    ...gis,
+    sectorElevations: [{ sector: "N", highest: null, lowest: null, reliefM: null, aboveThreshold: false }],
+  };
+  const next = applyMapGisToState(
+    existing,
+    {
+      ...gis,
+      sectorElevations: [
+        {
+          sector: "S",
+          highest: { lat: 18.69, lng: 98.9, elevationM: 900, deltaFromSchoolM: 0, meetsThreshold: false },
+          lowest: { lat: 18.688, lng: 98.9, elevationM: 880, deltaFromSchoolM: -20, meetsThreshold: false },
+          reliefM: 20,
+          aboveThreshold: false,
+        },
+      ],
+    },
+    { syncUnitLocation: false },
+  );
+  assert.equal(next.gis?.sectorElevations?.length, 1);
+  assert.equal(next.gis?.sectorElevations?.[0].sector, "S");
+});
+
 const MASTER = { code: "57000001", name: "บ้านพญาไพร", province: "เชียงราย", lat: 20.32174, lng: 99.61929 };
 
 test("fillBlankUnitFromMaster fills blank name/code/province/year/lat/lng from master data", () => {

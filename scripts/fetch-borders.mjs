@@ -13,6 +13,7 @@
 // ลิขสิทธิ์ข้อมูล: ODbL 1.0 — ต้องแสดงเครดิต "© OpenStreetMap contributors" ในหน้าที่ใช้งาน
 
 import { writeFileSync, mkdirSync } from "node:fs";
+import { roundCoords, simplify } from "./geo-simplify.mjs";
 import { dirname, resolve } from "node:path";
 
 const OVERPASS_ENDPOINTS = [
@@ -31,7 +32,6 @@ const NEIGHBORS = [
 ];
 
 const LABEL_OFFSET_M = 45_000; // ระยะเลื่อนป้ายออกจากเส้นชายแดนเข้าไปฝั่งเพื่อนบ้าน
-const COORD_DECIMALS = 5; // ~1.1 ม. — ละเอียดพอสำหรับ tolerance 50 ม.
 
 function parseArgs(argv) {
   const args = { tolerance: 50, out: "public/geo/sea-borders.json" };
@@ -165,67 +165,6 @@ function chainWays(ways) {
   }
 
   return chains.sort((a, b) => chainLengthM(b) - chainLengthM(a));
-}
-
-// Douglas–Peucker บนระนาบท้องถิ่น (เมตร) โดยอิงละติจูดเฉลี่ยของเส้น
-function simplify(chain, toleranceM) {
-  if (toleranceM <= 0 || chain.length < 3) return chain;
-  const lat0 = chain.reduce((s, p) => s + p[1], 0) / chain.length;
-  const kx = (Math.PI / 180) * R * Math.cos(rad(lat0));
-  const ky = (Math.PI / 180) * R;
-  const xy = chain.map(([lng, lat]) => [lng * kx, lat * ky]);
-
-  const keep = new Uint8Array(chain.length);
-  keep[0] = 1;
-  keep[chain.length - 1] = 1;
-  const stack = [[0, chain.length - 1]];
-
-  while (stack.length) {
-    const [first, last] = stack.pop();
-    if (last - first < 2) continue;
-    const [ax, ay] = xy[first];
-    const [bx, by] = xy[last];
-    const dx = bx - ax;
-    const dy = by - ay;
-    const len2 = dx * dx + dy * dy;
-
-    let farIndex = -1;
-    let farDist = toleranceM;
-    for (let i = first + 1; i < last; i += 1) {
-      const [px, py] = xy[i];
-      let dist;
-      if (len2 === 0) {
-        dist = Math.hypot(px - ax, py - ay);
-      } else {
-        let t = ((px - ax) * dx + (py - ay) * dy) / len2;
-        t = Math.max(0, Math.min(1, t));
-        dist = Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
-      }
-      if (dist > farDist) {
-        farDist = dist;
-        farIndex = i;
-      }
-    }
-
-    if (farIndex !== -1) {
-      keep[farIndex] = 1;
-      stack.push([first, farIndex], [farIndex, last]);
-    }
-  }
-
-  return chain.filter((_, i) => keep[i]);
-}
-
-function roundCoords(chain) {
-  const f = 10 ** COORD_DECIMALS;
-  const out = [];
-  for (const [lng, lat] of chain) {
-    const p = [Math.round(lng * f) / f, Math.round(lat * f) / f];
-    const last = out[out.length - 1];
-    if (last && last[0] === p[0] && last[1] === p[1]) continue; // ปัดแล้วซ้ำจุดเดิม
-    out.push(p);
-  }
-  return out;
 }
 
 // วางป้ายชื่อประเทศฝั่งเพื่อนบ้าน: จากจุดกึ่งกลางเส้นที่ยาวที่สุด เลื่อนตั้งฉากออกไป

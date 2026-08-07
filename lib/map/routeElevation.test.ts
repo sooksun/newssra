@@ -5,6 +5,7 @@ import {
   formatElevationMeters,
   formatRouteHighestLabel,
   routeElevationSampleCoordinates,
+  routeMountainPercent,
   sampleRouteCoordinates,
   type RouteCoordinate,
 } from "./routeElevation";
@@ -85,4 +86,40 @@ test("buildRouteElevationProfile never converts missing terrain to zero", () => 
 
 test("formatElevationMeters rounds and formats metres for Thai UI", () => {
   assert.equal(formatElevationMeters(1245.6), "1,246 ม.");
+});
+
+// ── % ของเส้นทางที่เป็นภูเขา ─────────────────────────────────────────────────
+// ตอบคำถาม "เส้นทางเข้าโรงเรียนผ่านภูมิประเทศภูเขากี่เปอร์เซ็นต์" ซึ่งต่างจาก
+// จุดสูงสุด (ยอดเดียว) และต่างจากความสูงสะสม (นับทุกเนินเล็กรวมกัน)
+
+test("routeMountainPercent นับสัดส่วนจุดที่สูงถึงเกณฑ์ภูเขา", () => {
+  assert.equal(routeMountainPercent([100, 200, 600, 700], 500), 50);
+  assert.equal(routeMountainPercent([600, 700, 800, 900], 500), 100);
+  assert.equal(routeMountainPercent([100, 200, 300], 500), 0);
+});
+
+test("routeMountainPercent นับที่ค่าเท่าเกณฑ์พอดีว่าเป็นภูเขา", () => {
+  assert.equal(routeMountainPercent([500, 100], 500), 50);
+});
+
+test("routeMountainPercent ข้ามค่าที่อ่านไม่ได้ ไม่นับเป็น 0 เมตร", () => {
+  // NaN = สุ่ม DEM ไม่สำเร็จ — ถ้านับเป็น 0 จะทำให้ % ภูเขาต่ำกว่าจริง
+  assert.equal(routeMountainPercent([600, Number.NaN, 700], 500), 100);
+});
+
+test("routeMountainPercent ไม่มีตัวอย่างที่ใช้ได้เลย → null (ไม่ใช่ 0)", () => {
+  assert.equal(routeMountainPercent([], 500), null);
+  assert.equal(routeMountainPercent([Number.NaN, Number.NaN], 500), null);
+});
+
+test("buildRouteElevationProfile แนบ % ภูเขามาด้วย", () => {
+  const coords: RouteCoordinate[] = [
+    [98, 18],
+    [98.1, 18.1],
+    [98.2, 18.2],
+    [98.3, 18.3],
+  ];
+  const profile = buildRouteElevationProfile(coords, [300, 900, 1100, 1200], { mountainThresholdM: 500 });
+  assert.equal(profile.mountainPct, 75);
+  assert.equal(profile.schoolElevationM, 1200);
 });

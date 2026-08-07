@@ -44,6 +44,7 @@ import {
 } from "@/lib/map/cesium-config";
 import { tilesetReady, withPhotorealisticTiles } from "@/lib/map/photorealistic3d";
 import type { SnapshotTerrainSource } from "@/lib/types";
+import type { NoRouteReason } from "@/lib/gis";
 import { createTerrariumTerrainProvider, sampleCesiumGrid, sampleCesiumPoints } from "@/lib/map/cesiumTerrain";
 import {
   ESRI_MAX_REQUEST_LEVEL,
@@ -70,7 +71,14 @@ import {
   type LabelBox,
   type LabelPlacement,
 } from "@/lib/map/labelDeclutter";
-import { fetchBuildings, fetchNearestProvince, fetchOsrmRoutes } from "@/lib/map/mapApi";
+import {
+  fetchBuildings,
+  fetchFootLeg,
+  fetchNearestProvince,
+  fetchOsrmRoutes,
+  footRoutingEnabled,
+  type FootLeg,
+} from "@/lib/map/mapApi";
 import { searchPlaces, resolvePlaceHit, reverseProvince, type PlaceHit } from "@/lib/map/placeSearch";
 import {
   buildRouteElevationProfile,
@@ -88,6 +96,7 @@ import {
   derive32Severity,
   elevationGainLoss,
   MAX_ASSESSMENT_RELOCATION_M,
+  MAX_ROUTE_SNAP_M,
   settlementClass,
   type SettlementTone,
 } from "@/lib/gis";
@@ -97,8 +106,51 @@ import GisAssessmentPanel, { GisDestAddBar, MAX_GIS_DESTINATIONS } from "@/compo
 import MapPanelToggle from "@/components/map/MapPanelToggle";
 import MapStep from "@/components/map/MapStep";
 import type { MapAssessmentSaveAction, MapAssessmentSaveResponse } from "@/lib/map-assessment";
+import {
+  ADMIN_ATTRIBUTION,
+  ADMIN_FETCH_RADIUS_M,
+  ADMIN_KIND_LABELS,
+  fetchAdminBoundaries,
+} from "@/lib/map/adminBoundaries";
+import type { AdminBoundary, AdminKind } from "@/lib/map/adminBoundaries";
+import {
+  buildForestAnalysis,
+  type ForestAnalysis,
+  type ForestLegalLayer,
+  type ForestStatusLayer,
+  type ForestTypeLayer,
+} from "@/lib/forest-layers";
+import {
+  FOREST_ATTRIBUTION,
+  FOREST_FETCH_RADIUS_M,
+  FOREST_KIND_LABELS,
+  FOREST_STATUS_LABELS,
+  classifyForestOverlay,
+  fetchForestBoundaries,
+} from "@/lib/map/forestBoundaries";
+import type { ForestBoundary, ForestOverlayResult, ForestZoneKind } from "@/lib/map/forestBoundaries";
+import { findTambonAt, loadTambonIndex, loadTambonProvince, provincesForPoint } from "@/lib/map/tambonBoundaries";
+import type { TambonBoundary } from "@/lib/map/tambonBoundaries";
+import { laoFullName, LAO_KIND_LABELS, loadLaoOffices, officesNear } from "@/lib/map/laoOffices";
+import type { LaoKind, LaoOfficeNearby } from "@/lib/map/laoOffices";
+import {
+  deriveSectorMetrics,
+  sectorElevationsFromGrid,
+  sectorFlagLines,
+  sectorFlagVisible,
+  SECTOR_LABELS_TH,
+  SECTOR_RADIUS_M,
+  SECTOR_RELIEF_K_M,
+} from "@/lib/gis-sectors";
 import { GIS_DESTINATION_LABELS } from "@/lib/types";
-import type { GisAnalysis, GisAreaSummary, GisDestinationType, GisRouteAnalysis } from "@/lib/types";
+import type {
+  GisAnalysis,
+  GisAreaSummary,
+  GisDestinationType,
+  GisRouteAnalysis,
+  GisSectorConfig,
+  GisSectorElevation,
+} from "@/lib/types";
 import { overviewFitRangeM, SNAPSHOT_VIEWS } from "@/lib/map/snapshotViews";
 import { captureCurrentView, dataUrlToBlob, waitForTilesLoaded } from "@/lib/map/snapshotCapture";
 import type { SchoolPin } from "@/lib/school-pins";
@@ -165,6 +217,52 @@ const RED_FLAG_ICON = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 44"><path d="M9 41V4" stroke="white" stroke-width="5" stroke-linecap="round"/><path d="M9 5h22l-6 8 6 8H9z" fill="#dc2626" stroke="white" stroke-width="2" stroke-linejoin="round"/><circle cx="9" cy="41" r="3" fill="#7f1d1d" stroke="white" stroke-width="2"/></svg>',
 )}`;
 
+// ธงจุดสูงสุด (ม่วง) / ต่ำสุด (ฟ้า) ราย 8 ทิศ ในรัศมี SECTOR_RADIUS_M — ทรงเดียวกับธงแดงเพื่อให้อ่านเป็นชุดเดียวกัน
+const SECTOR_HIGH_FLAG_ICON = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 44"><path d="M9 41V4" stroke="white" stroke-width="5" stroke-linecap="round"/><path d="M9 5h22l-6 8 6 8H9z" fill="#7c3aed" stroke="white" stroke-width="2" stroke-linejoin="round"/><circle cx="9" cy="41" r="3" fill="#4c1d95" stroke="white" stroke-width="2"/></svg>',
+)}`;
+const SECTOR_LOW_FLAG_ICON = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 44"><path d="M9 41V4" stroke="white" stroke-width="5" stroke-linecap="round"/><path d="M9 5h22l-6 8 6 8H9z" fill="#0ea5e9" stroke="white" stroke-width="2" stroke-linejoin="round"/><circle cx="9" cy="41" r="3" fill="#075985" stroke="white" stroke-width="2"/></svg>',
+)}`;
+// สีเส้นเขตเทศบาลแต่ละประเภท — เลี่ยงสีที่ใช้ไปแล้ว (วงรัศมีเขียว/เหลือง/แดง, เส้นทางน้ำเงิน,
+// เส้นตรงอำพัน, ธง 8 ทิศม่วง/ฟ้า) เพื่อไม่ให้ผู้ใช้อ่านสับสนว่าเป็นชั้นข้อมูลเดียวกัน
+const ADMIN_KIND_COLORS: Record<AdminKind, string> = {
+  nakhon: "#be185d",
+  mueang: "#c2410c",
+  tambon: "#0d9488",
+  special: "#6b21a8",
+};
+
+/** สีเส้น/พื้นแนวเขตป่า แยกชนิด — โทนเขียว/ฟ้าให้ต่างจากเทศบาล */
+const FOREST_KIND_COLORS: Record<ForestZoneKind, string> = {
+  national_reserved_forest: "#166534",
+  national_park: "#15803d",
+  wildlife_sanctuary: "#0f766e",
+  non_hunting: "#3f6212",
+  forest_park: "#65a30d",
+  botanical_garden: "#84cc16",
+  arboretum: "#a3e635",
+  community_forest: "#4d7c0f",
+  mangrove_forest: "#0e7490",
+  biosphere_reserve: "#0369a1",
+  wetland_protected: "#0284c7",
+  watershed_protected: "#1d4ed8",
+  other_protected: "#4d7c0f",
+  unclassified: "#365314",
+};
+
+// รัศมีค้นหาสำนักงาน อปท. รอบจุดวิเคราะห์ (ม.) — กว้างพอให้เห็นทั้ง อปท. ที่ครอบและที่ติดกัน
+const LAO_NEARBY_RADIUS_M = 20_000;
+
+// สีหมุดสำนักงาน อปท. แยกตามประเภท — โทนเดียวกับเส้นเขตเทศบาลของ OSM เพื่อให้อ่านเป็นเรื่องเดียวกัน
+const LAO_KIND_COLORS: Record<LaoKind, string> = {
+  nakhon: "#be185d",
+  mueang: "#c2410c",
+  thesaban_tambon: "#0d9488",
+  sao: "#4d7c0f",
+  special: "#6b21a8",
+};
+
 // หมุดจุดสูงสุดที่ผู้ใช้ชี้เอง — ธงส้มเข้ม แยกจากธงแดง (จุดโรงเรียน/จุดสูงสุดของเส้นทางที่ระบบคำนวณ)
 // เพื่อไม่ให้เข้าใจผิดว่าเป็นค่าที่บันทึกลงแบบประเมิน
 const MANUAL_HIGH_FLAG_ICON = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
@@ -181,8 +279,10 @@ const LABEL_PRIORITY = {
   elevation: 1, // จุดสูงสุดบนเส้นทาง / จุดที่ชี้เอง
   place: 2, // ศาลากลางจังหวัด, หมุดผลค้นหา
   destination: 3, // จุดหมายวิเคราะห์ (อำเภอ/รพ.)
-  overviewSchool: 4, // ชื่อโรงเรียนในมุมมองทั้งประเทศ (มีจำนวนมาก)
-  country: 5, // ชื่อประเทศเพื่อนบ้าน
+  sector: 4, // ธงสูงสุด/ต่ำสุด 8 ทิศ (16 ป้าย — ต้องยอมหลบป้ายหลักเมื่อทับกัน)
+  admin: 5, // ชื่อเขตเทศบาล (overlay อ้างอิง เปิดเองเมื่อต้องการ)
+  overviewSchool: 6, // ชื่อโรงเรียนในมุมมองทั้งประเทศ (มีจำนวนมาก)
+  country: 7, // ชื่อประเทศเพื่อนบ้าน
 } as const;
 
 /** ป้ายข้อความของหมุดบนแผนที่ — วาดเป็นรูปเดียวแล้วแปะเป็น billboard
@@ -335,6 +435,8 @@ interface RouteAlt {
   coords: [number, number][];
   distanceM: number;
   durationS: number;
+  /** ระยะที่เครื่องคำนวณเส้นทางย้ายปลายทางไปเกาะถนน (ม.) — ดู OsrmRoute.destSnapM */
+  destSnapM: number | null;
 }
 
 /** โหมดวิเคราะห์แบบประเมิน — ส่งมาจาก app/map/page.tsx เมื่อเปิดด้วย ?assessment=ID (ผ่านการตรวจสิทธิ์แล้ว) */
@@ -544,6 +646,11 @@ export default function CesiumMap({
   const buildingsDsRef = useRef<CustomDataSource | null>(null);
   const ringsDsRef = useRef<CustomDataSource | null>(null); // วงรัศมี 500/1000/1500 ม. รอบจุดวิเคราะห์
   const bordersDsRef = useRef<CustomDataSource | null>(null); // แนวชายแดน + ป้ายชื่อประเทศ
+  const sectorsDsRef = useRef<CustomDataSource | null>(null); // ธงจุดสูงสุด/ต่ำสุด 8 ทิศ
+  const adminDsRef = useRef<CustomDataSource | null>(null); // เขตเทศบาล (overlay อ้างอิง)
+  const forestDsRef = useRef<CustomDataSource | null>(null); // แนวเขตป่า / พื้นที่คุ้มครอง
+  const tambonDsRef = useRef<CustomDataSource | null>(null); // ขอบเขตตำบล (COD-AB)
+  const laoDsRef = useRef<CustomDataSource | null>(null); // หมุดสำนักงาน อปท. (ทะเบียน สถ.)
   const schoolPinsDsRef = useRef<CustomDataSource | null>(null); // หมุดภาพรวมโรงเรียน (admin โหมดทั้งประเทศ)
   const manualHighDsRef = useRef<CustomDataSource | null>(null); // หมุดจุดสูงสุดที่ผู้ใช้คลิกขวาชี้เอง (ดูค่าอย่างเดียว)
   const routeCoordsRef = useRef<[number, number][] | null>(null); // [lng,lat][] เก็บไว้ให้ runAnalysis สุ่มความสูง 5 กม.สุดท้าย
@@ -574,6 +681,11 @@ export default function CesiumMap({
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeErr, setRouteErr] = useState("");
   const [routeBorderNote, setRouteBorderNote] = useState(""); // แจ้งเมื่อมีเส้นทางข้ามพรมแดนถูกคัดออก
+  // เหตุที่ไม่มีเส้นทางศาลากลางให้ใช้ (null = มีเส้นทางปกติ) — ส่งไป server เพื่อบันทึกเป็นหลักฐาน
+  // แทนการบล็อกไม่ให้บันทึก ซึ่งเดิมทำให้โรงเรียนที่ถนนเข้าไม่ถึงจริงใช้ระบบไม่ได้เลย
+  const [noProvinceRouteReason, setNoProvinceRouteReason] = useState<NoRouteReason | null>(null);
+  // ช่วงเดินเท้าจากปลายถนนถึงโรงเรียน (null = ไม่ต้องเดิน หรือหาไม่ได้/ยังไม่ตั้งค่า host เดินเท้า)
+  const [walkLeg, setWalkLeg] = useState<FootLeg | null>(null);
   // เส้นทางทางเลือกจาก OSRM (alternatives) + เส้นที่ผู้ใช้เลือกไว้ — ผู้ใช้กดปุ่มสลับได้ และ routeCoordsRef ใช้เส้นที่เลือก
   const [routeAlternatives, setRouteAlternatives] = useState<RouteAlt[]>([]);
   const [selectedRouteIdx, setSelectedRouteIdx] = useState(0);
@@ -606,6 +718,40 @@ export default function CesiumMap({
   } | null>(null);
   const [ringsLoading, setRingsLoading] = useState(false);
   const [ringsErr, setRingsErr] = useState("");
+  // ธงจุดสูงสุด/ต่ำสุด 8 ทิศ — จุดมาจากกริดชุดเดียวกับ runAnalysis (ไม่ยิง terrain เพิ่ม)
+  // เก็บเฉพาะ "จุดดิบ" ไว้ ส่วนค่าที่อิงความสูงโรงเรียนคำนวณตอนใช้งาน เพราะ route profile
+  // อาจมาถึงหลังการวิเคราะห์กริดเสร็จ — ถ้า freeze ค่าไว้ ส่วนต่างจะค้างที่ค่าเซลล์กลางกริดตลอด
+  const [sectorScan, setSectorScan] = useState<{
+    sectors: GisSectorElevation[];
+    gridCenterElevationM: number | null;
+  } | null>(null);
+  const [showSectorFlags, setShowSectorFlags] = useState(true);
+  // เขตเทศบาลรอบจุดวิเคราะห์ — ปิดเป็นค่าเริ่มต้นเพราะดึงสดจาก Overpass (บริการฟรี มีการจำกัดอัตรา)
+  const [showAdminBoundaries, setShowAdminBoundaries] = useState(false);
+  const [adminBoundaries, setAdminBoundaries] = useState<AdminBoundary[] | null>(null);
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [adminErr, setAdminErr] = useState("");
+  // แนวเขตป่า / พื้นที่คุ้มครอง (OSM อ้างอิง) — ปิดเป็นค่าเริ่มต้น; ผลทับซ้อนเก็บใน forestOverlay
+  const [showForestBoundaries, setShowForestBoundaries] = useState(false);
+  const [forestBoundaries, setForestBoundaries] = useState<ForestBoundary[] | null>(null);
+  const [forestOverlay, setForestOverlay] = useState<ForestOverlayResult | null>(null);
+  const [forestLoading, setForestLoading] = useState(false);
+  const [forestErr, setForestErr] = useState("");
+  // ชั้นสถานภาพป่า (กรมป่าไม้) จาก /api/forest-status — null = ยังไม่โหลดหรือไม่มีไฟล์ cells
+  const [forestStatusLayer, setForestStatusLayer] = useState<ForestStatusLayer | null>(null);
+  const [forestTypeLayer, setForestTypeLayer] = useState<ForestTypeLayer | null>(null);
+  const [forestLegalFromRfd, setForestLegalFromRfd] = useState<ForestLegalLayer | null>(null);
+  const [forestStatusAvailable, setForestStatusAvailable] = useState<boolean | null>(null);
+  const [forestStatusNote, setForestStatusNote] = useState("");
+  // ขอบเขตตำบล (COD-AB) — ตอบได้ว่าจุดที่ตั้งอยู่ตำบล/อำเภอใด ต่างจากชั้น OSM ที่ครอบคลุมไม่ครบ
+  const [showTambon, setShowTambon] = useState(false);
+  const [tambonHere, setTambonHere] = useState<TambonBoundary | null>(null);
+  const [tambonList, setTambonList] = useState<TambonBoundary[] | null>(null);
+  const [tambonErr, setTambonErr] = useState("");
+  // หมุดสำนักงาน อปท. จากทะเบียนกรมส่งเสริมการปกครองท้องถิ่น (ครบทุกแห่ง ไม่ใช่ขอบเขต)
+  const [showLaoOffices, setShowLaoOffices] = useState(false);
+  const [laoNearby, setLaoNearby] = useState<LaoOfficeNearby[] | null>(null);
+  const [laoErr, setLaoErr] = useState("");
   const [showBorders, setShowBorders] = useState(true); // แสดงแนวชายแดน + ชื่อประเทศ
   const [bordersErr, setBordersErr] = useState("");
   const [bordersCredit, setBordersCredit] = useState(""); // เครดิตแหล่งข้อมูล (ODbL บังคับให้แสดง)
@@ -787,6 +933,26 @@ export default function CesiumMap({
     void viewer.dataSources.add(bordersDs);
     bordersDsRef.current = bordersDs;
 
+    const sectorsDs = new CustomDataSource("sectors");
+    void viewer.dataSources.add(sectorsDs);
+    sectorsDsRef.current = sectorsDs;
+
+    const adminDs = new CustomDataSource("admin");
+    void viewer.dataSources.add(adminDs);
+    adminDsRef.current = adminDs;
+
+    const forestDs = new CustomDataSource("forest");
+    void viewer.dataSources.add(forestDs);
+    forestDsRef.current = forestDs;
+
+    const tambonDs = new CustomDataSource("tambon");
+    void viewer.dataSources.add(tambonDs);
+    tambonDsRef.current = tambonDs;
+
+    const laoDs = new CustomDataSource("lao");
+    void viewer.dataSources.add(laoDs);
+    laoDsRef.current = laoDs;
+
     const schoolPinsDs = new CustomDataSource("schoolPins");
     void viewer.dataSources.add(schoolPinsDs);
     schoolPinsDsRef.current = schoolPinsDs;
@@ -830,6 +996,11 @@ export default function CesiumMap({
       gisDsRef.current = null;
       ringsDsRef.current = null;
       bordersDsRef.current = null;
+      sectorsDsRef.current = null;
+      adminDsRef.current = null;
+      forestDsRef.current = null;
+      tambonDsRef.current = null;
+      laoDsRef.current = null;
       schoolPinsDsRef.current = null;
       imageryLayerRef.current = null;
       viewerRef.current = null;
@@ -1054,8 +1225,12 @@ export default function CesiumMap({
           routeCoordsRef.current = null;
           setRoute(null);
           setRouteErr(borderBlockedMessage(blocked.map((b) => b.crossing)));
+          // ยังบันทึกแบบประเมินได้ — เก็บ "เหตุที่ไม่มีเส้นทาง" ไปกับ payload แทนตัวเลขที่ไม่มีจริง
+          setNoProvinceRouteReason(blocked.length > 0 ? "border-blocked" : "no-route");
+          setWalkLeg(null);
           return;
         }
+        setNoProvinceRouteReason(null);
         if (blocked.length > 0) {
           const countries = Array.from(new Set(blocked.map((b) => b.crossing.countryTh))).join(" / ");
           setRouteBorderNote(
@@ -1066,10 +1241,29 @@ export default function CesiumMap({
         setSelectedRouteIdx(0);
         routeCoordsRef.current = domestic[0].coords; // เส้นแรกเป็นค่าเริ่มต้นให้ runAnalysis สุ่มความสูง 5 กม.สุดท้าย
         setRoute({ distanceM: domestic[0].distanceM, durationS: domestic[0].durationS });
+
+        // ถนนไปไม่ถึงโรงเรียน → ต่อช่วงเดินเท้าจากปลายถนน (ถ้าตั้งค่า host เดินเท้าไว้)
+        // เป็นข้อมูลเสริม: หาไม่ได้ก็ปล่อยเป็น null แล้วระบบจะบันทึกสถานะ snapped-far ตามเดิม
+        const first = domestic[0];
+        const needsWalk = first.destSnapM !== null && first.destSnapM > MAX_ROUTE_SNAP_M;
+        if (!needsWalk || !first.destSnapLngLat || !footRoutingEnabled()) {
+          setWalkLeg(null);
+          return;
+        }
+        void fetchFootLeg(
+          first.destSnapLngLat[0],
+          first.destSnapLngLat[1],
+          center.lng,
+          center.lat,
+          controller.signal,
+        ).then((leg) => {
+          if (!controller.signal.aborted) setWalkLeg(leg);
+        });
       })
       .catch((e: unknown) => {
         if (controller.signal.aborted) return;
         setRouteErr(e instanceof Error ? e.message : "โหลดเส้นทางรถยนต์ไม่สำเร็จ");
+        setNoProvinceRouteReason("no-route");
       })
       .finally(() => {
         if (!controller.signal.aborted) {
@@ -1875,6 +2069,418 @@ export default function CesiumMap({
     return () => controller.abort();
   }, [center.lat, center.lng, national, householdSize, status]);
 
+  // ── ธงจุดสูงสุด/ต่ำสุด 8 ทิศ ในรัศมี SECTOR_RADIUS_M ────────────────────────
+  // ความสูงอ้างอิง: ใช้ค่าที่หมุดโรงเรียนแสดง (route profile) ก่อนเสมอ — ไม่มีเส้นทางจึงถอยไปใช้
+  // เซลล์กลางกริด และบันทึกที่มาไว้ให้ตรวจย้อนได้ว่าตัวเลขส่วนต่างคำนวณจากอะไร
+  const sectorResult = useMemo(() => {
+    if (!sectorScan) return null;
+    const routeElev = routeElevationProfile?.schoolElevationM ?? null;
+    const fromRoute = routeElev !== null && Number.isFinite(routeElev);
+    const schoolElevationM = fromRoute ? routeElev : sectorScan.gridCenterElevationM;
+    const config: GisSectorConfig = {
+      radiusM: SECTOR_RADIUS_M,
+      thresholdM: SECTOR_RELIEF_K_M,
+      schoolElevationM: schoolElevationM === null ? null : Math.round(schoolElevationM),
+      schoolElevationSource: fromRoute ? "route-profile" : "grid-center",
+    };
+    return {
+      config,
+      sectors: deriveSectorMetrics(sectorScan.sectors, schoolElevationM, SECTOR_RELIEF_K_M),
+    };
+  }, [sectorScan, routeElevationProfile]);
+
+  useEffect(() => {
+    const sectorsDs = sectorsDsRef.current;
+    if (!sectorsDs || status !== "ready") return;
+    sectorsDs.entities.removeAll();
+    if (national || !showSectorFlags || !sectorResult) return;
+
+    for (const sector of sectorResult.sectors) {
+      const sectorTh = SECTOR_LABELS_TH[sector.sector];
+      // ปักธงเฉพาะจุดที่ต่างจากความสูงโรงเรียนตั้งแต่ ±SECTOR_RELIEF_K_M ขึ้นไป — ต่ำกว่านั้นไม่ปัก
+      // (ข้อมูลยังถูกบันทึกครบทุกจุด การซ่อนมีผลแค่การแสดงบนแผนที่)
+      if (sectorFlagVisible(sector.highest) && sector.highest) {
+        sectorsDs.entities.add({
+          id: `sector-high-${sector.sector}`,
+          position: Cartesian3.fromDegrees(sector.highest.lng, sector.highest.lat),
+          billboard: {
+            image: SECTOR_HIGH_FLAG_ICON,
+            width: 28,
+            height: 34,
+            verticalOrigin: VerticalOrigin.BOTTOM,
+            heightReference: HeightReference.CLAMP_TO_GROUND,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          },
+        });
+        addPinLabel(sectorsDs, {
+          id: `sector-high-${sector.sector}-label`,
+          priority: LABEL_PRIORITY.sector,
+          lat: sector.highest.lat,
+          lng: sector.highest.lng,
+          lines: sectorFlagLines(`สูงสุดทิศ${sectorTh}`, sector.highest, sector.reliefM),
+          background: "rgba(91, 33, 182, 0.92)",
+          offsetY: -38,
+          fontPx: 11,
+        });
+      }
+
+      if (sectorFlagVisible(sector.lowest) && sector.lowest) {
+        sectorsDs.entities.add({
+          id: `sector-low-${sector.sector}`,
+          position: Cartesian3.fromDegrees(sector.lowest.lng, sector.lowest.lat),
+          billboard: {
+            image: SECTOR_LOW_FLAG_ICON,
+            width: 28,
+            height: 34,
+            verticalOrigin: VerticalOrigin.BOTTOM,
+            heightReference: HeightReference.CLAMP_TO_GROUND,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          },
+        });
+        addPinLabel(sectorsDs, {
+          id: `sector-low-${sector.sector}-label`,
+          priority: LABEL_PRIORITY.sector,
+          lat: sector.lowest.lat,
+          lng: sector.lowest.lng,
+          lines: sectorFlagLines(`ต่ำสุดทิศ${sectorTh}`, sector.lowest, null),
+          background: "rgba(7, 89, 133, 0.92)",
+          offsetY: -38,
+          fontPx: 11,
+        });
+      }
+    }
+  }, [sectorResult, showSectorFlags, national, status]);
+
+  // ── เขตเทศบาลรอบจุดวิเคราะห์ (overlay อ้างอิง เปิดเองเมื่อต้องการ) ───────────
+  // ดึงสดจาก OpenStreetMap ไม่บันทึกลงฐานข้อมูล และไม่มีผลต่อคะแนน
+  useEffect(() => {
+    if (!showAdminBoundaries || status !== "ready" || national) {
+      setAdminBoundaries(null);
+      setAdminErr("");
+      return;
+    }
+
+    const controller = new AbortController();
+    setAdminLoading(true);
+    setAdminErr("");
+    fetchAdminBoundaries(center.lat, center.lng, ADMIN_FETCH_RADIUS_M, controller.signal)
+      .then((boundaries) => {
+        if (controller.signal.aborted) return;
+        setAdminBoundaries(boundaries);
+      })
+      .catch((e: unknown) => {
+        if (controller.signal.aborted) return;
+        setAdminBoundaries(null);
+        setAdminErr(e instanceof Error ? e.message : "โหลดเขตปกครองไม่สำเร็จ");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setAdminLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [showAdminBoundaries, center.lat, center.lng, national, status]);
+
+  useEffect(() => {
+    const adminDs = adminDsRef.current;
+    if (!adminDs || status !== "ready") return;
+    adminDs.entities.removeAll();
+    if (national || !showAdminBoundaries || !adminBoundaries) return;
+
+    for (const boundary of adminBoundaries) {
+      const color = ADMIN_KIND_COLORS[boundary.kind];
+
+      if (boundary.pointOnly) {
+        // OSM มีแค่หมุด — วาดจุดกลวงเพื่อสื่อว่า "รู้ว่ามีเทศบาลนี้ แต่ไม่รู้ขอบเขต"
+        // ห้ามวาดวงกลมสมมติแทนขอบเขต เพราะจะกลายเป็นการกุขอบเขตที่ไม่มีข้อมูลรองรับ
+        adminDs.entities.add({
+          id: `admin-${boundary.name}-point`,
+          position: Cartesian3.fromDegrees(boundary.labelLng, boundary.labelLat),
+          point: {
+            pixelSize: 12,
+            color: Color.TRANSPARENT,
+            outlineColor: Color.fromCssColorString(color),
+            outlineWidth: 3,
+            heightReference: HeightReference.CLAMP_TO_GROUND,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+          },
+        });
+      }
+
+      boundary.rings.forEach((ring, index) => {
+        adminDs.entities.add({
+          id: `admin-${boundary.name}-${index}`,
+          polyline: {
+            positions: ring.map(([lng, lat]) => Cartesian3.fromDegrees(lng, lat)),
+            clampToGround: true,
+            width: 3,
+            material: Color.fromCssColorString(color).withAlpha(0.9),
+          },
+        });
+      });
+
+      addPinLabel(adminDs, {
+        id: `admin-${boundary.name}-label`,
+        priority: LABEL_PRIORITY.admin,
+        lat: boundary.labelLat,
+        lng: boundary.labelLng,
+        // หมุดที่ไม่มีขอบเขตต้องบอกไว้บนป้าย ไม่ให้ผู้ตรวจเข้าใจว่าที่ตั้งอยู่ "ตรงจุดนั้น" คือทั้งเขต
+        lines: boundary.pointOnly ? [boundary.name, "(ไม่มีขอบเขตในข้อมูล OSM)"] : [boundary.name],
+        background: color,
+        offsetY: boundary.pointOnly ? -14 : 0,
+        fontPx: 12,
+      });
+    }
+  }, [adminBoundaries, showAdminBoundaries, national, status]);
+
+  // ── ชั้นสถานภาพป่า (Status) จาก data/forest-status ผ่าน API ────────────────
+  useEffect(() => {
+    if (status !== "ready" || national) {
+      setForestStatusLayer(null);
+      setForestTypeLayer(null);
+      setForestLegalFromRfd(null);
+      setForestStatusAvailable(null);
+      setForestStatusNote("");
+      return;
+    }
+    const controller = new AbortController();
+    const q = new URLSearchParams({ lat: String(center.lat), lng: String(center.lng) });
+    fetch(`/api/forest-status?${q}`, { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("โหลดชั้นป่าไม่สำเร็จ");
+        return res.json() as Promise<{
+          available: boolean;
+          status: ForestStatusLayer | null;
+          type: ForestTypeLayer | null;
+          legal: ForestLegalLayer | null;
+          message?: string;
+          note?: string | null;
+        }>;
+      })
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        setForestStatusAvailable(data.available);
+        setForestStatusLayer(data.status ?? null);
+        setForestTypeLayer(data.type ?? null);
+        setForestLegalFromRfd(data.legal ?? null);
+        setForestStatusNote(data.note || data.message || "");
+      })
+      .catch((e: unknown) => {
+        if (controller.signal.aborted) return;
+        setForestStatusAvailable(false);
+        setForestStatusLayer(null);
+        setForestTypeLayer(null);
+        setForestLegalFromRfd(null);
+        setForestStatusNote(e instanceof Error ? e.message : "โหลดชั้นป่าไม่สำเร็จ");
+      });
+    return () => controller.abort();
+  }, [center.lat, center.lng, national, status]);
+
+  // ── แนวเขตป่า / พื้นที่คุ้มครอง (overlay อ้างอิง OSM — ไม่ใช่ชั้นประกาศราชการ) ─
+  useEffect(() => {
+    if (!showForestBoundaries || status !== "ready" || national) {
+      setForestBoundaries(null);
+      setForestOverlay(null);
+      setForestErr("");
+      return;
+    }
+
+    const controller = new AbortController();
+    setForestLoading(true);
+    setForestErr("");
+    fetchForestBoundaries(center.lat, center.lng, FOREST_FETCH_RADIUS_M, controller.signal)
+      .then((boundaries) => {
+        if (controller.signal.aborted) return;
+        setForestBoundaries(boundaries);
+        setForestOverlay(
+          classifyForestOverlay(center.lat, center.lng, boundaries, {
+            loaded: true,
+            dataAuthority: "osm-reference",
+            calculatedAt: new Date().toISOString(),
+          }),
+        );
+      })
+      .catch((e: unknown) => {
+        if (controller.signal.aborted) return;
+        setForestBoundaries(null);
+        setForestOverlay(
+          classifyForestOverlay(center.lat, center.lng, [], {
+            loaded: false,
+            dataAuthority: "osm-reference",
+            calculatedAt: new Date().toISOString(),
+          }),
+        );
+        setForestErr(e instanceof Error ? e.message : "โหลดแนวเขตป่าไม่สำเร็จ");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setForestLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [showForestBoundaries, center.lat, center.lng, national, status]);
+
+  useEffect(() => {
+    const forestDs = forestDsRef.current;
+    if (!forestDs || status !== "ready") return;
+    forestDs.entities.removeAll();
+    if (national || !showForestBoundaries || !forestBoundaries) return;
+
+    for (const boundary of forestBoundaries) {
+      const color = FOREST_KIND_COLORS[boundary.kind];
+      boundary.rings.forEach((ring, index) => {
+        forestDs.entities.add({
+          id: `forest-${boundary.name}-${index}`,
+          polyline: {
+            positions: ring.map(([lng, lat]) => Cartesian3.fromDegrees(lng, lat)),
+            clampToGround: true,
+            width: 3,
+            material: Color.fromCssColorString(color).withAlpha(0.95),
+          },
+          polygon: {
+            hierarchy: ring.map(([lng, lat]) => Cartesian3.fromDegrees(lng, lat)),
+            material: Color.fromCssColorString(color).withAlpha(0.12),
+            outline: false,
+            heightReference: HeightReference.CLAMP_TO_GROUND,
+          },
+        });
+      });
+
+      addPinLabel(forestDs, {
+        id: `forest-${boundary.name}-label`,
+        priority: LABEL_PRIORITY.admin,
+        lat: boundary.labelLat,
+        lng: boundary.labelLng,
+        lines: [boundary.name, FOREST_KIND_LABELS[boundary.kind]],
+        background: color,
+        offsetY: 0,
+        fontPx: 11,
+      });
+    }
+  }, [forestBoundaries, showForestBoundaries, national, status]);
+
+  // ── ขอบเขตตำบล (COD-AB) + ระบุตำบลของจุดที่ตั้ง ─────────────────────────────
+  useEffect(() => {
+    if (!showTambon || status !== "ready" || national) {
+      setTambonList(null);
+      setTambonHere(null);
+      setTambonErr("");
+      return;
+    }
+
+    const controller = new AbortController();
+    setTambonErr("");
+    (async () => {
+      const index = await loadTambonIndex(controller.signal);
+      const provinces = provincesForPoint(index, center.lat, center.lng);
+      if (provinces.length === 0) throw new Error("พิกัดนี้อยู่นอกขอบเขตข้อมูลตำบลของประเทศไทย");
+      const docs = await Promise.all(provinces.map((p) => loadTambonProvince(p.code, controller.signal)));
+      const tambons = docs.flatMap((doc) => doc?.tambons ?? []);
+      if (controller.signal.aborted) return;
+      setTambonList(tambons);
+      setTambonHere(findTambonAt(tambons, center.lat, center.lng));
+    })().catch((e: unknown) => {
+      if (controller.signal.aborted) return;
+      setTambonList(null);
+      setTambonHere(null);
+      setTambonErr(e instanceof Error ? e.message : "โหลดขอบเขตตำบลไม่สำเร็จ");
+    });
+
+    return () => controller.abort();
+  }, [showTambon, center.lat, center.lng, national, status]);
+
+  useEffect(() => {
+    const tambonDs = tambonDsRef.current;
+    if (!tambonDs || status !== "ready") return;
+    tambonDs.entities.removeAll();
+    if (national || !showTambon || !tambonList) return;
+
+    for (const tambon of tambonList) {
+      // ตำบลที่จุดที่ตั้งอยู่ข้างในเน้นให้เห็นชัด ที่เหลือเป็นเส้นอ้างอิงจาง ๆ
+      const isHere = tambonHere !== null && tambon.code === tambonHere.code;
+      for (const [index, ring] of tambon.rings.entries()) {
+        tambonDs.entities.add({
+          id: `tambon-${tambon.code}-${index}`,
+          polyline: {
+            positions: ring.map(([lng, lat]) => Cartesian3.fromDegrees(lng, lat)),
+            clampToGround: true,
+            width: isHere ? 4 : 2,
+            material: Color.fromCssColorString(isHere ? "#ca8a04" : "#a16207").withAlpha(isHere ? 0.95 : 0.4),
+          },
+        });
+      }
+    }
+
+    if (tambonHere) {
+      addPinLabel(tambonDs, {
+        id: "tambon-here-label",
+        priority: LABEL_PRIORITY.admin,
+        lat: center.lat,
+        lng: center.lng,
+        lines: [`ต.${tambonHere.name} อ.${tambonHere.amphoe}`],
+        background: "rgba(202, 138, 4, 0.92)",
+        offsetY: 26,
+        fontPx: 12,
+      });
+    }
+  }, [tambonList, tambonHere, showTambon, national, status, center.lat, center.lng]);
+
+  // ── หมุดสำนักงาน อปท. รอบจุดวิเคราะห์ (ทะเบียน สถ.) ─────────────────────────
+  useEffect(() => {
+    if (!showLaoOffices || status !== "ready" || national) {
+      setLaoNearby(null);
+      setLaoErr("");
+      return;
+    }
+
+    const controller = new AbortController();
+    setLaoErr("");
+    loadLaoOffices(controller.signal)
+      .then((doc) => {
+        if (controller.signal.aborted) return;
+        setLaoNearby(officesNear(doc.offices, center.lat, center.lng, LAO_NEARBY_RADIUS_M));
+      })
+      .catch((e: unknown) => {
+        if (controller.signal.aborted) return;
+        setLaoNearby(null);
+        setLaoErr(e instanceof Error ? e.message : "โหลดทะเบียน อปท. ไม่สำเร็จ");
+      });
+
+    return () => controller.abort();
+  }, [showLaoOffices, center.lat, center.lng, national, status]);
+
+  useEffect(() => {
+    const laoDs = laoDsRef.current;
+    if (!laoDs || status !== "ready") return;
+    laoDs.entities.removeAll();
+    if (national || !showLaoOffices || !laoNearby) return;
+
+    for (const office of laoNearby) {
+      const color = LAO_KIND_COLORS[office.kind];
+      laoDs.entities.add({
+        id: `lao-${office.code}`,
+        position: Cartesian3.fromDegrees(office.lng, office.lat),
+        point: {
+          pixelSize: 11,
+          color: Color.fromCssColorString(color),
+          outlineColor: Color.WHITE,
+          outlineWidth: 2,
+          heightReference: HeightReference.CLAMP_TO_GROUND,
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+      });
+      addPinLabel(laoDs, {
+        id: `lao-${office.code}-label`,
+        priority: LABEL_PRIORITY.admin,
+        lat: office.lat,
+        lng: office.lng,
+        // ระบุว่าเป็น "สำนักงาน" เสมอ เพื่อไม่ให้เข้าใจว่าหมุดคือขอบเขตหรือใจกลางเขต
+        lines: [`สำนักงาน${laoFullName(office)}`],
+        background: color,
+        offsetY: -14,
+        fontPx: 11,
+      });
+    }
+  }, [laoNearby, showLaoOffices, national, status]);
+
   // ── แนวชายแดนประเทศเพื่อนบ้าน + ป้ายชื่อประเทศ (overlay อ้างอิง เปิด/ปิดได้) ──
   useEffect(() => {
     const bordersDs = bordersDsRef.current;
@@ -1991,6 +2597,17 @@ export default function CesiumMap({
         routeFullMaxElev, // SSRA เกตทั้งเส้น
       });
       setAnalysis(m);
+
+      // ธง 8 ทิศจากกริดชุดเดียวกัน — เก็บจุดดิบไว้ก่อน ส่วนต่างจากโรงเรียนคำนวณภายหลัง (ดู sectorResult)
+      const gridCenterElev = grid[Math.floor(GRID_N / 2) * GRID_N + Math.floor(GRID_N / 2)];
+      setSectorScan({
+        sectors: sectorElevationsFromGrid(grid, GRID_N, ANALYSIS_WIDTH_M, bbox, {
+          radiusM: SECTOR_RADIUS_M,
+          schoolElevationM: null,
+          thresholdM: SECTOR_RELIEF_K_M,
+        }),
+        gridCenterElevationM: Number.isFinite(gridCenterElev) ? gridCenterElev : null,
+      });
     } catch (e) {
       setAnalysisErr(e instanceof Error ? e.message : "วิเคราะห์ภูมิประเทศไม่สำเร็จ");
     } finally {
@@ -2218,6 +2835,7 @@ export default function CesiumMap({
           durationS: sel.durationS,
           elevationGainM: mainRouteGain?.gainM ?? null,
           elevationLossM: mainRouteGain?.lossM ?? null,
+          mountainPct: routeElevationProfile?.mountainPct ?? null,
           selected: true,
         },
         "",
@@ -2261,12 +2879,13 @@ export default function CesiumMap({
             maxElevationM: Math.round(analysis.maxElev),
             reliefM: Math.round(analysis.relief),
             meanSlopePct: Math.round(analysis.meanSlopePct * 10) / 10,
+            innerSlopePct: analysis.innerSlopePct === null ? null : Math.round(analysis.innerSlopePct * 10) / 10,
             maxSlopePct: Math.round(analysis.maxSlopePct * 10) / 10,
             localMaxElevation1KmM: analysis.local1000Elev === null ? null : Math.round(analysis.local1000Elev),
             slopeClass: analysis.lddClass,
             landformTh: analysis.landformTh,
             terrainConfidence: "client",
-            provinceAvgElev: Number.isFinite(analysis.provinceAvgElev) ? Math.round(analysis.provinceAvgElev) : null,
+            provinceAvgElev: analysis.provinceAvgElev === null ? null : Math.round(analysis.provinceAvgElev),
             routeFullMaxElev: routeElevationProfile?.highestPoint
               ? Math.round(routeElevationProfile.highestPoint.elevationM)
               : null,
@@ -2324,7 +2943,14 @@ export default function CesiumMap({
         durationS: sel.durationS,
         elevationGainM: mainRouteGain?.gainM ?? null,
         elevationLossM: mainRouteGain?.lossM ?? null,
+        mountainPct: routeElevationProfile?.mountainPct ?? null,
         selected: true,
+        // ระยะที่ OSRM ย้ายปลายทางไปเกาะถนน — server ใช้ตัดสินว่าเส้นทางนี้ "ไปถึงโรงเรียนจริงไหม"
+        destSnapM: sel.destSnapM,
+        // ช่วงเดินเท้าต่อจากปลายถนน (ถ้ามี) — server รวมเวลาเข้าข้อ 3.1 ให้เอง
+        walkDistanceM: walkLeg?.distanceM ?? null,
+        walkDurationS: walkLeg?.durationS ?? null,
+        walkDestSnapM: walkLeg?.destSnapM ?? null,
         // จุดสูงสุดของเส้นทางหลัก = ชุดตัวอย่างเดียวกับธงแดงบนแผนที่ → ค่า max ที่บันทึกตรงกับที่ผู้ใช้เห็น
         highestPoint: routeElevationProfile?.highestPoint ?? null,
       });
@@ -2345,7 +2971,7 @@ export default function CesiumMap({
       });
     }
     return routes;
-  }, [routeAlternatives, selectedRouteIdx, province, mainRouteGain, gisDestinations, routeElevationProfile]);
+  }, [routeAlternatives, selectedRouteIdx, province, mainRouteGain, gisDestinations, routeElevationProfile, walkLeg]);
 
   // ── บันทึกครั้งเดียว: POST /api/assessments/from-map — server ผูกกับ (โรงเรียน, ปีปัจจุบัน) จาก session
   //    สร้าง/ปรับปรุงแบบประเมิน + กรอกข้อมูลประกอบ + คำนวณคะแนนด้านที่ 3 ให้เสมอ แล้วพาไปหน้าแบบประเมิน ──
@@ -2358,10 +2984,15 @@ export default function CesiumMap({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          // ผู้ดูแลบันทึกแทนโรงเรียนได้เฉพาะเมื่อระบุแถวปลายทาง — บัญชีโรงเรียนส่งไปก็ถูกเพิกเฉย (server ใช้ session)
+          ...(assessment ? { assessmentId: assessment.id } : {}),
           syncUnitLocation: centerDiffersFromForm,
           center: { lat: center.lat, lng: center.lng, source: centerSourceRef.current },
           elevation: previewGis.elevation,
           routes: buildRoutesPayload(),
+          // ไม่มีเส้นทางศาลากลางให้ส่ง → บอก server ว่าเพราะอะไร เพื่อบันทึกเป็นหลักฐานความห่างไกล
+          // แทนตัวเลขระยะทางที่ไม่มีจริง (server ตรวจค่านี้กับรายการที่รู้จักก่อนเชื่อ)
+          ...(noProvinceRouteReason ? { noRouteReason: noProvinceRouteReason } : {}),
           radiusSummaries: ringStats?.map((ring) => ({
             radiusM: ring.radiusM,
             buildingCount: ring.buildingCount,
@@ -2369,6 +3000,41 @@ export default function CesiumMap({
             popDensityPerKm2: ring.densityPerKm2,
           })),
           areaSummary: currentAreaSummary ?? undefined,
+          // 3 ชั้นป่า: RFD cells (สงวน/สถานภาพ) + Legal OSM ถ้ามี + Type
+          ...(() => {
+            const hasOsmLegal = forestOverlay && forestOverlay.status !== "unknown";
+            const hasStatus = forestStatusLayer !== null;
+            const hasRfdLegal = forestLegalFromRfd !== null;
+            if (!hasOsmLegal && !hasStatus && !hasRfdLegal) return {};
+            // RFD ป่าสงวนเป็น legal authoritative — ถ้ามี OSM ด้วย ใช้ RFD เป็นหลักสำหรับ legal
+            const forestAnalysis: ForestAnalysis = buildForestAnalysis({
+              status: forestStatusLayer,
+              type: forestTypeLayer,
+              legal: forestLegalFromRfd,
+              legalOverlay: !forestLegalFromRfd && hasOsmLegal ? forestOverlay : null,
+              calculatedAt: new Date().toISOString(),
+            });
+            return {
+              ...(hasOsmLegal ? { forestOverlay } : {}),
+              forestAnalysis,
+            };
+          })(),
+          // ธง 8 ทิศ: ส่งเฉพาะพิกัด+ความสูงดิบของแต่ละจุด (server คำนวณ relief/ส่วนต่าง/เกินเกณฑ์ K ใหม่เอง)
+          ...(sectorResult
+            ? {
+                sectorElevations: sectorResult.sectors.map((s) => ({
+                  sector: s.sector,
+                  highest: s.highest
+                    ? { lat: s.highest.lat, lng: s.highest.lng, elevationM: s.highest.elevationM }
+                    : null,
+                  lowest: s.lowest ? { lat: s.lowest.lat, lng: s.lowest.lng, elevationM: s.lowest.elevationM } : null,
+                })),
+                sectorConfig: {
+                  schoolElevationM: sectorResult.config.schoolElevationM,
+                  schoolElevationSource: sectorResult.config.schoolElevationSource,
+                },
+              }
+            : {}),
           dataSources: {
             terrain: "Terrarium DEM",
             routing: "OSRM",
@@ -2395,6 +3061,11 @@ export default function CesiumMap({
     centerDiffersFromForm,
     ringStats,
     currentAreaSummary,
+    sectorResult,
+    forestOverlay,
+    forestStatusLayer,
+    forestTypeLayer,
+    forestLegalFromRfd,
     householdSize,
     buildRoutesPayload,
   ]);
@@ -3124,6 +3795,212 @@ export default function CesiumMap({
             <span>{imageryStatus.label}</span>
             <strong>{imageryStatus.detail}</strong>
           </div>
+
+          {!national ? (
+            <label className="map-border-toggle">
+              <input type="checkbox" checked={showSectorFlags} onChange={(e) => setShowSectorFlags(e.target.checked)} />
+              <span>แสดงธงจุดสูงสุด/ต่ำสุด 8 ทิศ (รัศมี {(SECTOR_RADIUS_M / 1000).toLocaleString("th-TH")} กม.)</span>
+            </label>
+          ) : null}
+
+          {!national ? (
+            <>
+              <label className="map-border-toggle">
+                <input type="checkbox" checked={showTambon} onChange={(e) => setShowTambon(e.target.checked)} />
+                <span>แสดงขอบเขตตำบล</span>
+              </label>
+              {showTambon ? (
+                <>
+                  {tambonErr ? <p className="map-note map-note-error">{tambonErr}</p> : null}
+                  {!tambonErr && tambonHere ? (
+                    <p className="map-note">
+                      จุดที่ตั้งอยู่ใน <strong>ต.{tambonHere.name}</strong> อ.{tambonHere.amphoe}
+                    </p>
+                  ) : null}
+                  {!tambonErr && tambonList && !tambonHere ? (
+                    <p className="map-note">ระบุตำบลของจุดนี้ไม่ได้ (อยู่นอกขอบเขตตำบลในชุดข้อมูล)</p>
+                  ) : null}
+                  {!tambonErr && tambonList ? (
+                    <p className="map-note map-note-warn">
+                      ขอบเขตตำบลไม่ใช่เขต อปท. — ตำบลหนึ่งอาจถูกแบ่งระหว่างเทศบาลกับ อบต. จึงบอกได้ว่าอยู่ตำบลใด
+                      แต่บอกไม่ได้ว่าอยู่ในเขตเทศบาลหรือไม่
+                    </p>
+                  ) : null}
+                  {!tambonErr && tambonList ? (
+                    <p className="map-note map-note-credit">ขอบเขตตำบล: COD-AB (RTSD/OCHA) — CC BY-IGO</p>
+                  ) : null}
+                </>
+              ) : null}
+
+              <label className="map-border-toggle">
+                <input type="checkbox" checked={showLaoOffices} onChange={(e) => setShowLaoOffices(e.target.checked)} />
+                <span>แสดงสำนักงาน อปท. ใกล้เคียง</span>
+              </label>
+              {showLaoOffices ? (
+                <>
+                  {laoErr ? <p className="map-note map-note-error">{laoErr}</p> : null}
+                  {!laoErr && laoNearby ? (
+                    laoNearby.length > 0 ? (
+                      <>
+                        <ul className="map-lao-list">
+                          {laoNearby.slice(0, 6).map((office) => (
+                            <li key={office.code}>
+                              {laoFullName(office)} · {(office.distanceM / 1000).toFixed(1)} กม. ·{" "}
+                              {office.areaKm2 === null
+                                ? "ไม่ระบุขนาดพื้นที่"
+                                : `${office.areaKm2.toLocaleString("th-TH")} ตร.กม.`}
+                            </li>
+                          ))}
+                        </ul>
+                        {laoNearby.length > 6 ? (
+                          <p className="map-note">และอีก {(laoNearby.length - 6).toLocaleString("th-TH")} แห่ง</p>
+                        ) : null}
+                      </>
+                    ) : (
+                      <p className="map-note">
+                        ไม่พบสำนักงาน อปท. ในรัศมี {(LAO_NEARBY_RADIUS_M / 1000).toLocaleString("th-TH")} กม.
+                      </p>
+                    )
+                  ) : null}
+                  {!laoErr && laoNearby ? (
+                    <p className="map-note map-note-warn">
+                      หมุดคือ<strong>ที่ตั้งสำนักงาน</strong> ไม่ใช่ขอบเขตและไม่ใช่ใจกลางเขต ·
+                      ขนาดพื้นที่เป็นตัวเลขตามทะเบียน ไม่ได้บอกรูปร่างหรือทิศทางของเขต
+                    </p>
+                  ) : null}
+                  {!laoErr && laoNearby ? (
+                    <p className="map-note map-note-credit">
+                      ทะเบียน อปท.: กรมส่งเสริมการปกครองท้องถิ่น (DLA Open Data)
+                    </p>
+                  ) : null}
+                </>
+              ) : null}
+
+              <label className="map-border-toggle">
+                <input
+                  type="checkbox"
+                  checked={showAdminBoundaries}
+                  onChange={(e) => setShowAdminBoundaries(e.target.checked)}
+                />
+                <span>แสดงเขตเทศบาลเท่าที่มีใน OpenStreetMap</span>
+              </label>
+              {showAdminBoundaries ? (
+                <>
+                  {adminLoading ? <p className="map-note">กำลังโหลดเขตปกครองจาก OpenStreetMap…</p> : null}
+                  {adminErr ? <p className="map-note map-note-error">{adminErr}</p> : null}
+                  {!adminLoading && !adminErr && adminBoundaries ? (
+                    <>
+                      {adminBoundaries.length > 0 ? (
+                        <p className="map-note">
+                          พบ {adminBoundaries.length.toLocaleString("th-TH")} เทศบาลในรัศมี{" "}
+                          {(ADMIN_FETCH_RADIUS_M / 1000).toLocaleString("th-TH")} กม. (
+                          {[...new Set(adminBoundaries.map((b) => ADMIN_KIND_LABELS[b.kind]))].join(" · ")}) —{" "}
+                          {adminBoundaries.filter((b) => !b.pointOnly).length.toLocaleString("th-TH")} แห่งมีเส้นขอบเขต,{" "}
+                          {adminBoundaries.filter((b) => b.pointOnly).length.toLocaleString("th-TH")} แห่งมีแต่หมุด
+                        </p>
+                      ) : (
+                        <p className="map-note">
+                          ไม่พบเทศบาลในรัศมี {(ADMIN_FETCH_RADIUS_M / 1000).toLocaleString("th-TH")} กม. ในข้อมูล
+                          OpenStreetMap
+                        </p>
+                      )}
+                      {/* OSM มีเขตเทศบาลไทยไม่ครบ (เทศบาลเมืองหลายแห่งมีแค่หมุด ไม่มีขอบเขต)
+                          จึงต้องเตือนทุกครั้ง ไม่ใช่เฉพาะตอนไม่พบ — ไม่พบ ≠ ไม่มีเทศบาล */}
+                      <p className="map-note map-note-warn">
+                        ข้อมูลขอบเขตใน OpenStreetMap ยังไม่ครบทุกเทศบาล —
+                        แห่งที่ขึ้นเป็นหมุดคือรู้ว่ามีเทศบาลนั้นอยู่แต่ไม่มีเส้นเขตในข้อมูล
+                        และการไม่พบเลยก็ไม่ได้แปลว่าพื้นที่นั้นไม่อยู่ในเขตเทศบาล โปรดยึดประกาศจัดตั้ง อปท. เป็นหลักฐาน
+                      </p>
+                      <p className="map-note map-note-credit">เขตปกครอง: {ADMIN_ATTRIBUTION}</p>
+                    </>
+                  ) : null}
+                </>
+              ) : null}
+
+              {/* ชั้น A: สถานภาพป่า — โหลดอัตโนมัติเมื่อมี data/forest-status/cells */}
+              {forestStatusAvailable !== null ? (
+                <div className="map-note" style={{ marginBottom: "0.5rem" }}>
+                  <strong>
+                    {forestStatusLayer?.authority === "rfd-national-reserved-forest"
+                      ? "แนวเขตป่าสงวนแห่งชาติ (ชั้นกฎหมาย RFD)"
+                      : "สภาพพื้นที่ป่า (ชั้น Status)"}
+                  </strong>
+                  {forestStatusAvailable && forestStatusLayer ? (
+                    <>
+                      <p className="map-note" style={{ margin: "0.25rem 0 0" }}>
+                        {forestStatusLayer.inside === 1 ? "อยู่ในแนวเขต/พื้นที่" : "นอกแนวเขตในรัศมีที่คำนวณ"} · ระยะ{" "}
+                        {forestStatusLayer.distanceM === null
+                          ? "—"
+                          : `${forestStatusLayer.distanceM.toLocaleString("th-TH")} ม.`}{" "}
+                        · สัดส่วนใน 1/3/5 กม.{" "}
+                        {[forestStatusLayer.pct1km, forestStatusLayer.pct3km, forestStatusLayer.pct5km]
+                          .map((p) => (p === null ? "—" : `${p}%`))
+                          .join(" / ")}
+                        {forestTypeLayer?.typeLabelTh ? ` · ${forestTypeLayer.typeLabelTh}` : ""}
+                        {forestStatusLayer.yearBe ? ` · ชั้น พ.ศ. ${forestStatusLayer.yearBe}` : ""}
+                      </p>
+                      {forestStatusLayer.authority === "rfd-national-reserved-forest" ? (
+                        <p className="map-note map-note-warn" style={{ margin: "0.25rem 0 0" }}>
+                          ข้อมูลจาก shapefile แนวเขตป่าสงวนกรมป่าไม้ (Open Data) — เป็นเขตกฎหมายโดยประมาณ
+                          <strong> ไม่ใช่</strong> แผนที่สภาพพื้นที่ป่าจริง (ไม่นับ/นับต้นไม้)
+                          และไม่ใช่เอกสารรับรองแนวเขต
+                        </p>
+                      ) : null}
+                    </>
+                  ) : (
+                    <p className="map-note map-note-warn" style={{ margin: "0.25rem 0 0" }}>
+                      {forestStatusNote || "ยังไม่มีชั้นป่าในเซิร์ฟเวอร์ — ดู data/forest-status/README.md"}
+                    </p>
+                  )}
+                </div>
+              ) : null}
+
+              <label className="map-border-toggle">
+                <input
+                  type="checkbox"
+                  checked={showForestBoundaries}
+                  onChange={(e) => setShowForestBoundaries(e.target.checked)}
+                />
+                <span>แสดงแนวเขตตามกฎหมาย / คุ้มครอง (อ้างอิง OSM · ชั้น Legal)</span>
+              </label>
+              {showForestBoundaries ? (
+                <>
+                  {forestLoading ? <p className="map-note">กำลังโหลดแนวเขตป่าจาก OpenStreetMap…</p> : null}
+                  {forestErr ? <p className="map-note map-note-error">{forestErr}</p> : null}
+                  {!forestLoading && forestOverlay ? (
+                    <>
+                      <p className="map-note">
+                        <strong>จุดที่ตั้ง:</strong> {FOREST_STATUS_LABELS[forestOverlay.status]}
+                        {forestOverlay.nearestDistanceM !== null && forestOverlay.status !== "in"
+                          ? ` · ระยะใกล้สุด ${forestOverlay.nearestDistanceM.toLocaleString("th-TH")} ม.`
+                          : null}
+                        {forestBoundaries && forestBoundaries.length > 0
+                          ? ` · พบ ${forestBoundaries.length.toLocaleString("th-TH")} เขตในรัศมี ${(FOREST_FETCH_RADIUS_M / 1000).toLocaleString("th-TH")} กม.`
+                          : null}
+                      </p>
+                      {forestOverlay.zones.length > 0 ? (
+                        <ul className="map-note" style={{ margin: "0.25rem 0 0", paddingLeft: "1.25rem" }}>
+                          {forestOverlay.zones.slice(0, 5).map((z) => (
+                            <li key={`${z.name}-${z.relation}`}>
+                              {z.relation === "in" ? "ทับ" : "ชิด"} {z.name} ({FOREST_KIND_LABELS[z.kind]}
+                              {z.relation === "near" ? ` · ${z.distanceM.toLocaleString("th-TH")} ม.` : ""})
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                      <p className="map-note map-note-warn">
+                        ชั้นนี้ดึงจาก OpenStreetMap เพื่ออ้างอิงบนแผนที่เท่านั้น — ครอบคลุมชื่อ/แท็ก ป่าสงวน · อุทยาน ·
+                        เขตรักษาพันธุ์ · ห้ามล่า · วนอุทยาน · ป่าชุมชน · ป่าชายเลน · สวนพฤกษศาสตร์/รุกขชาติ · ชีวมณฑล ·
+                        พื้นที่ชุ่มน้ำ · ลุ่มน้ำชั้น 1 (ถ้ามีใน OSM) ยังไม่ครบทุกเขตและไม่ใช่ประกาศกรมป่าไม้/กรมอุทยาน ·
+                        การไม่พบเขต ≠ อยู่นอกป่าทั้งประเทศ · ยังไม่ใช้เป็นประตูคะแนนเพียงลำพัง
+                      </p>
+                      <p className="map-note map-note-credit">แนวเขตป่า: {FOREST_ATTRIBUTION}</p>
+                    </>
+                  ) : null}
+                </>
+              ) : null}
+            </>
+          ) : null}
 
           <label className="map-border-toggle">
             <input type="checkbox" checked={showBorders} onChange={(e) => setShowBorders(e.target.checked)} />

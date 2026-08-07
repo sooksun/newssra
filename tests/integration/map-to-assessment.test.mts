@@ -79,11 +79,23 @@ const SESSION_F: SessionUser = {
   schoolCode: SCHOOL_F,
 };
 
+// โรงเรียนที่ถนนเข้าไม่ถึงจริง (ไม่มีเส้นทางศาลากลางให้ส่ง) — แยกรหัสออกมาเพราะเดิมเคสนี้ตอบ 422
+// แล้วไม่สร้างแถว พอเปลี่ยนให้บันทึกได้ ถ้ายังใช้ SCHOOL_A ร่วมกันจะไปสร้างแถวทิ้งไว้ให้เทส created ตัวถัดไปพัง
+const SCHOOL_G = "TESTMAPG";
+const SESSION_G: SessionUser = {
+  uid: 910007,
+  role: "school",
+  name: "รร.ทดสอบแผนที่ G (ถนนเข้าไม่ถึง)",
+  source: "local",
+  schoolCode: SCHOOL_G,
+};
+
 const LOC_ID_A = 999999201;
 const LOC_ID_B = 999999202;
 const LOC_ID_D = 999999204;
 const LOC_ID_E = 999999205;
 const LOC_ID_F = 999999206;
+const LOC_ID_G = 999999207;
 // หมายเหตุ: ต้อง "ไม่" ขึ้นต้นด้วย "พสศ-TEST-" เพราะ assessment-security.test.mts มี cleanup แบบ
 // LIKE 'พสศ-TEST-%' อยู่ — ไฟล์ integration test คนละไฟล์รันแข่งกัน (Node test runner กระจาย process)
 // ถ้าใช้พรีฟิกซ์เดียวกันจะโดนลบข้ามไฟล์กลางคัน (ต้นเหตุ flake ที่เจอตอนรันทั้งชุดพร้อมกัน)
@@ -181,29 +193,32 @@ function typedNameDraftState(): AssessmentState {
 }
 
 async function cleanupTestRows() {
-  await rawExec("DELETE FROM assessments WHERE owner_school_code IN (?, ?, ?, ?, ?, ?) OR submitted_ref = ?", [
+  await rawExec("DELETE FROM assessments WHERE owner_school_code IN (?, ?, ?, ?, ?, ?, ?) OR submitted_ref = ?", [
     SCHOOL_A,
     SCHOOL_B,
     SCHOOL_C,
     SCHOOL_D,
     SCHOOL_E,
     SCHOOL_F,
+    SCHOOL_G,
     SUBMITTED_REF_B,
   ]);
-  await rawExec("DELETE FROM master_school WHERE sc_smis IN (?, ?, ?, ?, ?, ?)", [
+  await rawExec("DELETE FROM master_school WHERE sc_smis IN (?, ?, ?, ?, ?, ?, ?)", [
     SCHOOL_A,
     SCHOOL_B,
     SCHOOL_C,
     SCHOOL_D,
     SCHOOL_E,
     SCHOOL_F,
+    SCHOOL_G,
   ]);
-  await rawExec("DELETE FROM school_location WHERE id IN (?, ?, ?, ?, ?)", [
+  await rawExec("DELETE FROM school_location WHERE id IN (?, ?, ?, ?, ?, ?)", [
     LOC_ID_A,
     LOC_ID_B,
     LOC_ID_D,
     LOC_ID_E,
     LOC_ID_F,
+    LOC_ID_G,
   ]);
 }
 
@@ -223,6 +238,7 @@ before(async () => {
   await seedMasterSchool(SCHOOL_D, LOC_ID_D, `โรงเรียนทดสอบแผนที่ ${SCHOOL_D}`);
   await seedMasterSchool(SCHOOL_E, LOC_ID_E, `โรงเรียนทดสอบแผนที่ ${SCHOOL_E}`);
   await seedMasterSchool(SCHOOL_F, LOC_ID_F, `โรงเรียนทดสอบแผนที่ ${SCHOOL_F}`);
+  await seedMasterSchool(SCHOOL_G, LOC_ID_G, `โรงเรียนทดสอบแผนที่ ${SCHOOL_G}`);
   // SCHOOL_C ไม่มี master data เลย (จงใจ) — ใช้ทดสอบ 422 ไม่พบพิกัดโรงเรียน
 
   const submitted = submittedState(SCHOOL_B);
@@ -257,13 +273,79 @@ test("POST from-map: ไม่ล็อกอิน → 401", { skip: !DB }, asy
   assert.equal(res.status, 401);
 });
 
-test("POST from-map: admin และ ssra_admin → 403 (school เท่านั้น)", { skip: !DB }, async () => {
-  for (const s of [SESSIONS.admin, SESSIONS.ssra]) {
-    await actAs(s);
-    const res = await route.POST(jsonRequest(NextRequest, BASE, { method: "POST", body: validPayload() }));
-    assert.equal(res.status, 403, `${s.role} ต้องถูกปฏิเสธ`);
-  }
+test(
+  "POST from-map: admin/ssra ที่ไม่ระบุแบบประเมินเป้าหมาย → 400 (ไม่มีโรงเรียนให้บันทึกลง)",
+  { skip: !DB },
+  async () => {
+    for (const s of [SESSIONS.admin, SESSIONS.ssra]) {
+      await actAs(s);
+      const res = await route.POST(jsonRequest(NextRequest, BASE, { method: "POST", body: validPayload() }));
+      assert.equal(res.status, 400, `${s.role} ที่ไม่ระบุ assessmentId ต้องถูกปฏิเสธ`);
+    }
+  },
+);
+
+test(
+  "POST from-map: admin ระบุ assessmentId ที่เข้าถึงได้ → บันทึกลงแถวนั้นของโรงเรียนเจ้าของ",
+  { skip: !DB },
+  async () => {
+    // ใช้โรงเรียน E (มีแบบร่างปีนี้อยู่แล้ว) เพื่อไม่ไปสร้างแถวชนกับเทสต์ created/updated ของโรงเรียน A
+    await actAs(SESSION_E);
+    const created = await route.POST(jsonRequest(NextRequest, BASE, { method: "POST", body: validPayload() }));
+    assert.equal(created.status, 200);
+    const { assessmentId } = (await created.json()) as { assessmentId: number };
+    createdAssessmentIds.push(assessmentId);
+
+    await actAs(SESSIONS.admin);
+    const res = await route.POST(
+      jsonRequest(NextRequest, BASE, { method: "POST", body: { ...validPayload(), assessmentId } }),
+    );
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as { assessmentId: number; action: string };
+    assert.equal(body.assessmentId, assessmentId, "ต้องบันทึกลงแถวเดิม ไม่ใช่สร้างแถวใหม่");
+    assert.equal(body.action, "updated");
+
+    // เจ้าของแถวต้องไม่เปลี่ยนมือไปเป็นผู้ดูแล
+    const rows = await rawQuery<{ owner_school_code: string }>(
+      "SELECT owner_school_code FROM assessments WHERE id = ?",
+      [assessmentId],
+    );
+    assert.equal(rows[0]?.owner_school_code, SCHOOL_E);
+  },
+);
+
+test("POST from-map: admin ระบุ assessmentId ที่ไม่มีอยู่ → 404", { skip: !DB }, async () => {
+  await actAs(SESSIONS.admin);
+  const res = await route.POST(
+    jsonRequest(NextRequest, BASE, { method: "POST", body: { ...validPayload(), assessmentId: 2147483000 } }),
+  );
+  assert.equal(res.status, 404);
 });
+
+test(
+  "POST from-map: บัญชี school ส่ง assessmentId ของโรงเรียนอื่นมา ต้องไม่มีผล (กันปลอมเจ้าของ)",
+  { skip: !DB },
+  async () => {
+    // ใช้แถวของโรงเรียน F (มี master data + แบบร่างปีนี้) เป็นเป้าหมายที่โรงเรียน A ไม่ควรแตะได้
+    await actAs(SESSION_F);
+    const other = await route.POST(jsonRequest(NextRequest, BASE, { method: "POST", body: validPayload() }));
+    assert.equal(other.status, 200, "โรงเรียน F มีแบบร่างปีนี้อยู่แล้ว จึงเป็น updated");
+    const otherId = ((await other.json()) as { assessmentId: number }).assessmentId;
+    createdAssessmentIds.push(otherId);
+
+    await actAs(SESSION_A);
+    const res = await route.POST(
+      jsonRequest(NextRequest, BASE, { method: "POST", body: { ...validPayload(), assessmentId: otherId } }),
+    );
+    assert.equal(res.status, 201, "โรงเรียน A ต้องได้แถวของตัวเอง ไม่ใช่ไปเขียนทับแถวของ B");
+    const mine = ((await res.json()) as { assessmentId: number }).assessmentId;
+    createdAssessmentIds.push(mine);
+    assert.notEqual(mine, otherId);
+
+    // เก็บกวาดแถวของโรงเรียน A ทันที — เทสต์ created/updated ด้านล่างต้องเริ่มจากยังไม่มีแถวของปีนี้
+    await rawExec("DELETE FROM assessments WHERE id = ?", [mine]);
+  },
+);
 
 test("POST from-map: บัญชี school ที่ยังไม่ผูกรหัสโรงเรียน → 403", { skip: !DB }, async () => {
   await actAs(SESSION_NO_SCHOOL);
@@ -295,11 +377,24 @@ test("POST from-map: พิกัดศูนย์กลางไม่ถู�
   assert.equal(res.status, 400);
 });
 
-test("POST from-map: ไม่มีเส้นทางศาลากลางจังหวัดที่ใช้ได้ → 422", { skip: !DB }, async () => {
-  await actAs(SESSION_A);
-  const body = { center: { lat: 20.0, lng: 99.0 }, routes: [] };
+// โรงเรียนที่ถนนเข้าไม่ถึงจริงคือกลุ่มที่ควรได้คะแนนความยากลำบากสูงสุด เดิมระบบตอบ 422 ทำให้กลุ่มนี้
+// บันทึกแบบประเมินจากแผนที่ไม่ได้เลย — ตอนนี้ต้องบันทึกได้ โดยเก็บ "เหตุผลที่ไม่มีเส้นทาง" ไว้แทน
+test("POST from-map: ไม่มีเส้นทางศาลากลาง → บันทึกได้ พร้อมบันทึกเหตุผลไว้เป็นหลักฐาน", { skip: !DB }, async () => {
+  await actAs(SESSION_G);
+  const body = { center: { lat: 20.0, lng: 99.0 }, routes: [], noRouteReason: "border-blocked" };
   const res = await route.POST(jsonRequest(NextRequest, BASE, { method: "POST", body }));
-  assert.equal(res.status, 422);
+  assert.equal(res.status, 201, "ต้องสร้างแบบประเมินได้ ไม่ใช่ 422");
+
+  const payload = (await res.json()) as { assessmentId: number };
+  createdAssessmentIds.push(payload.assessmentId);
+
+  const saved = await repo.getAssessment(payload.assessmentId);
+  assert.equal(saved?.state.gis?.routeAccess?.status, "border-blocked");
+  assert.ok((saved?.state.gis?.routeAccess?.note ?? "").length > 0, "ต้องมีคำอธิบายให้ผู้ตรวจอ่าน");
+  assert.equal(saved?.state.gis?.routes.length, 0);
+  // ห้าม derive คะแนนมิติ 3 จากเส้นทางที่ไม่มี — ข้อ 3.1/3.3 ต้องยังว่างให้กรอกเอง
+  assert.equal(saved?.state.responses["3.1"]?.minutes ?? "", "");
+  assert.equal(saved?.state.responses["3.3"]?.minutes ?? "", "");
 });
 
 // ─────────────────── created → updated (แถวเดียวกัน, ปีเดียวกัน) ───────────────────

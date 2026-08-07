@@ -18,11 +18,20 @@ services:
       - .env.production
     volumes:
       - ./data/uploads:/app/uploads
+      # ชั้นแนวเขตป่า (data/forest-status) — /data/ ถูก gitignore จึงไม่มากับ image
+      # ต้อง copy โฟลเดอร์นี้ขึ้น server เอง (ดู docs/DEPLOY.md) ไม่มีไฟล์ = ระบบตอบ "ไม่มีข้อมูลเขตป่า" ไม่ล่ม
+      - ./data/forest-status:/app/data/forest-status:ro
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
       # liveness: ให้ node เรียก /api/health เอง (image node:alpine ไม่มี curl; node มี global fetch)
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
       interval: 30s
       timeout: 5s
       retries: 5

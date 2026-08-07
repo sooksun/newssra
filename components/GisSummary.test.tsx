@@ -84,6 +84,73 @@ test("GisSummary shows exact school and route-highest elevations separately", ()
   assert.match(html, /20\.30000, 99\.50000/);
 });
 
+test("GisSummary แสดงลายเซ็นภูมิประเทศพร้อมกฎที่ใช้และหลักฐานค่าอินพุต", () => {
+  const html = renderToStaticMarkup(<GisSummary state={stateWithGis(expandedGis)} assessmentId={7} />);
+  assert.match(html, /ลายเซ็นภูมิประเทศ/);
+  assert.match(html, /ความสูงที่หมุดโรงเรียน/);
+});
+
+test("GisSummary: โรงเรียนที่ระบุลักษณะที่ตั้งเป็นเกาะ ต้องถูกแยกเป็นกลุ่มเกาะ แม้ภูมิประเทศจะเป็นภูเขาสูง", () => {
+  const state = stateWithGis(expandedGis);
+  state.unit.settingType = "เกาะ";
+  const html = renderToStaticMarkup(<GisSummary state={state} assessmentId={7} />);
+  assert.match(html, /โรงเรียนพื้นที่เกาะ/);
+  assert.match(html, /พื้นที่เกาะ \(แยกจากพื้นที่สูงทุรกันดาร\)/);
+  assert.match(html, /ผู้กรอกระบุลักษณะที่ตั้งเป็นเกาะ/);
+  assert.doesNotMatch(html, /ทุรกันดารหลายด้าน/);
+});
+
+test("GisSummary แสดงเหตุที่ต้องให้ผู้ตรวจดูซ้ำ เมื่อกฎอัตโนมัติเลือกไม่ตัดสินเอง", () => {
+  // ที่ราบผืนใหญ่ พัฒนาแล้ว ถนนดี แต่อยู่ไกลจริง → ระบบต้องไม่กรองออกเอง และต้องบอกเหตุผล
+  const developedButFar = sanitizeGis({
+    ...expandedGis,
+    elevation: {
+      ...expandedGis.elevation,
+      schoolMarkerElevationM: 1050,
+      minElevationM: 1030,
+      maxElevationM: 1070,
+      reliefM: 40,
+      meanSlopePct: 2,
+      innerSlopePct: 2,
+      localMaxElevation1KmM: 1060,
+      routeTailMaxElev: 1055,
+      routeFullMaxElev: 1080,
+    },
+    routes: [
+      {
+        ...expandedGis.routes[0],
+        roadCircuityRatio: 1.15,
+        travelTimeRatio: 1.05,
+        averageSpeedKmh: 62,
+        travelTimeMin: 130,
+        roadDistanceKm: 120,
+        elevationGainM: 800,
+      },
+    ],
+    radiusSummaries: [{ radiusM: 1500, buildingCount: 900, estPopulation: 3200, popDensityPerKm2: 450 }],
+    sectorElevations: Array.from({ length: 8 }, (_, i) => ({
+      sector: (["N", "NE", "E", "SE", "S", "SW", "W", "NW"] as const)[i],
+      highest: { lat: 20.28 + i * 0.001, lng: 99.55, elevationM: 1060, deltaFromSchoolM: null, meetsThreshold: false },
+      lowest: { lat: 20.28 - i * 0.001, lng: 99.55, elevationM: 1040, deltaFromSchoolM: null, meetsThreshold: false },
+      reliefM: null,
+      aboveThreshold: false,
+    })),
+    sectorConfig: { radiusM: 1000, thresholdM: 50, schoolElevationM: 1050, schoolElevationSource: "route-profile" },
+  });
+  assert.ok(developedButFar);
+  const html = renderToStaticMarkup(<GisSummary state={stateWithGis(developedButFar)} assessmentId={7} />);
+  assert.match(html, /ควรให้ผู้ตรวจยืนยัน/);
+  assert.match(html, /บริการไม่ได้อยู่ใกล้/);
+  assert.doesNotMatch(html, /ที่ราบผืนใหญ่ที่พัฒนาแล้ว<\/strong>/);
+});
+
+test("GisSummary บอกตรง ๆ เมื่อข้อมูลไม่พอจะจำแนกภูมิประเทศ แทนการเดา", () => {
+  const noTerrain = sanitizeGis({ ...expandedGis, elevation: null });
+  assert.ok(noTerrain);
+  const html = renderToStaticMarkup(<GisSummary state={stateWithGis(noTerrain)} assessmentId={7} />);
+  assert.match(html, /ข้อมูลไม่พอ/);
+});
+
 test("legacy GIS renders missing new fields without substituting mean elevation", () => {
   const legacyRaw = {
     center: {
@@ -148,4 +215,74 @@ test("GisSummary renders 500/1,000/1,500 m building/population rings and data so
 test("GisSummary keeps the future F1/F2 section and comparisons table intact", () => {
   const html = renderToStaticMarkup(<GisSummary state={stateWithGis(expandedGis)} assessmentId={10} />);
   assert.match(html, /เกณฑ์เสนอเพิ่ม \(อนาคต\)/);
+});
+
+const sectorGis: GisAnalysis = {
+  ...expandedGis,
+  sectorConfig: {
+    radiusM: 1000,
+    thresholdM: 50,
+    schoolElevationM: 1062,
+    schoolElevationSource: "route-profile",
+  },
+  sectorElevations: [
+    {
+      sector: "N",
+      highest: { lat: 20.289, lng: 99.55, elevationM: 1400, deltaFromSchoolM: 338, meetsThreshold: true },
+      lowest: { lat: 20.285, lng: 99.552, elevationM: 1100, deltaFromSchoolM: 38, meetsThreshold: false },
+      reliefM: 300,
+      aboveThreshold: true,
+    },
+    {
+      sector: "NE",
+      highest: { lat: 20.286, lng: 99.556, elevationM: 1080, deltaFromSchoolM: 18, meetsThreshold: false },
+      lowest: { lat: 20.284, lng: 99.558, elevationM: 1060, deltaFromSchoolM: -2, meetsThreshold: false },
+      reliefM: 20,
+      aboveThreshold: false,
+    },
+    { sector: "E", highest: null, lowest: null, reliefM: null, aboveThreshold: false },
+  ],
+};
+
+test("ตารางธง 8 ทิศ: แสดงความสูง ส่วนต่าง พิกัด และธงที่ขึ้นจริงบนแผนที่", () => {
+  const html = renderToStaticMarkup(<GisSummary state={stateWithGis(sectorGis)} assessmentId={11} />);
+  assert.match(html, /จุดสูงสุด\/ต่ำสุดของภูมิประเทศ 8 ทิศ/);
+  assert.match(html, /ตะวันออกเฉียงเหนือ/);
+  assert.match(html, /1,400 ม\. \(\+338 ม\.\)/);
+  assert.match(html, /1,060 ม\. \(−2 ม\.\)/);
+  assert.match(html, /20\.28900, 99\.55000/);
+  // ทิศเหนือ: จุดสูงสุด +338 ผ่านเกณฑ์ ปักธงม่วง ส่วนจุดต่ำสุด +38 ไม่ถึง ±50 จึงไม่ปักธงฟ้า
+  assert.match(html, /<td>สูงสุด \(ม่วง\)<\/td>/);
+  // ทิศตะวันออกเฉียงเหนือ: ทั้งสองจุดต่างไม่ถึง ±50 → ไม่ปักธงเลย แต่ค่ายังอยู่ในตาราง
+  assert.match(html, /<td>ไม่ปักธง<\/td>/);
+  assert.match(html, /1,080 ม\. \(\+18 ม\.\)/);
+});
+
+test("ตารางธง 8 ทิศ: อธิบายกติกา ±K ให้ผู้ตรวจเข้าใจว่าทำไมบางจุดไม่มีธง", () => {
+  const html = renderToStaticMarkup(<GisSummary state={stateWithGis(sectorGis)} assessmentId={14} />);
+  assert.match(html, /ปักธงเฉพาะจุดที่ต่างจากความสูงโรงเรียนตั้งแต่ ±50 ม\. ขึ้นไป/);
+  assert.match(html, /ยังบันทึกค่าไว้ในตารางนี้/);
+});
+
+test("ตารางธง 8 ทิศ: ทิศที่อ่านความสูงไม่ได้แสดง ไม่มีข้อมูล ไม่แทนด้วยค่าอื่น", () => {
+  const html = renderToStaticMarkup(<GisSummary state={stateWithGis(sectorGis)} assessmentId={12} />);
+  const east = html.slice(html.indexOf("<td>ตะวันออก</td>"));
+  assert.match(east.slice(0, 400), /ไม่มีข้อมูล/);
+});
+
+test("แถวที่ไม่มีธง 8 ทิศ → ไม่เรนเดอร์ตารางนี้เลย", () => {
+  const html = renderToStaticMarkup(<GisSummary state={stateWithGis(expandedGis)} assessmentId={13} />);
+  assert.doesNotMatch(html, /จุดสูงสุด\/ต่ำสุดของภูมิประเทศ 8 ทิศ/);
+});
+
+test("GisSummary แสดงระดับความยากลำบาก 5 ระดับ พร้อมหลักฐานที่ใช้ตัดสิน", () => {
+  const html = renderToStaticMarkup(<GisSummary state={stateWithGis(expandedGis)} assessmentId={7} />);
+  assert.match(html, /ระดับความยากลำบากของพื้นที่/);
+  assert.match(html, /ระดับ [1-5]/);
+  assert.match(html, /ยากลำบาก|ไม่ยากลำบาก/);
+  // ต้องโชว์ตัววัดที่ผู้ใช้กำหนดให้ใช้ตัดสิน
+  assert.match(html, /ยอดเขา\/หุบเขาต่างระดับเกิน 50 ม\./);
+  assert.match(html, /สัดส่วนเส้นทางที่เป็นภูเขา/);
+  assert.match(html, /ความคดเคี้ยวของถนน/);
+  assert.match(html, /ขนาดชุมชนรอบโรงเรียน/);
 });

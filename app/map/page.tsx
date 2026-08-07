@@ -164,8 +164,13 @@ export default async function MapPage({ searchParams }: { searchParams: Promise<
   // ขนาดครัวเรือนเฉลี่ยของจังหวัด — ใช้ประมาณจำนวนประชากรจากจำนวนอาคารในแต่ละรัศมี (ดูตารางในแผนที่)
   const householdSize = !national && province ? await provinceHouseholdSize(province.name) : null;
 
-  // เฉพาะบัญชีโรงเรียนที่มีรหัสจึงบันทึกลงแบบประเมินปีปัจจุบันได้ — แยกจากการมีฉบับอยู่แล้วหรือไม่
-  const canSaveAssessment = user.role === "school" && Boolean(user.schoolCode);
+  // ใครกดบันทึกจากแผนที่ได้บ้าง
+  //   โรงเรียน → บันทึกลงฉบับปีปัจจุบันของตัวเองได้เสมอ (สร้างให้ถ้ายังไม่มี)
+  //   ผู้ดูแล  → ได้เฉพาะเมื่อเปิดแบบประเมินเจาะจงอยู่ (?assessment=ID) เพราะต้องมีแถวปลายทางที่ชัดเจน
+  //             และแถวนั้นต้องยังไม่ถูกส่ง — server ตรวจซ้ำทุกเงื่อนไขเองอีกชั้น
+  const canSaveAssessment =
+    (user.role === "school" && Boolean(user.schoolCode)) ||
+    ((user.role === "admin" || user.role === "ssra_admin") && Boolean(assessment));
 
   // ค่าตั้งค่าส่วนกลาง (ผู้ดูแลระบบตั้งที่ /admin/settings) — ปิดได้เพื่อไม่ให้ย้ายจุดวิเคราะห์ด้วยการค้นหา
   const appSettings = await getAppSettings();

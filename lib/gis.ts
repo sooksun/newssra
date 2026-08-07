@@ -10,7 +10,10 @@ import {
   suggestSettingTypeFromGis as suggestSettingTypeFromGisCore,
 } from "./community-class";
 import { settlementClass } from "./settlement";
-import { GIS_DESTINATION_TYPES } from "./types";
+import { cleanSectorConfig, cleanSectorElevations, SECTOR_RADIUS_M, SECTOR_RELIEF_K_M } from "./gis-sectors";
+import { buildForestAnalysis, cleanForestAnalysis } from "./forest-layers";
+import { cleanForestOverlay } from "./map/forestBoundaries";
+import { GIS_DESTINATION_TYPES, GIS_ROUTE_ACCESS_STATUSES } from "./types";
 import type {
   AssessmentState,
   GisAnalysis,
@@ -21,8 +24,10 @@ import type {
   GisDestinationType,
   GisElevationInfo,
   GisRadiusSummary,
+  GisRouteAccess,
   GisRouteAnalysis,
   GisRouteHighestPoint,
+  GisWalkLeg,
   IndicatorId,
   ResponseData,
   ScoringVersion,
@@ -80,6 +85,84 @@ export const REFERENCE_SPEED_KMH = 60;
 /** จำนวนเส้นทางวิเคราะห์สูงสุดต่อแบบประเมิน (ศาลากลาง + ปลายทางที่ผู้ใช้เพิ่ม) */
 export const MAX_GIS_ROUTES = 5;
 
+/**
+ * ระยะสูงสุดที่ยอมให้ "จุดปลายเส้นทาง" ห่างจากโรงเรียน แล้วยังถือว่าเส้นทางนั้นไปถึงโรงเรียนจริง
+ *
+ * เครื่องคำนวณเส้นทางจะ snap พิกัดที่ขอไปยังถนนที่ใกล้ที่สุดเสมอ ถ้าโรงเรียนไม่มีถนนเข้าถึง มันจะ
+ * snap ไปไกลมากแล้วคืนเส้นทางที่ดู "สำเร็จ" ทั้งที่ไปจบคนละที่ — ระยะ/เวลาที่ได้จึงไม่ใช่ของโรงเรียนนี้
+ *
+ * 1,000 ม. มาจากการวัดจริงบนโรงเรียนพื้นที่ห่างไกล: กลุ่มที่ถนนเข้าถึงได้ snap ไม่เกิน 538 ม.
+ * ส่วนกลุ่มที่ถนนไปไม่ถึงอยู่ที่ 1,059 / 1,253 / 10,957 / 10,966 ม. — เกณฑ์นี้แยกสองกลุ่มได้ชัด
+ */
+export const MAX_ROUTE_SNAP_M = 1000;
+
+/** เหตุที่ client แจ้งว่าไม่มีเส้นทางให้ใช้ — server ตรวจกับรายการนี้ก่อนเชื่อ (ไม่รับข้อความอิสระ) */
+export const NO_ROUTE_REASONS = ["border-blocked", "no-route"] as const;
+export type NoRouteReason = (typeof NO_ROUTE_REASONS)[number];
+
+/**
+ * สรุปสถานะการเข้าถึงด้วยถนน + ข้อความอธิบาย (pure) — server เรียกเสมอ ไม่รับ note จาก client
+ * destSnapM = ระยะจากโรงเรียนถึงจุดที่เส้นทางไปจบจริง (undefined = ไม่มีเส้นทางให้วัด)
+ */
+export function buildRouteAccess(input: {
+  hasProvinceRoute: boolean;
+  destSnapM: number | null;
+  noRouteReason: NoRouteReason | null;
+  /** ช่วงเดินเท้าต่อท้ายของเส้นทางศาลากลาง (ถ้ามี) — ใช้ตัดสินว่า "เดินต่อแล้วถึงจริงไหม" */
+  walkLeg?: GisWalkLeg | null;
+}): GisRouteAccess {
+  if (!input.hasProvinceRoute) {
+    if (input.noRouteReason === "border-blocked") {
+      return {
+        status: "border-blocked",
+        note: "เส้นทางถนนที่ระบบหาได้ต้องผ่านพรมแดนประเทศเพื่อนบ้าน จึงใช้เป็นเส้นทางเดินทางจริงไม่ได้",
+      };
+    }
+    return {
+      status: "no-route",
+      note: "ไม่พบเส้นทางถนนจากศาลากลางจังหวัดมายังจุดนี้ในฐานข้อมูลแผนที่",
+    };
+  }
+
+  const snap = Number.isFinite(input.destSnapM) ? (input.destSnapM as number) : null;
+  if (snap !== null && snap > MAX_ROUTE_SNAP_M) {
+    // ถนนไปไม่ถึง แต่ถ้าเดินเท้าต่อแล้วถึงจริง ก็ถือว่าเข้าถึงได้ — แค่ต้องเดิน ซึ่งคือความยากลำบาก
+    // ที่เกณฑ์ต้องการวัดอยู่แล้ว เวลารวม (รถ+เดิน) จึงใช้ตอบข้อ 3.1 ได้
+    const walk = input.walkLeg;
+    const walkReaches = Boolean(walk) && (walk!.destSnapM === null || walk!.destSnapM <= MAX_ROUTE_SNAP_M);
+    if (walk && walkReaches) {
+      return {
+        status: "car-and-walk",
+        destSnapM: Math.round(snap),
+        note:
+          `รถเข้าถึงได้ถึงจุดที่ห่างโรงเรียน ${(snap / 1000).toFixed(1)} กม. ` +
+          `จากนั้นต้องเดินเท้าต่ออีก ${walk.distanceKm.toFixed(1)} กม. ` +
+          `(ประมาณ ${Math.round(walk.travelTimeMin)} นาที) จึงถึงโรงเรียน`,
+      };
+    }
+    return {
+      status: "snapped-far",
+      destSnapM: Math.round(snap),
+      note:
+        `เส้นทางที่หาได้ไปจบห่างจากโรงเรียน ${(snap / 1000).toFixed(1)} กม. ` +
+        "(ถนนเข้าไม่ถึง) ระยะทางและเวลาที่ได้จึงไม่ใช่ของโรงเรียนแห่งนี้",
+    };
+  }
+
+  return {
+    status: "reachable",
+    ...(snap !== null ? { destSnapM: Math.round(snap) } : {}),
+    note: "เส้นทางถนนเข้าถึงโรงเรียนได้",
+  };
+}
+
+/** ตัวเลขเส้นทางใช้แทนการเข้าถึงของโรงเรียนนี้ได้หรือไม่ — ใช้ตัดสินว่าจะ derive คะแนนมิติ 3 อัตโนมัติไหม */
+export function routeAccessUsable(access: GisRouteAccess | undefined): boolean {
+  // car-and-walk ใช้ได้ เพราะการเดินทางไปถึงโรงเรียนจริง (แค่ช่วงท้ายเป็นการเดิน) — เวลาที่ derive
+  // จะเป็นเวลารวมรถ+เดิน ดู totalTravelTimeMin
+  return !access || access.status === "reachable" || access.status === "car-and-walk";
+}
+
 /** ระยะห่างสูงสุด (ม.) ระหว่างจุดวิเคราะห์ GIS กับพิกัดโรงเรียนในแบบฟอร์ม — เกินนี้ถือว่าเป็นคนละโรงเรียน
  *  ปฏิเสธการบันทึกกันข้อมูลโรงเรียนอื่นปนกัน ใช้ร่วมกันทั้ง client (CesiumMap.tsx เตือนก่อนกดบันทึก)
  *  และ server (POST /api/assessments/[id]/gis, POST /api/assessments/from-map) — จุดเดียวกันค่าเดียวกันเสมอ */
@@ -93,6 +176,8 @@ export const GIS_LIMITS = {
   speedKmh: { min: 0, max: 200 },
   elevationM: { min: -500, max: 9000 },
   gainM: { min: 0, max: 20000 },
+  /** สัดส่วนเส้นทางที่ผ่านภูมิประเทศภูเขา (%) */
+  mountainPct: { min: 0, max: 100 },
   slopePct: { min: 0, max: 1000 },
 } as const;
 
@@ -222,8 +307,13 @@ export interface RawGisRouteInput {
   /** เวลาดิบจาก OSRM (วินาที) */
   durationS: number;
   elevationGainM: number | null;
+  mountainPct?: number | null;
   elevationLossM: number | null;
   selected: boolean;
+  /** ช่วงเดินเท้าต่อท้ายแบบดิบ (เมตร/วินาที) — undefined = ไม่มีช่วงเดิน */
+  walkDistanceM?: number | null;
+  walkDurationS?: number | null;
+  walkDestSnapM?: number | null;
 }
 
 /** เหตุผลที่เส้นทางถูกตัดทิ้ง (ภาษาไทย) — null = ผ่าน */
@@ -261,6 +351,9 @@ export function buildRouteAnalysis(
   const effective = ttr !== null ? computeEffectiveDistance(roadKm, ttr) : null;
   if (rcr === null || ttr === null || avgSpeed === null || effective === null) return null;
 
+  // ช่วงเดินเท้าไม่เข้าสูตร RCR/TTR/ความเร็ว — ดูเหตุผลที่ doc ของ GisWalkLeg
+  const walkLeg = buildWalkLeg(raw);
+
   return {
     destinationType: raw.destinationType,
     destinationName: raw.destinationName,
@@ -274,11 +367,37 @@ export function buildRouteAnalysis(
     effectiveDistanceKm: effective,
     averageSpeedKmh: avgSpeed,
     elevationGainM: cleanNullableNum(raw.elevationGainM, GIS_LIMITS.gainM, 0),
+    mountainPct: cleanNullableNum(raw.mountainPct, GIS_LIMITS.mountainPct, 1),
     elevationLossM: cleanNullableNum(raw.elevationLossM, GIS_LIMITS.gainM, 0),
     routeSource: "osrm",
     selected: raw.selected === true,
     calculatedAt,
+    ...(walkLeg ? { walkLeg } : {}),
   };
+}
+
+/** ช่วงเดินเท้าดิบ → GisWalkLeg (undefined เมื่อไม่มี/ค่าใช้ไม่ได้) — ไม่ทำให้ทั้งเส้นทางตกเมื่อช่วงเดินเสีย */
+function buildWalkLeg(raw: RawGisRouteInput): GisWalkLeg | undefined {
+  const distM = raw.walkDistanceM;
+  const durS = raw.walkDurationS;
+  if (typeof distM !== "number" || !Number.isFinite(distM) || distM <= 0) return undefined;
+  if (typeof durS !== "number" || !Number.isFinite(durS) || durS <= 0) return undefined;
+  const snap = raw.walkDestSnapM;
+  return {
+    distanceKm: roundTo(clampNum(distM / 1000, GIS_LIMITS.distanceKm), 2),
+    travelTimeMin: roundTo(clampNum(durS / 60, GIS_LIMITS.travelTimeMin), 1),
+    destSnapM: typeof snap === "number" && Number.isFinite(snap) && snap >= 0 ? Math.round(snap) : null,
+  };
+}
+
+/** เวลาเดินทางรวมของเส้นทาง (รถ + เดินเท้าถ้ามี) — ค่านี้คือสิ่งที่ข้อ 3.1 ถาม ("เวลาเดินทางถึง…") */
+export function totalTravelTimeMin(route: GisRouteAnalysis): number {
+  return roundTo(route.travelTimeMin + (route.walkLeg?.travelTimeMin ?? 0), 1);
+}
+
+/** ระยะทางรวมของเส้นทาง (รถ + เดินเท้าถ้ามี) */
+export function totalDistanceKm(route: GisRouteAnalysis): number {
+  return roundTo(route.roadDistanceKm + (route.walkLeg?.distanceKm ?? 0), 2);
 }
 
 // ── การ derive ค่ามิติ 3 (scoring v2) ───────────────────────────────────────────
@@ -320,11 +439,16 @@ export function derive32Severity(gis: GisAnalysis): number | null {
  */
 export function deriveD3Responses(gis: GisAnalysis): Partial<Record<IndicatorId, ResponseData>> {
   const out: Partial<Record<IndicatorId, ResponseData>> = {};
+  // เส้นทางที่ไปไม่ถึงโรงเรียน (snap ไกล / ถูกตัดเพราะข้ามพรมแดน / ไม่มีเลย) ห้ามนำมาคิดคะแนน
+  // ระยะทางและเวลาที่ได้เป็นของ "จุดบนถนนที่ใกล้ที่สุด" ไม่ใช่ของโรงเรียน — ปล่อยให้กรอกเองจะตรงกว่า
+  if (!routeAccessUsable(gis.routeAccess)) return out;
   const main = primaryRoute(gis);
   if (main) {
+    // เวลา/ระยะ "รวม" (รถ + เดินเท้าถ้ามี) — ข้อ 3.1 ถามเวลาเดินทางถึงหน่วยงาน ไม่ได้ระบุว่าต้องเป็นรถ
+    // โรงเรียนที่ต้องจอดรถแล้วเดินต่อจึงได้เวลาที่ตรงกับความเป็นจริงมากกว่านับเฉพาะช่วงรถ
     out["3.1"] = {
-      minutes: String(Math.round(main.travelTimeMin)),
-      km: main.roadDistanceKm.toFixed(1),
+      minutes: String(Math.round(totalTravelTimeMin(main))),
+      km: totalDistanceKm(main).toFixed(1),
     };
   }
   const severity = derive32Severity(gis);
@@ -334,7 +458,7 @@ export function deriveD3Responses(gis: GisAnalysis): Partial<Record<IndicatorId,
   const hosp = hospitalRoute(gis);
   if (hosp) {
     out["3.3"] = {
-      minutes: String(Math.round(hosp.travelTimeMin)),
+      minutes: String(Math.round(totalTravelTimeMin(hosp))),
       unitName: hosp.destinationName.slice(0, 200),
     };
   }
@@ -589,9 +713,28 @@ function cleanRoute(item: unknown): GisRouteAnalysis | null {
     selected: r.selected === true,
     calculatedAt: cleanStr(r.calculatedAt, 40),
   };
+  // ไม่งอกคีย์บนแถวเก่า: ใส่เฉพาะเมื่อ payload มีค่ามาจริง (แถว v1 ต้อง round-trip เหมือนเดิมทุกไบต์)
+  if (r.mountainPct !== undefined) route.mountainPct = cleanNullableNum(r.mountainPct, GIS_LIMITS.mountainPct, 1);
   const highestPoint = cleanHighestPoint(r.highestPoint);
   if (highestPoint) route.highestPoint = highestPoint;
+  const walkLeg = cleanWalkLeg(r.walkLeg);
+  if (walkLeg) route.walkLeg = walkLeg;
   return route;
+}
+
+/** ตรวจ walkLeg ที่อ่านกลับจาก DB — ระยะ/เวลาต้องเป็นบวกทั้งคู่ ไม่งั้นทิ้ง (ช่วงเดินที่ 0 ไม่มีความหมาย) */
+function cleanWalkLeg(value: unknown): GisWalkLeg | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const w = value as Record<string, unknown>;
+  const distanceKm = cleanNum(w.distanceKm, GIS_LIMITS.distanceKm, 2);
+  const travelTimeMin = cleanNum(w.travelTimeMin, GIS_LIMITS.travelTimeMin, 1);
+  if (!(distanceKm > 0) || !(travelTimeMin > 0)) return undefined;
+  const snap = Number(w.destSnapM);
+  return {
+    distanceKm,
+    travelTimeMin,
+    destSnapM: Number.isFinite(snap) && snap >= 0 ? Math.round(snap) : null,
+  };
 }
 
 function cleanElevation(value: unknown): GisElevationInfo | null {
@@ -609,6 +752,8 @@ function cleanElevation(value: unknown): GisElevationInfo | null {
     maxElevationM: cleanNullableNum(e.maxElevationM, GIS_LIMITS.elevationM, 0),
     reliefM: cleanNullableNum(e.reliefM, GIS_LIMITS.elevationM, 0),
     meanSlopePct: cleanNullableNum(e.meanSlopePct, GIS_LIMITS.slopePct, 1),
+    // ความลาดชันรอบโรงเรียน — แถวเก่าไม่มีค่านี้ ต้องเป็น null ห้าม fallback เป็น meanSlopePct
+    innerSlopePct: cleanNullableNum(e.innerSlopePct, GIS_LIMITS.slopePct, 1),
     maxSlopePct: cleanNullableNum(e.maxSlopePct, GIS_LIMITS.slopePct, 1),
     localMaxElevation1KmM: cleanNullableNum(e.localMaxElevation1KmM, GIS_LIMITS.elevationM, 0),
     slopeClass: cleanStr(e.slopeClass, 200),
@@ -755,9 +900,58 @@ export function clampGisPayload(input: unknown): GisAnalysis | undefined {
   if (areaSummary) result.areaSummary = areaSummary;
   const radiusSummaries = cleanRadiusSummaries(raw.radiusSummaries);
   if (radiusSummaries) result.radiusSummaries = radiusSummaries;
+  // ธง 8 ทิศ: ใช้ค่าที่บันทึกไว้ใน sectorConfig เป็นหลัก เพื่อให้อ่านแถวเดิมซ้ำได้ตัวเลขเดิมเป๊ะ
+  // แม้ค่าคงที่ในโค้ดจะถูกแก้ไปแล้ว (ถ้าไม่มี config จึงถอยไปใช้ความสูงหมุดโรงเรียน + ค่าคงที่ปัจจุบัน)
+  const sectorConfig = cleanSectorConfig(raw.sectorConfig);
+  const sectorSchoolElev = sectorConfig
+    ? sectorConfig.schoolElevationM
+    : (result.elevation?.schoolMarkerElevationM ?? null);
+  const sectorElevations = cleanSectorElevations(
+    raw.sectorElevations,
+    sectorSchoolElev,
+    sectorConfig?.thresholdM ?? SECTOR_RELIEF_K_M,
+  );
+  if (sectorElevations) {
+    result.sectorElevations = sectorElevations;
+    result.sectorConfig = sectorConfig ?? {
+      radiusM: SECTOR_RADIUS_M,
+      thresholdM: SECTOR_RELIEF_K_M,
+      schoolElevationM: sectorSchoolElev,
+      schoolElevationSource: "route-profile",
+    };
+  }
   const dataSources = cleanDataSources(raw.dataSources);
   if (dataSources) result.dataSources = dataSources;
+  const routeAccess = cleanRouteAccess(raw.routeAccess);
+  if (routeAccess) result.routeAccess = routeAccess;
+  const forestOverlay = cleanForestOverlay(raw.forestOverlay);
+  if (forestOverlay) result.forestOverlay = forestOverlay;
+  // 3 ชั้นป่า: ถ้า client ส่ง forestAnalysis ใช้ sanitize; ไม่งั้นสร้างจาก legal overlay อย่างเดียว
+  let forestAnalysis = cleanForestAnalysis(raw.forestAnalysis);
+  if (!forestAnalysis && forestOverlay) {
+    forestAnalysis = buildForestAnalysis({
+      legalOverlay: forestOverlay,
+      calculatedAt: forestOverlay.calculatedAt || result.savedAt,
+    });
+  }
+  if (forestAnalysis) result.forestAnalysis = forestAnalysis;
   return result;
+}
+
+/** ตรวจ routeAccess ที่อ่านกลับจาก DB — status ต้องอยู่ในรายการที่รู้จัก ไม่งั้นทิ้งทั้งก้อน
+ *  (สถานะที่อ่านไม่ออกอันตรายกว่าไม่มีสถานะ เพราะอาจถูกตีความว่า "เข้าถึงได้" โดยปริยาย) */
+function cleanRouteAccess(value: unknown): GisRouteAccess | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const v = value as Record<string, unknown>;
+  const status = typeof v.status === "string" ? v.status : "";
+  if (!(GIS_ROUTE_ACCESS_STATUSES as readonly string[]).includes(status)) return undefined;
+  const snap = Number(v.destSnapM);
+  const note = typeof v.note === "string" ? v.note.slice(0, 300) : "";
+  return {
+    status: status as GisRouteAccess["status"],
+    ...(Number.isFinite(snap) && snap >= 0 ? { destSnapM: Math.round(snap) } : {}),
+    note,
+  };
 }
 
 export interface FinalizeGisOptions {

@@ -8,6 +8,36 @@ export type RouteElevationPoint = GisRouteHighestPoint;
 export interface RouteElevationProfile {
   schoolElevationM: number | null;
   highestPoint: RouteElevationPoint | null;
+  /** สัดส่วนจุดตัวอย่างบนเส้นทางที่อยู่ในระดับภูเขา (%) — null = ไม่มีตัวอย่างที่อ่านค่าได้ */
+  mountainPct: number | null;
+}
+
+/** ระดับความสูง (ม.) ที่ถือว่าจุดบนเส้นทางเป็น "ภูมิประเทศภูเขา" — ตรงกับ MORPHOLOGY_HIGHLAND_MIN_M */
+export const ROUTE_MOUNTAIN_THRESHOLD_M = 500;
+
+/**
+ * สัดส่วนของเส้นทางที่ผ่านภูมิประเทศภูเขา (%)
+ *
+ * ต่างจากจุดสูงสุด (ยอดเดียวบอกไม่ได้ว่าต้องอยู่บนที่สูงนานแค่ไหน) และต่างจากความสูงสะสม
+ * (นับเนินเล็ก ๆ รวมกันได้เยอะทั้งที่ไม่เคยขึ้นที่สูงเลย)
+ *
+ * ค่าที่อ่านไม่ได้ (NaN จากไทล์ DEM ที่โหลดไม่สำเร็จ) ถูกข้าม ไม่นับเป็น 0 ม.
+ * ไม่มีตัวอย่างที่ใช้ได้เลย → null (ไม่ทราบ) ไม่ใช่ 0
+ */
+export function routeMountainPercent(
+  heights: ArrayLike<number>,
+  thresholdM: number = ROUTE_MOUNTAIN_THRESHOLD_M,
+): number | null {
+  let usable = 0;
+  let mountain = 0;
+  for (let index = 0; index < heights.length; index += 1) {
+    const value = heights[index];
+    if (!Number.isFinite(value)) continue;
+    usable += 1;
+    if (value >= thresholdM) mountain += 1;
+  }
+  if (usable === 0) return null;
+  return Math.round(((100 * mountain) / usable) * 10) / 10;
 }
 
 export function sampleRouteCoordinates(coords: readonly RouteCoordinate[], maxCount: number): RouteCoordinate[] {
@@ -39,6 +69,7 @@ export function routeElevationSampleCoordinates(
 export function buildRouteElevationProfile(
   coords: readonly RouteCoordinate[],
   heights: ArrayLike<number>,
+  options?: { mountainThresholdM?: number },
 ): RouteElevationProfile {
   let highestPoint: RouteElevationPoint | null = null;
   const pairedLength = Math.min(coords.length, heights.length);
@@ -56,6 +87,7 @@ export function buildRouteElevationProfile(
   return {
     schoolElevationM: Number.isFinite(schoolHeight) ? schoolHeight : null,
     highestPoint,
+    mountainPct: routeMountainPercent(heights, options?.mountainThresholdM ?? ROUTE_MOUNTAIN_THRESHOLD_M),
   };
 }
 

@@ -14,6 +14,9 @@ export interface Morphology {
   meanElev: number;
   relief: number;
   meanSlopePct: number;
+  /** ความลาดชันเฉลี่ยเฉพาะรัศมี 500 ม. รอบจุดตั้ง (%) — ใช้จำแนกภูมิประเทศแทนค่าเฉลี่ยทั้งผืน
+   *  (ก้นหุบจะถูกผนังหุบที่อยู่ไกลดึงให้ "ชัน" ถ้าใช้ meanSlopePct); null = คำนวณไม่ได้ */
+  innerSlopePct: number | null;
   maxSlopePct: number;
   lddClass: string;
   tpi: number; // จุดกลาง − ค่าเฉลี่ยขอบ (บวก=ยอด/สัน, ลบ=ก้นหุบเขา)
@@ -21,7 +24,8 @@ export interface Morphology {
   landformTh: string; // ชุมชนบนภูเขาสูง/บนภูเขา/ในหุบเขา/เชิงเขา(ที่ลาดเชิงเขา)/บนเนินเขา/บนพื้นราบ
   landformEn: string; // HighMountain / Mountain / Valley / Foothill / Hills / Plains
   provinceName: string | null;
-  provinceAvgElev: number; // เกณฑ์ความสูงเฉลี่ยจังหวัด (ม.)
+  /** เกณฑ์ความสูงเฉลี่ยจังหวัด (ม.) — null = หาแถวจังหวัดไม่พบ (ห้ามแทนด้วย 0: ทุกที่จะกลายเป็น "สูง") */
+  provinceAvgElev: number | null;
   local1000Elev: number | null; // ความสูงสุดในรัศมี 1,000 ม. รอบจุดตั้ง (null = ไม่ได้ส่ง bbox มาให้คำนวณ)
   /** ความสูงสุดตามเส้นทาง 5 กม.สุดท้าย — ใช้จำแนก landform ภูเขา/หุบเขา/เชิงเขา */
   routeTailMaxElev: number | null;
@@ -35,7 +39,7 @@ export interface Morphology {
 
 export interface MorphologyOptions {
   // ความสูงเฉลี่ยจังหวัด (เมตร) จากตาราง province ของ DB (lib/repo.ts#listProvinces + nearestProvince) — ใช้เป็นเกณฑ์
-  // ข้อ 2 ในการจำแนกภูเขา/หุบเขา; ไม่ส่งมา/null (หา DB ไม่พบ) → ถือว่า avgElev = 0 (ใช้เกณฑ์ความสูงสัมบูรณ์ ≥500 ม. อย่างเดียว)
+  // ข้อ 2 ในการจำแนกภูเขา/หุบเขา; ไม่ส่งมา/null (หา DB ไม่พบ) → ข้ามเกณฑ์นี้ ใช้ความสูงสัมบูรณ์ >500 ม. อย่างเดียว
   provinceOverride?: { name: string; avgElev: number } | null;
   // ขอบเขตพื้นที่ของกริด (ใช้คำนวณ local1000Elev ผ่าน highestInRadius) — ไม่ส่งมา = ข้ามการคำนวณนี้
   bbox?: Bbox;
@@ -92,6 +96,8 @@ export const MORPHOLOGY_HIGH_MOUNTAIN_M = 1000;
 export const MORPHOLOGY_HIGHLAND_MIN_M = 500;
 /** รัศมีรอบจุดตั้ง (ม.) ที่ใช้เช็คความสูงสุด local */
 export const MORPHOLOGY_LOCAL_HIGH_RADIUS_M = 1000;
+/** รัศมีรอบจุดตั้ง (ม.) ที่ใช้วัดความลาดชัน "รอบโรงเรียน" (แยกจากค่าเฉลี่ยทั้งกริด) */
+export const MORPHOLOGY_INNER_SLOPE_RADIUS_M = 500;
 /** ระยะเส้นทางช่วงท้าย (ม.) ที่ใช้เช็คความสูงสุดตามเส้นทาง */
 export const MORPHOLOGY_ROUTE_CHECK_DISTANCE_M = 5000;
 
@@ -103,8 +109,10 @@ const LOCAL_HIGH_RADIUS_M = MORPHOLOGY_LOCAL_HIGH_RADIUS_M;
 const ROUTE_CHECK_DISTANCE_M = MORPHOLOGY_ROUTE_CHECK_DISTANCE_M;
 
 // "สูง" ถ้าเกิน 500 ม. จากระดับน้ำทะเล หรือเกินความสูงเฉลี่ยจังหวัด (แล้วแต่ว่าเกณฑ์ไหนถึงก่อน) — ใช้ทั้งจุดตั้งและเส้นทาง
-function isHigh(elev: number, provinceAvgElev: number): boolean {
-  return elev > HIGHLAND_MIN_M || elev > provinceAvgElev;
+// ไม่รู้ค่าเฉลี่ยจังหวัด (null) → ใช้เฉพาะเกณฑ์สัมบูรณ์ ห้าม fallback เป็น 0 (จะทำให้ทุกจุดเหนือระดับน้ำทะเลเป็น "สูง")
+export function isElevationHigh(elev: number, provinceAvgElev: number | null): boolean {
+  if (elev > HIGHLAND_MIN_M) return true;
+  return provinceAvgElev !== null && elev > provinceAvgElev;
 }
 
 // คำนวณความลาดชัน + TPI จากกริดความสูง แล้วจำแนกประเภทชุมชนตามภูมิประเทศ
@@ -195,7 +203,8 @@ export function morphologyFromGrid(
   const tpi = Number.isFinite(ringMean) ? centerElev - ringMean : 0;
   const tpiRatio = relief > 0 ? tpi / relief : 0;
 
-  const provinceAvgElev = provinceOverride?.avgElev ?? 0;
+  const provinceAvgElev =
+    provinceOverride && Number.isFinite(provinceOverride.avgElev) ? provinceOverride.avgElev : null;
   const local1000Elev = bbox ? highestInRadius(grid, n, actualWidthM, bbox, LOCAL_HIGH_RADIUS_M).hiElev : null;
 
   let landformTh: string;
@@ -209,8 +218,8 @@ export function morphologyFromGrid(
     classificationMethod = "highMountain";
   } else if (routeTailMaxElev !== null && local1000Elev !== null) {
     // เกณฑ์ใหม่: ความสูงรอบจุดตั้ง (1,000 ม.) ร่วมกับความสูงตามเส้นทางรถยนต์ (5 กม.สุดท้าย)
-    const localHigh = isHigh(local1000Elev, provinceAvgElev);
-    const routeHigh = isHigh(routeTailMaxElev, provinceAvgElev);
+    const localHigh = isElevationHigh(local1000Elev, provinceAvgElev);
+    const routeHigh = isElevationHigh(routeTailMaxElev, provinceAvgElev);
     classificationMethod = "route";
     if (localHigh && routeHigh) {
       landformTh = "ชุมชนบนภูเขา";
@@ -233,7 +242,7 @@ export function morphologyFromGrid(
   } else {
     // Fallback: ยังไม่มีข้อมูลเส้นทาง (โหลดไม่เสร็จ/ไม่พบจังหวัด/OSRM ล้มเหลว) → เกณฑ์เดิม (TPI + ความลาดชัน)
     classificationMethod = "fallback";
-    const highEnough = meanElev >= HIGHLAND_MIN_M && meanElev >= provinceAvgElev;
+    const highEnough = meanElev >= HIGHLAND_MIN_M && (provinceAvgElev === null || meanElev >= provinceAvgElev);
     // หุบเขา = จุดกลางต่ำกว่าขอบชัดเจน (ทั้งสัดส่วนและค่าสัมบูรณ์) — กัน noise ตอน relief เล็ก
     const isValley = tpiRatio <= VALLEY_RATIO && tpi <= VALLEY_ABS_M;
     if (isValley) {
@@ -260,6 +269,7 @@ export function morphologyFromGrid(
     meanElev,
     relief,
     meanSlopePct,
+    innerSlopePct: meanSlopeWithinRadiusPct(grid, n, actualWidthM, MORPHOLOGY_INNER_SLOPE_RADIUS_M),
     maxSlopePct: slopeMax,
     lddClass: lddClassLabel(meanSlopePct),
     tpi,
@@ -273,6 +283,47 @@ export function morphologyFromGrid(
     routeFullMaxElev: routeFullMaxElev ?? null,
     classificationMethod,
   };
+}
+
+/**
+ * ความลาดชันเฉลี่ย (%) เฉพาะเซลล์ที่อยู่ในรัศมี radiusM จากจุดกึ่งกลางกริด
+ *
+ * ต่างจาก meanSlopePct ของ morphologyFromGrid ที่เฉลี่ยทั้งผืน (~2.8 กม.): ค่าเฉลี่ยทั้งผืนของโรงเรียน
+ * ก้นหุบจะถูกผนังหุบที่อยู่ไกลดึงให้สูงจน "ราบ" กลายเป็น "ชัน" — การจำแนกภูมิประเทศจึงต้องใช้ค่านี้แทน
+ *
+ * คืน null เมื่อไม่มีเซลล์ใดในรัศมีที่คำนวณได้ (ข้าม NaN เสมอ ห้ามแทนด้วย 0)
+ */
+export function meanSlopeWithinRadiusPct(
+  grid: Float32Array | number[],
+  n: number,
+  actualWidthM: number,
+  radiusM: number,
+): number | null {
+  if (!Number.isInteger(n) || n < 3 || !Number.isFinite(actualWidthM) || actualWidthM <= 0) return null;
+  const cellM = actualWidthM / (n - 1);
+  const center = (n - 1) / 2;
+  const radiusSq = radiusM * radiusM;
+  let sum = 0;
+  let count = 0;
+
+  for (let i = 1; i < n - 1; i += 1) {
+    const northM = (i - center) * cellM;
+    for (let j = 1; j < n - 1; j += 1) {
+      const eastM = (j - center) * cellM;
+      if (northM * northM + eastM * eastM > radiusSq) continue;
+      const xr = grid[i * n + (j + 1)];
+      const xl = grid[i * n + (j - 1)];
+      const yd = grid[(i + 1) * n + j];
+      const yu = grid[(i - 1) * n + j];
+      if (!Number.isFinite(xr) || !Number.isFinite(xl) || !Number.isFinite(yd) || !Number.isFinite(yu)) continue;
+      const dzdx = (xr - xl) / (2 * cellM);
+      const dzdy = (yd - yu) / (2 * cellM);
+      sum += Math.sqrt(dzdx * dzdx + dzdy * dzdy) * 100;
+      count += 1;
+    }
+  }
+
+  return count ? sum / count : null;
 }
 
 /** ค่าสูงสุดจากลำดับความสูง (ข้าม NaN) — ใช้กับผล sampleCesiumPoints ตามเส้นทาง */

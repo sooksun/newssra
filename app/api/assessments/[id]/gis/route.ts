@@ -101,6 +101,8 @@ export async function POST(request: NextRequest, { params }: Ctx) {
         provinceAvgElev: near && Number.isFinite(near.avgElev) ? near.avgElev : null,
         now,
         previousAreaSummary: existing.state.gis?.areaSummary,
+        previousSectorElevations: existing.state.gis?.sectorElevations,
+        previousSectorConfig: existing.state.gis?.sectorConfig,
       }));
     } catch (err) {
       if (err instanceof GisRequestError) {

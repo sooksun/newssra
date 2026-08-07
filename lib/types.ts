@@ -222,6 +222,8 @@ export interface GisRouteAnalysis {
   averageSpeedKmh: number;
   /** ความสูงสะสมขาขึ้น/ลงตามเส้นทาง — สุ่มจาก DEM ฝั่ง browser; null = ไม่ได้สุ่ม */
   elevationGainM: number | null;
+  /** สัดส่วนเส้นทางที่ผ่านภูมิประเทศภูเขา (%) — จากโปรไฟล์ความสูงตลอดเส้นทาง; null = ยังไม่ได้สุ่ม */
+  mountainPct?: number | null;
   elevationLossM: number | null;
   routeSource: "osrm";
   /** เส้นที่ผู้ใช้เลือกจากทางเลือก OSRM (ใช้คิดคะแนน) */
@@ -229,6 +231,22 @@ export interface GisRouteAnalysis {
   calculatedAt: string;
   /** จุดสูงสุดที่สุ่มได้ตามเส้นทางนี้ (พิกัด + ความสูง) — ชุดเดียวกับธงจุดสูงสุดบนแผนที่; null = ยังไม่ได้สุ่ม */
   highestPoint?: GisRouteHighestPoint | null;
+  /** ช่วงเดินเท้าต่อท้าย เมื่อรถไปได้แค่ปลายถนน — undefined = ไม่มีช่วงเดิน (รถถึงโรงเรียนเลย) */
+  walkLeg?: GisWalkLeg;
+}
+
+/**
+ * ช่วงเดินเท้าจากปลายถนนถึงโรงเรียน
+ *
+ * แยกจากช่วงรถโดยเจตนา: RCR/TTR/ความเร็วเฉลี่ย เป็นตัวชี้วัดของ "การเดินทางด้วยรถบนถนน" การเอา
+ * ระยะเดินเท้าไปรวมก่อนคำนวณจะทำให้ค่าพวกนั้นเพี้ยน (เดินเท้าช้ากว่ารถหลายเท่าโดยธรรมชาติ ไม่ใช่
+ * เพราะเส้นทางลำบาก) — ส่วนที่ต้องรวมคือ "เวลาเดินทางรวม" ที่ใช้ตอบข้อ 3.1 เท่านั้น
+ */
+export interface GisWalkLeg {
+  distanceKm: number;
+  travelTimeMin: number;
+  /** ระยะที่กราฟเดินเท้า snap ปลายทางไปจากโรงเรียน (ม.) — null = อ่านค่าไม่ได้ */
+  destSnapM: number | null;
 }
 
 /** จุดสูงสุดที่สุ่มได้ตามเส้นทาง — ใช้ทั้งธงแดงบนแผนที่และค่าที่บันทึกลงแบบประเมิน (ต้องเป็นชุดตัวอย่างเดียวกัน) */
@@ -236,6 +254,47 @@ export interface GisRouteHighestPoint {
   lat: number;
   lng: number;
   elevationM: number;
+}
+
+/** 8 ทิศรอบจุดที่ตั้ง เรียงตามเข็มนาฬิกาจากทิศเหนือ (wedge ละ 45° โดยมีทิศนั้นอยู่กึ่งกลาง) */
+export const SECTOR_KEYS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"] as const;
+export type GisSectorKey = (typeof SECTOR_KEYS)[number];
+
+/** จุดสูงสุด/ต่ำสุดของทิศหนึ่ง ๆ — พิกัดเก็บไว้เพื่อให้ย้อนกลับตรวจบนแผนที่ได้ว่าธงปักตรงไหน */
+export interface GisSectorPoint {
+  lat: number;
+  lng: number;
+  elevationM: number;
+  /** ส่วนต่างจากความสูงของโรงเรียน (ม.) — null = ไม่รู้ความสูงโรงเรียน */
+  deltaFromSchoolM: number | null;
+  /** |ส่วนต่างจากโรงเรียน| ≥ K — จุดที่ไม่ถึงเกณฑ์นี้จะไม่ปักธงบนแผนที่ (แต่ยังบันทึกไว้เป็นข้อมูล) */
+  meetsThreshold: boolean;
+}
+
+/**
+ * ความสูงสุด/ต่ำสุดของภูมิประเทศในทิศหนึ่ง ๆ ภายในรัศมีที่กำหนด
+ * ข้อมูลประกอบเท่านั้น ไม่มีผลต่อคะแนน 100 คะแนนทางการ
+ */
+export interface GisSectorElevation {
+  sector: GisSectorKey;
+  /** null = ทิศนี้อ่านความสูงไม่ได้เลย (สุ่ม terrain ไม่สำเร็จทั้งทิศ) */
+  highest: GisSectorPoint | null;
+  lowest: GisSectorPoint | null;
+  /** สูงสุด − ต่ำสุด ภายในทิศนี้ (ม.) — ข้อมูลประกอบ ไม่ใช่เกณฑ์ตัดสินว่าจะปักธงหรือไม่ */
+  reliefM: number | null;
+  /** ทิศนี้มีธงขึ้นอย่างน้อยหนึ่งอัน (จุดใดจุดหนึ่งต่างจากโรงเรียนถึง ±K) */
+  aboveThreshold: boolean;
+}
+
+/** ค่าที่ใช้ตอนคำนวณธง 8 ทิศ — บันทึกไว้กับผลเพื่อให้แถวเก่าอ่านตรงกับตอนบันทึก แม้ค่าคงที่ในโค้ดจะเปลี่ยนไปแล้ว */
+export interface GisSectorConfig {
+  radiusM: number;
+  /** ค่า K (ม.) — จุดที่ต่างจากความสูงโรงเรียนไม่ถึง ±K จะไม่ปักธง */
+  thresholdM: number;
+  /** ความสูงโรงเรียนที่ใช้อ้างอิงคำนวณส่วนต่าง (ม.) */
+  schoolElevationM: number | null;
+  /** ที่มาของค่าข้างต้น — route-profile = ค่าเดียวกับหมุดโรงเรียน, grid-center = เซลล์กลางกริดเมื่อไม่มีเส้นทาง */
+  schoolElevationSource: "route-profile" | "grid-center";
 }
 
 /** สรุปอาคาร/ประชากรโดยประมาณในรัศมีรอบจุดวิเคราะห์ (500/1,000/1,500 ม.) */
@@ -267,6 +326,13 @@ export interface GisElevationInfo {
   /** ผลต่างความสูงสูงสุด−ต่ำสุดของกริด (ม.) */
   reliefM: number | null;
   meanSlopePct: number | null;
+  /**
+   * ความลาดชันเฉลี่ยเฉพาะรัศมี 500 ม. รอบหมุดโรงเรียน (%) — ใช้จำแนกภูมิประเทศแทน meanSlopePct
+   *
+   * ต้องแยกจาก meanSlopePct เพราะค่าเฉลี่ยทั้งกริด (~2.8 กม.) ของโรงเรียนก้นหุบถูกผนังหุบที่อยู่ไกล
+   * ดึงให้สูงจน "ราบ" กลายเป็น "ชัน"; null = แถวเก่าที่ยังไม่ได้วัด (ห้ามแทนด้วย meanSlopePct)
+   */
+  innerSlopePct?: number | null;
   /** ความลาดชันสูงสุดของกริด (%) */
   maxSlopePct: number | null;
   /** ความสูงสุดในรัศมี 1 กม. รอบจุดตั้ง (ม.); null = ไม่ได้คำนวณ */
@@ -377,6 +443,35 @@ export interface GisAreaSummary {
 }
 
 /** ผลวิเคราะห์ GIS ทั้งชุดของแบบประเมินหนึ่งฉบับ — เขียนผ่าน POST /api/assessments/[id]/gis เท่านั้น */
+/**
+ * สถานะการเข้าถึงโรงเรียนด้วยเส้นทางถนนจากศาลากลางจังหวัด
+ *
+ * มีไว้เพราะโรงเรียนที่ "ห่างไกลที่สุด" คือกลุ่มที่ระบบหาเส้นทางให้ไม่ได้พอดี — ถ้าไม่บันทึก
+ * เหตุผลไว้ ระบบจะบล็อกไม่ให้บันทึกแบบประเมินของโรงเรียนที่ควรได้คะแนนสูงที่สุด
+ *
+ * - reachable      เส้นทางรถไปถึงโรงเรียนจริง (จุดปลายห่างไม่เกิน MAX_ROUTE_SNAP_M)
+ * - car-and-walk   รถไปได้ถึงปลายถนน แล้วต้องเดินเท้าต่อจนถึงโรงเรียน (เดินถึงจริง)
+ * - snapped-far    มีเส้นทาง แต่จุดปลายอยู่ห่างโรงเรียนมาก = ไปไม่ถึง ตัวเลขจึงไม่ใช่ของโรงเรียนนี้
+ * - border-blocked เส้นทางเดียวที่มีต้องผ่านพรมแดนประเทศเพื่อนบ้าน จึงใช้ไม่ได้จริง
+ * - no-route       ระบบหาเส้นทางไม่พบเลย
+ */
+export const GIS_ROUTE_ACCESS_STATUSES = [
+  "reachable",
+  "car-and-walk",
+  "snapped-far",
+  "border-blocked",
+  "no-route",
+] as const;
+export type GisRouteAccessStatus = (typeof GIS_ROUTE_ACCESS_STATUSES)[number];
+
+export interface GisRouteAccess {
+  status: GisRouteAccessStatus;
+  /** ระยะจากโรงเรียนถึงจุดที่เส้นทางไปจบจริง (ม.) — undefined เมื่อไม่มีเส้นทางให้วัด */
+  destSnapM?: number;
+  /** คำอธิบายภาษาไทยสำหรับผู้ตรวจ — server เป็นผู้เขียนเสมอ ไม่รับจาก client */
+  note: string;
+}
+
 export interface GisAnalysis {
   center: {
     lat: number;
@@ -398,11 +493,115 @@ export interface GisAnalysis {
   communityClass?: GisCommunityClass;
   /** จำนวนอาคาร/ประชากรโดยประมาณในรัศมี 500/1,000/1,500 ม. — ไม่บังคับ (undefined = ยังไม่ได้ส่งมา) */
   radiusSummaries?: GisRadiusSummary[];
+  /** จุดสูงสุด/ต่ำสุดราย 8 ทิศ ในรัศมี sectorConfig.radiusM — ไม่บังคับ (undefined = แถวเก่า/ยังไม่ได้ส่งมา) */
+  sectorElevations?: GisSectorElevation[];
+  /** ค่ารัศมี/เกณฑ์ K/ความสูงอ้างอิงที่ใช้ตอนคำนวณ sectorElevations — server เป็นผู้เขียน ไม่รับจาก client */
+  sectorConfig?: GisSectorConfig;
   /** แหล่งข้อมูลที่ใช้คำนวณผล GIS ชุดนี้ — ไม่บังคับ (undefined = แถวเก่าก่อนมีฟิลด์นี้) */
   dataSources?: GisDataSources;
+  /** ผลการหาเส้นทางถนนจากศาลากลางจังหวัด — undefined = แถวเก่าก่อนมีฟิลด์นี้
+   *  status ที่ไม่ใช่ reachable แปลว่า "ตัวเลขเส้นทางใช้แทนการเข้าถึงของโรงเรียนนี้ไม่ได้" */
+  routeAccess?: GisRouteAccess;
+  /**
+   * ทับซ้อนเขตตามกฎหมาย (Legal layer) — เฟส 1 จาก OSM = อ้างอิง
+   * @see docs/superpowers/specs/2026-08-07-forest-boundary-highland-screen-design.md
+   */
+  forestOverlay?: GisForestOverlay;
+  /**
+   * ชั้นป่า 3 ชั้น: Status (สภาพป่ากรมป่าไม้) · Legal · Type + flat metrics
+   * @see docs/superpowers/specs/2026-08-07-forest-three-layers-highland-design.md
+   */
+  forestAnalysis?: GisForestAnalysis;
   /** true = derive ค่าลง responses ด้านที่ 3 แล้ว (scoring v2) */
   appliedToResponses: boolean;
   savedAt: string;
+}
+
+/** ผลทับซ้อนแนวเขตป่า — รูปเดียวกับ ForestOverlayResult ใน lib/map/forestBoundaries.ts */
+export type GisForestOverlayStatus = "in" | "near" | "out" | "unknown";
+export type GisForestDataAuthority = "osm-reference" | "authoritative";
+export type GisForestZoneKind =
+  | "national_reserved_forest"
+  | "national_park"
+  | "wildlife_sanctuary"
+  | "non_hunting"
+  | "forest_park"
+  | "botanical_garden"
+  | "arboretum"
+  | "community_forest"
+  | "mangrove_forest"
+  | "biosphere_reserve"
+  | "wetland_protected"
+  | "watershed_protected"
+  | "other_protected"
+  | "unclassified";
+
+export interface GisForestZoneHit {
+  name: string;
+  kind: GisForestZoneKind;
+  relation: "in" | "near";
+  distanceM: number;
+}
+
+export interface GisForestOverlay {
+  version: string;
+  status: GisForestOverlayStatus;
+  nearestDistanceM: number | null;
+  zones: GisForestZoneHit[];
+  dataAuthority: GisForestDataAuthority;
+  dataSource: string;
+  attribution: string;
+  calculatedAt: string;
+}
+
+/** ผลรวม 3 ชั้นป่า — รูปเดียวกับ ForestAnalysis ใน lib/forest-layers.ts */
+export interface GisForestAnalysis {
+  version: string;
+  status: {
+    inside: 0 | 1 | null;
+    distanceM: number | null;
+    pct1km: number | null;
+    pct3km: number | null;
+    pct5km: number | null;
+    yearBe: number | null;
+    gridResolutionM: number | null;
+    authority: "rfd-forest-cover" | "rfd-national-reserved-forest" | "unknown";
+    dataSource: string;
+    attribution: string;
+  } | null;
+  legal: {
+    inside: 0 | 1 | null;
+    distanceM: number | null;
+    protectedArea: 0 | 1 | null;
+    reserveForest: 0 | 1 | null;
+    zones: Array<{ name: string; kind: GisForestZoneKind; relation: "in" | "near"; distanceM: number }>;
+    authority: "osm-reference" | "authoritative" | "unknown";
+    dataSource: string;
+    attribution: string;
+  } | null;
+  type: {
+    typeLabelTh: string | null;
+    typeCode: string | null;
+    authority: "dnp-forest-type" | "unknown";
+    dataSource: string;
+    attribution: string;
+  } | null;
+  metrics: {
+    forest_inside: 0 | 1 | null;
+    forest_distance_m: number | null;
+    forest_1km_pct: number | null;
+    forest_3km_pct: number | null;
+    forest_5km_pct: number | null;
+    forest_type: string | null;
+    forest_type_code: string | null;
+    protected_area: 0 | 1 | null;
+    reserve_forest: 0 | 1 | null;
+    legal_distance_m: number | null;
+    insideSource: "status" | "legal" | "none";
+  };
+  contextStrength: "strong" | "weak" | "none" | "unknown";
+  missing: string[];
+  calculatedAt: string;
 }
 
 export interface AssessmentState {

@@ -7,6 +7,7 @@
 // server เป็นผู้คำนวณ ratio ทุกตัวใหม่เสมอ — ค่าที่ client คำนวณมาเองถูกทิ้งทั้งหมด
 
 import {
+  buildRouteAccess,
   buildRouteAnalysis,
   cleanAreaSummary,
   cleanHighestPoint,
@@ -14,8 +15,12 @@ import {
   finalizeGisAnalysis,
   routePhysicsIssue,
   MAX_GIS_ROUTES,
+  NO_ROUTE_REASONS,
 } from "./gis";
-import type { RawGisRouteInput } from "./gis";
+import type { NoRouteReason, RawGisRouteInput } from "./gis";
+import { cleanSectorConfig, cleanSectorElevations, SECTOR_RADIUS_M, SECTOR_RELIEF_K_M } from "./gis-sectors";
+import { buildForestAnalysis, cleanForestAnalysis } from "./forest-layers";
+import { cleanForestOverlay } from "./map/forestBoundaries";
 import { GIS_DESTINATION_TYPES } from "./types";
 import type {
   GisAnalysis,
@@ -24,9 +29,11 @@ import type {
   GisDestinationType,
   GisRadiusSummary,
   GisRouteAnalysis,
+  GisSectorConfig,
+  GisSectorElevation,
 } from "./types";
 
-export type GisRequestErrorCode = "INVALID_CENTER" | "INVALID_GIS" | "NO_VALID_ROUTE";
+export type GisRequestErrorCode = "INVALID_CENTER" | "INVALID_GIS";
 
 /** error ที่มี code คงที่ — ผู้เรียก (route handler) map เป็น HTTP status ได้เอง */
 export class GisRequestError extends Error {
@@ -43,8 +50,9 @@ export interface GisRequestContext {
   provinceAvgElev: number | null;
   now: string;
   previousAreaSummary: GisAreaSummary | undefined;
-  /** true = ต้องมีเส้นทางศาลากลางจังหวัดที่ใช้ได้อย่างน้อย 1 เส้น (ใช้กับ /from-map); default false (legacy /gis) */
-  requireProvinceRoute?: boolean;
+  /** ธง 8 ทิศที่บันทึกไว้เดิม — ใช้ต่อเมื่อ payload รอบนี้ไม่ได้ส่งมา (กันข้อมูลหายเมื่อบันทึกคนละจังหวะ) */
+  previousSectorElevations?: GisSectorElevation[] | undefined;
+  previousSectorConfig?: GisSectorConfig | undefined;
 }
 
 export interface GisRequestResult {
@@ -73,8 +81,13 @@ function toRawRoute(item: unknown): RawGisRouteInput | null {
     roadDistanceM: asNum(r.roadDistanceM),
     durationS: asNum(r.durationS),
     elevationGainM: typeof r.elevationGainM === "number" && Number.isFinite(r.elevationGainM) ? r.elevationGainM : null,
+    mountainPct: typeof r.mountainPct === "number" && Number.isFinite(r.mountainPct) ? r.mountainPct : null,
     elevationLossM: typeof r.elevationLossM === "number" && Number.isFinite(r.elevationLossM) ? r.elevationLossM : null,
     selected: r.selected === true,
+    // ช่วงเดินเท้าต่อท้าย — ค่าดิบจากเครื่องคำนวณเส้นทาง (เมตร/วินาที) เหมือน roadDistanceM/durationS
+    walkDistanceM: asNum(r.walkDistanceM),
+    walkDurationS: asNum(r.walkDurationS),
+    walkDestSnapM: asNum(r.walkDestSnapM),
   };
 }
 
@@ -87,8 +100,10 @@ function cleanRouteHighestPoint(item: unknown) {
 
 /**
  * ประมวลผล payload GIS ดิบจาก client → GisAnalysis ที่คำนวณ/clamp/finalize ครบ
- * throw GisRequestError เมื่อพิกัดศูนย์กลางใช้ไม่ได้, payload ผิดรูปแบบ, หรือ (เมื่อ requireProvinceRoute)
- * ไม่มีเส้นทางศาลากลางจังหวัดที่ใช้ได้เลยสักเส้น
+ * throw GisRequestError เมื่อพิกัดศูนย์กลางใช้ไม่ได้ หรือ payload ผิดรูปแบบ
+ *
+ * ไม่มีเส้นทางศาลากลางจังหวัด "ไม่ใช่" ความผิดพลาดอีกต่อไป — บันทึกเป็น gis.routeAccess พร้อมเหตุผลแทน
+ * (ดูเหตุผลที่คอมเมนต์ก่อนเรียก buildRouteAccess ด้านล่าง)
  */
 export function buildGisFromMapRequest(input: unknown, context: GisRequestContext): GisRequestResult {
   if (!input || typeof input !== "object") {
@@ -104,9 +119,15 @@ export function buildGisFromMapRequest(input: unknown, context: GisRequestContex
 
   const routes: GisRouteAnalysis[] = [];
   const droppedRoutes: string[] = [];
+  // ระยะที่เครื่องคำนวณเส้นทาง snap ปลายทางไปจากโรงเรียน (ค่าดิบจาก client เหมือน roadDistanceM/durationS)
+  let provinceDestSnapM: number | null = null;
   for (const item of Array.isArray(body.routes) ? body.routes.slice(0, MAX_GIS_ROUTES) : []) {
     const raw = toRawRoute(item);
     if (!raw) continue;
+    const snap = asNum((item as Record<string, unknown>)?.destSnapM);
+    if (raw.destinationType === "province_hall" && Number.isFinite(snap) && snap >= 0) {
+      provinceDestSnapM = snap;
+    }
     const route = buildRouteAnalysis(lat, lng, raw, context.now);
     if (!route) {
       droppedRoutes.push(`เส้นทางไป${raw.destinationName || "จุดหมาย"}: ข้อมูลระยะทาง/เวลา/พิกัดใช้ไม่ได้`);
@@ -119,9 +140,18 @@ export function buildGisFromMapRequest(input: unknown, context: GisRequestContex
     }
     routes.push({ ...route, highestPoint: cleanRouteHighestPoint(item) });
   }
-  if (context.requireProvinceRoute && !routes.some((route) => route.destinationType === "province_hall")) {
-    throw new GisRequestError("NO_VALID_ROUTE", "ยังไม่มีเส้นทางจากศาลากลางจังหวัดที่ใช้ได้");
-  }
+  // สถานะการเข้าถึงด้วยถนน — server สรุปเองจากค่าดิบ ไม่รับ status/note จาก client
+  //
+  // เดิมที่นี่ throw NO_VALID_ROUTE เมื่อไม่มีเส้นทางศาลากลาง ทำให้โรงเรียนที่ถนนเข้าไม่ถึงจริง
+  // (กลุ่มที่ควรได้คะแนนความยากลำบากสูงสุด) บันทึกแบบประเมินจากแผนที่ไม่ได้เลย — กลับหัวกลับหางกับ
+  // เจตนาของเกณฑ์ ตอนนี้บันทึกได้ โดยเก็บ "เหตุผลที่ไม่มีเส้นทาง" ไว้เป็นหลักฐานแทนตัวเลขที่ไม่มีจริง
+  const hasProvinceRoute = routes.some((route) => route.destinationType === "province_hall");
+  const routeAccess = buildRouteAccess({
+    hasProvinceRoute,
+    destSnapM: provinceDestSnapM,
+    noRouteReason: cleanNoRouteReason(body.noRouteReason),
+    walkLeg: routes.find((route) => route.destinationType === "province_hall")?.walkLeg ?? null,
+  });
 
   const source = center.source === "unit" || center.source === "search" ? center.source : "map-pin";
   const draft: GisAnalysis = {
@@ -139,6 +169,7 @@ export function buildGisFromMapRequest(input: unknown, context: GisRequestContex
     // placeholder — ผู้เรียก (route handler) เป็นเจ้าของฟิลด์นี้เสมอและเขียนทับค่าจริงทันทีหลังเรียกฟังก์ชันนี้
     // (/gis คำนวณจาก willApply, /from-map คำนวณใน applyMapGisToState) จึงไม่มีประโยชน์ที่จะคำนวณค่าจริงที่นี่
     appliedToResponses: false,
+    routeAccess,
     savedAt: context.now,
   };
   const incomingArea = cleanAreaSummary(body.areaSummary);
@@ -151,6 +182,37 @@ export function buildGisFromMapRequest(input: unknown, context: GisRequestContex
     draft.dataSources = body.dataSources as GisDataSources;
   }
 
+  // ── ธงจุดสูงสุด/ต่ำสุด 8 ทิศ ───────────────────────────────────────────────
+  // client ส่งได้เฉพาะพิกัด+ความสูงดิบของแต่ละจุด ส่วน relief / ส่วนต่างจากโรงเรียน / เกินเกณฑ์ K
+  // คำนวณใหม่ที่นี่เสมอผ่าน cleanSectorElevations → deriveSectorMetrics
+  // รัศมีและค่า K มาจากค่าคงที่ในโค้ดฝั่ง server เท่านั้น ไม่รับจาก client
+  const rawSectorConfig = cleanSectorConfig(body.sectorConfig);
+  const sectorElevations = cleanSectorElevations(
+    body.sectorElevations,
+    rawSectorConfig?.schoolElevationM ?? null,
+    SECTOR_RELIEF_K_M,
+  );
+  if (sectorElevations) {
+    draft.sectorElevations = sectorElevations;
+    draft.sectorConfig = {
+      radiusM: SECTOR_RADIUS_M,
+      thresholdM: SECTOR_RELIEF_K_M,
+      schoolElevationM: rawSectorConfig?.schoolElevationM ?? null,
+      schoolElevationSource: rawSectorConfig?.schoolElevationSource ?? "route-profile",
+    };
+  } else if (context.previousSectorElevations) {
+    draft.sectorElevations = context.previousSectorElevations;
+    if (context.previousSectorConfig) draft.sectorConfig = context.previousSectorConfig;
+  }
+
+  // แนวเขตป่า (Legal) + ชั้นป่า 3 ชั้น — client ส่งผลทับซ้อน ไม่ใช่ geometry
+  const forestOverlay = cleanForestOverlay(body.forestOverlay);
+  if (forestOverlay) draft.forestOverlay = forestOverlay;
+  const forestAnalysis =
+    cleanForestAnalysis(body.forestAnalysis) ??
+    (forestOverlay ? buildForestAnalysis({ legalOverlay: forestOverlay, calculatedAt: context.now }) : undefined);
+  if (forestAnalysis) draft.forestAnalysis = forestAnalysis;
+
   const clamped = clampGisPayload(draft);
   if (!clamped) throw new GisRequestError("INVALID_GIS", "ข้อมูล GIS ไม่ถูกต้อง");
   return {
@@ -160,4 +222,11 @@ export function buildGisFromMapRequest(input: unknown, context: GisRequestContex
     }),
     droppedRoutes,
   };
+}
+
+/** เหตุที่ไม่มีเส้นทางที่ client แจ้งมา — รับเฉพาะค่าในรายการ NO_ROUTE_REASONS (ไม่รับข้อความอิสระ) */
+function cleanNoRouteReason(value: unknown): NoRouteReason | null {
+  return typeof value === "string" && (NO_ROUTE_REASONS as readonly string[]).includes(value)
+    ? (value as NoRouteReason)
+    : null;
 }

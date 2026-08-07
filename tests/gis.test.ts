@@ -51,6 +51,11 @@ import {
   displacementRatio,
   futureIndicators,
   FUTURE_INDICATOR_IDS,
+  buildRouteAccess,
+  routeAccessUsable,
+  MAX_ROUTE_SNAP_M,
+  totalTravelTimeMin,
+  totalDistanceKm,
 } from "../lib/gis";
 import { MORPHOLOGY_HIGH_MOUNTAIN_M, MORPHOLOGY_HIGHLAND_MIN_M, maxFiniteElev } from "../lib/map/morphology";
 import { flags, scoreIndicator } from "../lib/scoring";
@@ -108,6 +113,7 @@ function makeElevation(over: Partial<GisElevationInfo> = {}): GisElevationInfo {
     maxElevationM: 1300,
     reliefM: 200,
     meanSlopePct: 25,
+    innerSlopePct: null,
     maxSlopePct: 30,
     localMaxElevation1KmM: 1250,
     slopeClass: "E: เนินเขา/ลาดชันสูง (20–35%)",
@@ -600,6 +606,21 @@ describe("sanitizeGis + sanitizeState — allowlist และ round-trip", () =>
     assert.equal("schoolElevationM" in (gis?.elevation ?? {}), false);
   });
 
+  test("sanitizeGis เก็บความลาดชันรอบโรงเรียน (รัศมี 500 ม.) แยกจากค่าเฉลี่ยทั้งกริด", () => {
+    const raw = {
+      ...makeGis(),
+      elevation: { ...makeElevation(), meanSlopePct: 25, innerSlopePct: 3.4 },
+    };
+    const gis = sanitizeGis(raw);
+    assert.equal(gis?.elevation?.innerSlopePct, 3.4);
+    assert.equal(gis?.elevation?.meanSlopePct, 25);
+  });
+
+  test("sanitizeGis: แถวเก่าที่ไม่มีความลาดชันรอบโรงเรียน ต้องได้ null ไม่ใช่ค่าเฉลี่ยทั้งกริด", () => {
+    const gis = sanitizeGis({ ...makeGis(), elevation: { ...makeElevation(), meanSlopePct: 25 } });
+    assert.equal(gis?.elevation?.innerSlopePct, null);
+  });
+
   test("แถว v1 (ไม่มี gis) → ไม่งอก key gis/scoringVersion", () => {
     const out = sanitizeState(JSON.parse(JSON.stringify(makeBlankState())));
     assert.ok(!("gis" in out), "ต้องไม่มี key gis");
@@ -617,6 +638,49 @@ describe("sanitizeGis + sanitizeState — allowlist และ round-trip", () =>
     const out = sanitizeState(JSON.parse(JSON.stringify(s)));
     assert.deepEqual(out.gis, s.gis);
     assert.equal(out.scoringVersion, "v2-gis");
+  });
+
+  test("gis ที่ไม่มีธง 8 ทิศ → ไม่งอก key sectorElevations/sectorConfig", () => {
+    const out = sanitizeGis(makeGis());
+    assert.ok(out);
+    assert.ok(!("sectorElevations" in out), "ต้องไม่มี key sectorElevations");
+    assert.ok(!("sectorConfig" in out), "ต้องไม่มี key sectorConfig");
+  });
+
+  test("ธง 8 ทิศ: sanitizeGis คำนวณ relief/ส่วนต่าง/เกินเกณฑ์ใหม่ ไม่เชื่อค่าที่บันทึกมา", () => {
+    const out = sanitizeGis({
+      ...makeGis(),
+      sectorElevations: [
+        {
+          sector: "N",
+          highest: { lat: 20.33, lng: 99.62, elevationM: 1400, deltaFromSchoolM: 999 },
+          lowest: { lat: 20.325, lng: 99.615, elevationM: 1100, deltaFromSchoolM: -999 },
+          reliefM: 5,
+          aboveThreshold: false,
+        },
+      ],
+      sectorConfig: {
+        radiusM: 1000,
+        thresholdM: 50,
+        schoolElevationM: 1200,
+        schoolElevationSource: "route-profile",
+      },
+    });
+    const north = out?.sectorElevations?.[0];
+    assert.equal(north?.reliefM, 300);
+    assert.equal(north?.aboveThreshold, true);
+    assert.equal(north?.highest?.deltaFromSchoolM, 200);
+    assert.equal(north?.lowest?.deltaFromSchoolM, -100);
+    assert.equal(out?.sectorConfig?.radiusM, 1000);
+  });
+
+  test("ธง 8 ทิศที่ทุกจุดใช้ไม่ได้ → ทิ้งทั้งชุด (ไม่เก็บตารางว่าง)", () => {
+    const out = sanitizeGis({
+      ...makeGis(),
+      sectorElevations: [{ sector: "N", highest: { lat: 999, lng: 99.6, elevationM: 1400 }, lowest: null }],
+    });
+    assert.ok(out);
+    assert.ok(!("sectorElevations" in out));
   });
 
   test("scoringVersion v2-gis โดยไม่มี gis → ถูกตัดทิ้ง", () => {
@@ -1418,4 +1482,185 @@ describe("futureIndicators (F1 Displacement Ratio + F2 Travel Time Ratio)", () =
       ["F2"],
     );
   });
+});
+
+// ── routeAccess: โรงเรียนที่ถนนเข้าไม่ถึง ต้องบันทึกได้และต้องไม่ถูกคิดคะแนนจากตัวเลขที่ไม่ใช่ของตัวเอง ──
+
+test("buildRouteAccess: ไม่มีเส้นทาง + ถูกตัดเพราะพรมแดน → border-blocked", () => {
+  const a = buildRouteAccess({ hasProvinceRoute: false, destSnapM: null, noRouteReason: "border-blocked" });
+  assert.equal(a.status, "border-blocked");
+  assert.equal(a.destSnapM, undefined);
+  assert.ok(a.note.includes("พรมแดน"));
+});
+
+test("buildRouteAccess: ไม่มีเส้นทางและไม่ทราบเหตุ → no-route", () => {
+  assert.equal(buildRouteAccess({ hasProvinceRoute: false, destSnapM: null, noRouteReason: null }).status, "no-route");
+  // มีค่า snap ติดมาก็ไม่สำคัญเมื่อไม่มีเส้นทางให้ใช้
+  assert.equal(buildRouteAccess({ hasProvinceRoute: false, destSnapM: 50, noRouteReason: null }).status, "no-route");
+});
+
+test("buildRouteAccess: snap เกิน/ไม่เกินเกณฑ์ MAX_ROUTE_SNAP_M", () => {
+  const near = buildRouteAccess({ hasProvinceRoute: true, destSnapM: MAX_ROUTE_SNAP_M, noRouteReason: null });
+  assert.equal(near.status, "reachable", "เท่ากับเกณฑ์พอดียังถือว่าถึง");
+  const far = buildRouteAccess({ hasProvinceRoute: true, destSnapM: MAX_ROUTE_SNAP_M + 1, noRouteReason: null });
+  assert.equal(far.status, "snapped-far");
+  // ตัวเลขจริงจากบ้านจอซิเดอเหนือ (แม่ฮ่องสอน) — เคสที่ทำให้พบปัญหานี้
+  const real = buildRouteAccess({ hasProvinceRoute: true, destSnapM: 12152, noRouteReason: null });
+  assert.equal(real.status, "snapped-far");
+  assert.equal(real.destSnapM, 12152);
+  assert.ok(real.note.includes("12.2 กม."), `note ต้องบอกระยะจริง ได้: ${real.note}`);
+});
+
+test("buildRouteAccess: ไม่มีค่า snap ให้วัด → ยังถือว่า reachable แต่ไม่แต่งตัวเลขขึ้นมา", () => {
+  const a = buildRouteAccess({ hasProvinceRoute: true, destSnapM: null, noRouteReason: null });
+  assert.equal(a.status, "reachable");
+  assert.equal(a.destSnapM, undefined, "ไม่มีข้อมูลต้องไม่มี key ไม่ใช่ใส่ 0");
+});
+
+test("routeAccessUsable: แถวเก่าที่ไม่มี routeAccess ต้องถือว่าใช้ได้ (ไม่เปลี่ยนพฤติกรรมย้อนหลัง)", () => {
+  assert.equal(routeAccessUsable(undefined), true);
+  assert.equal(routeAccessUsable({ status: "reachable", note: "" }), true);
+  assert.equal(routeAccessUsable({ status: "snapped-far", note: "" }), false);
+  assert.equal(routeAccessUsable({ status: "border-blocked", note: "" }), false);
+  assert.equal(routeAccessUsable({ status: "no-route", note: "" }), false);
+});
+
+test("deriveD3Responses: เส้นทางที่ไปไม่ถึงโรงเรียน ต้องไม่ถูกนำมาคิดคะแนนมิติ 3", () => {
+  const base = makeGis();
+  const usable = deriveD3Responses(base);
+  assert.ok(Object.keys(usable).length > 0, "กรณีปกติต้อง derive ได้ (กันเทสหลอกตัวเอง)");
+
+  const unreachable = { ...base, routeAccess: { status: "snapped-far" as const, destSnapM: 12152, note: "" } };
+  assert.deepEqual(deriveD3Responses(unreachable), {}, "ถนนไปไม่ถึง = ห้าม derive แม้จะมีตัวเลขเส้นทางอยู่");
+
+  const blocked = { ...base, routeAccess: { status: "border-blocked" as const, note: "" } };
+  assert.deepEqual(deriveD3Responses(blocked), {});
+});
+
+test("sanitizeGis: routeAccess ที่ status อ่านไม่ออก ต้องถูกทิ้งทั้งก้อน", () => {
+  const withBad = sanitizeGis({ ...makeGis(), routeAccess: { status: "เข้าถึงยาก", note: "x" } });
+  assert.equal(withBad?.routeAccess, undefined, "สถานะที่ไม่รู้จักอันตรายกว่าไม่มีสถานะ");
+  const withGood = sanitizeGis({
+    ...makeGis(),
+    routeAccess: { status: "no-route", destSnapM: 12152.7, note: "ไม่พบเส้นทาง" },
+  });
+  assert.equal(withGood?.routeAccess?.status, "no-route");
+  assert.equal(withGood?.routeAccess?.destSnapM, 12153, "ปัดเป็นจำนวนเต็ม");
+});
+
+// ── เส้นทางผสม รถ + เดินเท้า: โรงเรียนที่ต้องจอดรถแล้วเดินต่อ ต้องได้เวลาเดินทางตามความจริง ──
+
+test("buildRouteAnalysis: ช่วงเดินเท้าไม่กระทบ RCR/TTR/ความเร็ว (เป็นตัวชี้วัดของช่วงรถเท่านั้น)", () => {
+  const base = {
+    destinationType: "province_hall" as const,
+    destinationName: "ศาลากลาง",
+    destLat: 19.29,
+    destLng: 97.96,
+    roadDistanceM: 149563,
+    durationS: 10525,
+    elevationGainM: null,
+    elevationLossM: null,
+    selected: true,
+  };
+  const noWalk = buildRouteAnalysis(18.42, 97.55, base, "2569-01-01T00:00:00.000Z");
+  const withWalk = buildRouteAnalysis(
+    18.42,
+    97.55,
+    { ...base, walkDistanceM: 12000, walkDurationS: 10800, walkDestSnapM: 20 },
+    "2569-01-01T00:00:00.000Z",
+  );
+  assert.ok(noWalk && withWalk);
+  assert.equal(withWalk!.roadCircuityRatio, noWalk!.roadCircuityRatio, "RCR ต้องไม่เปลี่ยน");
+  assert.equal(withWalk!.travelTimeRatio, noWalk!.travelTimeRatio, "TTR ต้องไม่เปลี่ยน");
+  assert.equal(withWalk!.averageSpeedKmh, noWalk!.averageSpeedKmh, "ความเร็วเฉลี่ยต้องไม่เปลี่ยน");
+  assert.equal(withWalk!.roadDistanceKm, noWalk!.roadDistanceKm, "ระยะช่วงรถต้องไม่เปลี่ยน");
+  assert.equal(withWalk!.walkLeg?.distanceKm, 12);
+  assert.equal(withWalk!.walkLeg?.travelTimeMin, 180);
+  assert.equal(withWalk!.walkLeg?.destSnapM, 20);
+});
+
+test("buildRouteAnalysis: ช่วงเดินที่ค่าใช้ไม่ได้ ต้องไม่ทำให้ทั้งเส้นทางตก", () => {
+  const base = {
+    destinationType: "province_hall" as const,
+    destinationName: "ศาลากลาง",
+    destLat: 19.29,
+    destLng: 97.96,
+    roadDistanceM: 149563,
+    durationS: 10525,
+    elevationGainM: null,
+    elevationLossM: null,
+    selected: true,
+  };
+  for (const bad of [
+    { walkDistanceM: 0, walkDurationS: 600 },
+    { walkDistanceM: 500, walkDurationS: 0 },
+    { walkDistanceM: Number.NaN, walkDurationS: 600 },
+    { walkDistanceM: null, walkDurationS: null },
+  ]) {
+    const r = buildRouteAnalysis(18.42, 97.55, { ...base, ...bad }, "2569-01-01T00:00:00.000Z");
+    assert.ok(r, `เส้นทางต้องยังใช้ได้ แม้ช่วงเดินเสีย: ${JSON.stringify(bad)}`);
+    assert.equal(r!.walkLeg, undefined);
+  }
+});
+
+test("totalTravelTimeMin / totalDistanceKm: รวมช่วงเดินเมื่อมี, เท่าเดิมเมื่อไม่มี", () => {
+  const route = makeRoute({ travelTimeMin: 175.4, roadDistanceKm: 149.6 });
+  assert.equal(totalTravelTimeMin(route), 175.4);
+  assert.equal(totalDistanceKm(route), 149.6);
+  const walking = { ...route, walkLeg: { distanceKm: 12, travelTimeMin: 180, destSnapM: 20 } };
+  assert.equal(totalTravelTimeMin(walking), 355.4);
+  assert.equal(totalDistanceKm(walking), 161.6);
+});
+
+test("buildRouteAccess: รถไปไม่ถึงแต่เดินต่อถึงจริง → car-and-walk (ใช้คิดคะแนนได้)", () => {
+  const a = buildRouteAccess({
+    hasProvinceRoute: true,
+    destSnapM: 12152,
+    noRouteReason: null,
+    walkLeg: { distanceKm: 12.1, travelTimeMin: 181, destSnapM: 20 },
+  });
+  assert.equal(a.status, "car-and-walk");
+  assert.equal(a.destSnapM, 12152);
+  assert.ok(a.note.includes("เดินเท้าต่อ"), `note ต้องอธิบายว่าต้องเดินต่อ ได้: ${a.note}`);
+  assert.equal(routeAccessUsable(a), true, "เดินถึงจริง = ใช้คิดคะแนนได้");
+});
+
+test("buildRouteAccess: เดินต่อแล้วยังไปไม่ถึง → ยังเป็น snapped-far", () => {
+  // กรณีบ้านจอซิเดอเหนือ: กราฟเดินเท้าก็ห่าง ~10.9 กม. เท่ากับกราฟรถ (OSM ไม่มีเส้นทางแถวนั้นเลย)
+  const a = buildRouteAccess({
+    hasProvinceRoute: true,
+    destSnapM: 10957,
+    noRouteReason: null,
+    walkLeg: { distanceKm: 80.7, travelTimeMin: 1076, destSnapM: 10882 },
+  });
+  assert.equal(a.status, "snapped-far");
+  assert.equal(routeAccessUsable(a), false);
+});
+
+test("deriveD3Responses: car-and-walk ต้อง derive ด้วย 'เวลารวม' ไม่ใช่เฉพาะช่วงรถ", () => {
+  const route = makeRoute({
+    destinationType: "province_hall",
+    travelTimeMin: 175,
+    roadDistanceKm: 149.6,
+    walkLeg: { distanceKm: 12, travelTimeMin: 180, destSnapM: 20 },
+  });
+  const gis = makeGis({
+    routes: [route],
+    routeAccess: { status: "car-and-walk", destSnapM: 12152, note: "" },
+  });
+  const out = deriveD3Responses(gis);
+  assert.equal(out["3.1"]?.minutes, "355", "175 (รถ) + 180 (เดิน)");
+  assert.equal(out["3.1"]?.km, "161.6", "149.6 + 12.0");
+});
+
+test("sanitizeGis: walkLeg ที่ระยะหรือเวลาเป็นศูนย์/ติดลบ ต้องถูกทิ้ง", () => {
+  const withZero = sanitizeGis(
+    makeGis({ routes: [makeRoute({ walkLeg: { distanceKm: 0, travelTimeMin: 30, destSnapM: 10 } })] }),
+  );
+  assert.equal(withZero?.routes[0]?.walkLeg, undefined);
+  const ok = sanitizeGis(
+    makeGis({ routes: [makeRoute({ walkLeg: { distanceKm: 1.5, travelTimeMin: 22, destSnapM: 12.6 } })] }),
+  );
+  assert.equal(ok?.routes[0]?.walkLeg?.distanceKm, 1.5);
+  assert.equal(ok?.routes[0]?.walkLeg?.destSnapM, 13, "ปัดเป็นจำนวนเต็ม");
 });

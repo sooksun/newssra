@@ -58,3 +58,9 @@ npm-debug.log*
 /*.zip
 /*.docx
 /*.pdf
+
+# DB dump ที่วางไว้ทำงานชั่วคราว — ห้ามเข้า git เด็ดขาด
+# docs/newssra.sql มีตาราง `user` (รหัสผ่านโรงเรียนแบบ plaintext) และ docs/students.sql
+# มีตาราง `students` ที่มีชื่อนักเรียนรายคน ซึ่งขัดกติกา PDPA ของระบบนี้โดยตรง
+# (git history ลบยากมาก จึงกันตั้งแต่ต้นทาง ไม่ใช่มาลบทีหลัง)
+docs/*.sql

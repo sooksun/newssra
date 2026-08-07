@@ -2675,6 +2675,11 @@ textarea:focus {
   color: var(--red);
 }
 
+/* คำเตือนที่ "ไม่ได้ห้ามทำต่อ" — เช่น ไม่มีเส้นทางถนนเข้าถึงโรงเรียน ยังบันทึกได้แต่ต้องกรอกข้อ 3 เอง */
+.map-note-warn {
+  color: #b45309;
+}
+
 .map-note-sync {
   color: #0f766e;
 }
@@ -2684,6 +2689,17 @@ textarea:focus {
 .map-snapshot-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .map-snapshot-hint { font-size: 12px; color: var(--muted, #667); margin: 0; }
 .map-snapshot-err { font-size: 12px; color: #c0392b; margin: 0; }
+
+/* รายชื่อสำนักงาน อปท. ใกล้เคียง (ทะเบียน สถ.) — รายการสั้นใต้สวิตช์เปิด/ปิดชั้นข้อมูล */
+.map-lao-list {
+  margin: 2px 0 6px;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--muted, #667);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
 
 /* เครดิตแหล่งข้อมูลแนวชายแดน — สัญญาอนุญาต ODbL บังคับให้แสดง */
 .map-note-credit {
@@ -3134,6 +3150,24 @@ textarea:focus {
   margin: 0 0 12px;
 }
 
+/* แถบบอกสถานะการเข้าถึงด้วยถนน — ขึ้นเฉพาะเมื่อ "ไม่ใช่ reachable" จึงเป็นข้อมูลที่ผู้ตรวจต้องอ่านเสมอ
+   car-and-walk = เข้าถึงได้แต่ต้องเดินต่อ (เหลือง), ที่เหลือ = ตัวเลขเส้นทางใช้แทนโรงเรียนนี้ไม่ได้ (แดง) */
+.gis-route-access {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  background: #fef2f2;
+  color: #991b1b;
+  border-left: 4px solid #dc2626;
+}
+
+.gis-route-access-car-and-walk {
+  background: #fffbeb;
+  color: #92400e;
+  border-left-color: #d97706;
+}
+
 .gis-table-wrap {
   overflow-x: auto;
   margin: 0 0 12px;
@@ -3219,6 +3253,74 @@ textarea:focus {
 
 .gis-route-highest {
   margin-bottom: 12px;
+}
+
+/* ลายเซ็นภูมิประเทศ — ป้ายจำแนก + หลักฐาน + ระยะห่างจากเส้นแบ่ง (ข้อมูลประกอบ ไม่ใช่คะแนน) */
+.gis-terrain-signature {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--blue);
+  border-radius: 8px;
+  background: var(--soft);
+}
+
+.gis-terrain-signature h3 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--muted);
+  text-transform: none;
+}
+
+.gis-terrain-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+
+.gis-terrain-rule {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.gis-terrain-warn {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--amber);
+  background: var(--amber-soft);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.gis-terrain-group {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.gis-terrain-missing {
+  margin: 0 0 8px;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--amber);
+}
+
+.gis-terrain-margins summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.gis-margin-near td {
+  background: var(--amber-soft);
 }
 
 /* ตารางอาคาร/ประชากรในรัศมี 500/1,000/1,500 ม. — ใช้สไตล์ตารางเดียวกับ .gis-table */
@@ -3581,6 +3683,21 @@ textarea:focus {
 
   /* ---- ส่วนผล GIS: พิมพ์เป็นตารางแบบราชการ ขาว-ดำ ไม่แตกกลางหน้า ---- */
   .gis-summary {
+    break-inside: avoid;
+  }
+
+  /* ตารางระยะห่างจากเส้นแบ่งเป็นหลักฐานที่ต้องตรวจสอบย้อนได้ — พิมพ์ออกมาเสมอแม้ผู้ใช้จะพับไว้บนจอ */
+  .gis-terrain-margins > summary {
+    display: none;
+  }
+
+  .gis-terrain-margins > table {
+    display: table !important;
+  }
+
+  .gis-terrain-signature {
+    background: none !important;
+    border-left-width: 1px;
     break-inside: avoid;
   }
 

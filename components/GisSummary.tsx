@@ -8,16 +8,22 @@ import {
   derive32Severity,
   deriveD3Responses,
   effectiveScoringVersion,
+  elevationGainSeverity,
   futureIndicators,
+  primaryRoute,
   rcrSeverity,
   severityLabelTh,
   suggestSettingTypeFromGis,
+  ttrSeverity,
 } from "@/lib/gis";
+import { terrainSignatureFromGis } from "@/lib/terrain-signature";
+import { terrainDifficultyFromGis } from "@/lib/terrain-difficulty";
 import { communityAxisATierLabelTh } from "@/lib/community-class";
 import { landformAppLabelNoteTh, officialElevBandTh } from "@/lib/landform-legend";
 import LandformLegendTip from "@/components/LandformLegendTip";
+import { SECTOR_LABELS_TH, sectorFlagVisible } from "@/lib/gis-sectors";
 import { GIS_DESTINATION_LABELS } from "@/lib/types";
-import type { AssessmentState } from "@/lib/types";
+import type { AssessmentState, GisSectorElevation, GisSectorPoint } from "@/lib/types";
 
 interface Props {
   state: AssessmentState;
@@ -33,6 +39,30 @@ function fmtMin(min: number): string {
 /** ตัวจัดรูปค่ากลาง — ใช้ทั่วส่วนหลักฐาน GIS: ไม่มีข้อมูล (null/undefined) แสดง "ไม่มีข้อมูล" เสมอ ห้ามเดา/แทนค่าอื่น */
 function valueOrMissing(value: number | null | undefined, suffix = ""): string {
   return value === null || value === undefined ? "ไม่มีข้อมูล" : `${value.toLocaleString("th-TH")}${suffix}`;
+}
+
+/** ช่องความสูงของธง 8 ทิศ: ความสูงจริง + ส่วนต่างจากโรงเรียน (ไม่มีข้อมูลแสดง "ไม่มีข้อมูล" ตามกติกาเดิม) */
+function sectorPointCell(point: GisSectorPoint | null): string {
+  if (!point) return "ไม่มีข้อมูล";
+  const delta =
+    point.deltaFromSchoolM === null
+      ? ""
+      : ` (${point.deltaFromSchoolM >= 0 ? "+" : "−"}${Math.abs(point.deltaFromSchoolM).toLocaleString("th-TH")} ม.)`;
+  return `${point.elevationM.toLocaleString("th-TH")} ม.${delta}`;
+}
+
+function sectorCoordCell(point: GisSectorPoint | null): string {
+  return point ? `${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}` : "ไม่มีข้อมูล";
+}
+
+/** ธงที่ขึ้นจริงบนแผนที่ของทิศนี้ — จุดที่ต่างจากโรงเรียนไม่ถึง ±K ไม่ปักธง แต่ค่ายังอยู่ในตาราง */
+function sectorFlagCell(sector: GisSectorElevation): string {
+  const shown = [
+    sectorFlagVisible(sector.highest) ? "สูงสุด (ม่วง)" : "",
+    sectorFlagVisible(sector.lowest) ? "ต่ำสุด (ฟ้า)" : "",
+  ].filter(Boolean);
+  if (shown.length === 0) return "ไม่ปักธง";
+  return shown.join(" + ");
 }
 
 function fmtAnalyzedAt(iso: string): string {
@@ -74,6 +104,25 @@ export default function GisSummary({ state, assessmentId }: Props) {
   // แถวเก่าอาจยังไม่มี communityClass ใน JSON — คำนวณสดจาก gis (pure เดียวกับ server)
   const community = gis.communityClass ?? computeCommunityClass(gis, gis.savedAt);
   const suggestedSetting = suggestSettingTypeFromGis(gis);
+  // ลายเซ็นภูมิประเทศ — คำนวณสดจาก gis ที่บันทึกไว้ (pure) จึงไม่ต้องเก็บซ้ำและแถวเก่าก็แสดงได้
+  const tsRoute = primaryRoute(gis);
+  const terrain = terrainSignatureFromGis(gis, {
+    route: tsRoute,
+    accessSeverity: gisSeverity,
+    severityComponents: tsRoute
+      ? {
+          rcr: rcrSeverity(tsRoute.roadCircuityRatio),
+          ttr: ttrSeverity(tsRoute.travelTimeRatio),
+          avgSpeed: avgSpeedSeverity(tsRoute.averageSpeedKmh),
+          gain: elevationGainSeverity(tsRoute.elevationGainM),
+        }
+      : null,
+    declaredSettingType: state.unit.settingType,
+    aiSettingType: state.unit.settingSuggestion?.settingType ?? null,
+  });
+
+  // เกณฑ์ความยากลำบากของพื้นที่ 5 ระดับ — ใช้แกนภูมิประเทศ · การเข้าถึง · ขนาดชุมชน · พื้นที่ป่า
+  const difficulty = terrainDifficultyFromGis(gis, { route: tsRoute });
   const future = futureIndicators(gis);
   const settingMismatch = suggestedSetting && state.unit.settingType && state.unit.settingType !== suggestedSetting;
 
@@ -123,6 +172,212 @@ export default function GisSummary({ state, assessmentId }: Props) {
         </span>
         {gis.center.nearestProvinceName ? <span>จังหวัดใกล้สุด: {gis.center.nearestProvinceName}</span> : null}
         {gis.savedAt ? <span>บันทึกเมื่อ: {new Date(gis.savedAt).toLocaleString("th-TH")}</span> : null}
+      </div>
+
+      <div className="gis-terrain-signature">
+        <h3>ระดับความยากลำบากของพื้นที่ (5 ระดับ)</h3>
+        <p className="gis-terrain-label">
+          <strong>
+            {difficulty.level === null
+              ? "ยังประเมินไม่ได้"
+              : `ระดับ ${difficulty.level} — ${difficulty.difficultyLabelTh}`}
+          </strong>
+          <span className="gis-terrain-rule">{difficulty.areaLabelTh}</span>
+          {difficulty.forestSupports ? <span className="gis-terrain-rule">พื้นที่ป่าหนุน +1 ระดับ</span> : null}
+        </p>
+        {difficulty.missing.length > 0 ? (
+          <ul className="gis-terrain-missing">
+            {difficulty.missing.map((item) => (
+              <li key={item}>ยังขาด: {item}</li>
+            ))}
+          </ul>
+        ) : null}
+        <dl className="gis-evidence-grid">
+          {difficulty.evidence.map((item) => (
+            <div key={item.label}>
+              <dt>{item.label}</dt>
+              <dd>{item.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+
+      <div className="gis-terrain-signature">
+        <h3>ลายเซ็นภูมิประเทศ (จำแนกอัตโนมัติ)</h3>
+        <p className="gis-terrain-label">
+          <strong>{terrain.labelTh}</strong>
+          <span className="gis-terrain-rule">กฎ {terrain.ruleId}</span>
+          {terrain.nearBoundary ? <span className="gis-terrain-warn">ใกล้เส้นแบ่ง — ควรให้ผู้ตรวจยืนยัน</span> : null}
+        </p>
+        <p className="gis-terrain-group">กลุ่ม: {terrain.groupLabelTh}</p>
+        {terrain.reviewFlags.length > 0 ? (
+          <ul className="gis-terrain-missing">
+            {terrain.reviewFlags.map((item) => (
+              <li key={item}>ควรให้ผู้ตรวจยืนยัน: {item}</li>
+            ))}
+          </ul>
+        ) : null}
+        {terrain.missing.length > 0 ? (
+          <ul className="gis-terrain-missing">
+            {terrain.missing.map((item) => (
+              <li key={item}>ยังขาด: {item}</li>
+            ))}
+          </ul>
+        ) : null}
+        <dl className="gis-evidence-grid">
+          {terrain.evidence.map((item) => (
+            <div key={item.label}>
+              <dt>{item.label}</dt>
+              <dd>{item.value}</dd>
+            </div>
+          ))}
+        </dl>
+        {gis.forestAnalysis || gis.forestOverlay ? (
+          <div className="gis-forest-overlay">
+            <h3>ชั้นป่า 3 ชั้น (สถานภาพ · เขตกฎหมาย · บริบท)</h3>
+            {gis.forestAnalysis ? (
+              <>
+                <p className="gis-terrain-label">
+                  <strong>
+                    บริบทป่า:{" "}
+                    {gis.forestAnalysis.contextStrength === "strong"
+                      ? "ถูกล้อมด้วยพื้นที่ป่า (แข็ง)"
+                      : gis.forestAnalysis.contextStrength === "weak"
+                        ? "มีพื้นที่ป่าในรัศมี (อ่อน)"
+                        : gis.forestAnalysis.contextStrength === "none"
+                          ? "บริบทรอบไม่ใช่พื้นที่ป่าชัดเจน"
+                          : "ยังไม่มีชั้นสภาพพื้นที่ป่า"}
+                  </strong>
+                  {gis.forestAnalysis.metrics.insideSource === "status" ? (
+                    <span className="gis-terrain-rule">inside จากสถานภาพป่า</span>
+                  ) : gis.forestAnalysis.metrics.insideSource === "legal" ? (
+                    <span className="gis-terrain-warn">inside จากเขตกฎหมาย (ยังไม่ใช่สถานภาพป่า)</span>
+                  ) : null}
+                </p>
+                <dl className="gis-evidence-grid">
+                  <div>
+                    <dt>forest_inside</dt>
+                    <dd>
+                      {gis.forestAnalysis.metrics.forest_inside === null
+                        ? "ไม่มีข้อมูล"
+                        : gis.forestAnalysis.metrics.forest_inside === 1
+                          ? "1 (ทับ)"
+                          : "0"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>forest_distance_m</dt>
+                    <dd>
+                      {gis.forestAnalysis.metrics.forest_distance_m === null
+                        ? "ไม่มีข้อมูล"
+                        : `${gis.forestAnalysis.metrics.forest_distance_m.toLocaleString("th-TH")} ม.`}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>ป่าในรัศมี 1 / 3 / 5 กม.</dt>
+                    <dd>
+                      {[
+                        gis.forestAnalysis.metrics.forest_1km_pct,
+                        gis.forestAnalysis.metrics.forest_3km_pct,
+                        gis.forestAnalysis.metrics.forest_5km_pct,
+                      ]
+                        .map((p) => (p === null ? "—" : `${p}%`))
+                        .join(" / ")}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>ชนิดป่า</dt>
+                    <dd>{gis.forestAnalysis.metrics.forest_type ?? "ไม่มีข้อมูล"}</dd>
+                  </div>
+                  <div>
+                    <dt>protected_area / reserve_forest</dt>
+                    <dd>
+                      {gis.forestAnalysis.metrics.protected_area === null
+                        ? "—"
+                        : gis.forestAnalysis.metrics.protected_area}{" "}
+                      /{" "}
+                      {gis.forestAnalysis.metrics.reserve_forest === null
+                        ? "—"
+                        : gis.forestAnalysis.metrics.reserve_forest}
+                    </dd>
+                  </div>
+                </dl>
+                {gis.forestAnalysis.missing.length > 0 ? (
+                  <ul className="gis-terrain-missing">
+                    {gis.forestAnalysis.missing.map((m) => (
+                      <li key={m}>{m}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </>
+            ) : null}
+            {gis.forestOverlay ? (
+              <>
+                <p className="gis-terrain-group">
+                  เขตกฎหมาย:{" "}
+                  {gis.forestOverlay.status === "in"
+                    ? "ทับแนวเขต"
+                    : gis.forestOverlay.status === "near"
+                      ? "ชิดแนวเขต (≤ 1 กม.)"
+                      : gis.forestOverlay.status === "out"
+                        ? "นอกแนวเขตในรัศมีที่ตรวจ"
+                        : "ไม่มีข้อมูล"}
+                  {gis.forestOverlay.dataAuthority === "osm-reference" ? " · อ้างอิง OSM" : " · ทางการ"}
+                </p>
+                {gis.forestOverlay.zones.length > 0 ? (
+                  <ul className="gis-terrain-missing">
+                    {gis.forestOverlay.zones.map((z) => (
+                      <li key={`${z.name}-${z.relation}`}>
+                        {z.relation === "in" ? "ทับ" : "ชิด"} {z.name}
+                        {z.relation === "near" ? ` · ${z.distanceM.toLocaleString("th-TH")} ม.` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </>
+            ) : null}
+            <p className="gis-empty-note">
+              สถานภาพป่า (กรมป่าไม้) กับแนวเขตกฎหมายเป็นคนละชั้น — อย่าตีความเป็น “อยู่ในป่า” จาก 0/1 เดียว
+            </p>
+          </div>
+        ) : null}
+
+        {terrain.margins.length > 0 ? (
+          <details className="gis-terrain-margins">
+            <summary>ระยะห่างจากเส้นแบ่งที่ใช้ตัดสิน ({terrain.margins.length} เงื่อนไข)</summary>
+            <table className="gis-table">
+              <thead>
+                <tr>
+                  <th>เงื่อนไข</th>
+                  <th>ค่าที่วัดได้</th>
+                  <th>เกณฑ์</th>
+                  <th>ห่างจากเกณฑ์</th>
+                </tr>
+              </thead>
+              <tbody>
+                {terrain.margins.map((m) => (
+                  <tr key={m.key} className={m.near ? "gis-margin-near" : undefined}>
+                    <td>{m.label}</td>
+                    <td>
+                      {m.value.toLocaleString("th-TH")} {m.unit}
+                    </td>
+                    <td>
+                      {m.threshold.toLocaleString("th-TH")} {m.unit}
+                    </td>
+                    <td>
+                      {m.marginM >= 0 ? "+" : "−"}
+                      {Math.abs(m.marginM).toLocaleString("th-TH")} {m.unit}
+                      {m.near ? " (ในแถบความไม่แน่นอน)" : ""}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </details>
+        ) : null}
+        <p className="gis-note">
+          ข้อมูลประกอบเท่านั้น ไม่รวมกับคะแนน 100 คะแนนทางการ — เกณฑ์เวอร์ชัน {terrain.version}
+        </p>
       </div>
 
       {gis.elevation ? (
@@ -278,6 +533,13 @@ export default function GisSummary({ state, assessmentId }: Props) {
         </p>
       ) : null}
 
+      {/* สถานะการเข้าถึงด้วยถนน — บอกผู้ตรวจว่าตัวเลขเส้นทางด้านล่างเชื่อได้แค่ไหน (หรือทำไมถึงไม่มี) */}
+      {gis.routeAccess && gis.routeAccess.status !== "reachable" ? (
+        <p className={`gis-route-access gis-route-access-${gis.routeAccess.status}`}>
+          <strong>การเข้าถึงด้วยถนน:</strong> {gis.routeAccess.note}
+        </p>
+      ) : null}
+
       {gis.routes.length > 0 ? (
         <div className="gis-table-wrap">
           <table className="gis-table">
@@ -302,8 +564,14 @@ export default function GisSummary({ state, assessmentId }: Props) {
                     {r.destinationName && r.destinationType !== "province_hall" ? ` — ${r.destinationName}` : ""}
                   </td>
                   <td>{r.straightDistanceKm.toFixed(1)}</td>
-                  <td>{r.roadDistanceKm.toFixed(1)}</td>
-                  <td>{fmtMin(r.travelTimeMin)}</td>
+                  <td>
+                    {r.roadDistanceKm.toFixed(1)}
+                    {r.walkLeg ? <small> + เดิน {r.walkLeg.distanceKm.toFixed(1)}</small> : null}
+                  </td>
+                  <td>
+                    {fmtMin(r.travelTimeMin)}
+                    {r.walkLeg ? <small> + เดิน {fmtMin(r.walkLeg.travelTimeMin)}</small> : null}
+                  </td>
                   <td>
                     {r.roadCircuityRatio.toFixed(2)} ({severityLabelTh(rcrSeverity(r.roadCircuityRatio))})
                   </td>
@@ -418,6 +686,50 @@ export default function GisSummary({ state, assessmentId }: Props) {
               ))}
             </tbody>
           </table>
+        </div>
+      ) : null}
+
+      {gis.sectorElevations && gis.sectorElevations.length > 0 ? (
+        <div className="gis-table-wrap">
+          <p className="gis-compare-title">
+            จุดสูงสุด/ต่ำสุดของภูมิประเทศ 8 ทิศ ในรัศมี{" "}
+            {((gis.sectorConfig?.radiusM ?? 0) / 1000).toLocaleString("th-TH")} กม.
+          </p>
+          <table className="gis-table gis-sector-table">
+            <thead>
+              <tr>
+                <th>ทิศ</th>
+                <th>จุดสูงสุด</th>
+                <th>พิกัดจุดสูงสุด</th>
+                <th>จุดต่ำสุด</th>
+                <th>พิกัดจุดต่ำสุด</th>
+                <th>ต่างในทิศ</th>
+                <th>ธงบนแผนที่</th>
+              </tr>
+            </thead>
+            <tbody>
+              {gis.sectorElevations.map((s) => (
+                <tr key={s.sector}>
+                  <td>{SECTOR_LABELS_TH[s.sector]}</td>
+                  <td>{sectorPointCell(s.highest)}</td>
+                  <td>{sectorCoordCell(s.highest)}</td>
+                  <td>{sectorPointCell(s.lowest)}</td>
+                  <td>{sectorCoordCell(s.lowest)}</td>
+                  <td>{valueOrMissing(s.reliefM, " ม.")}</td>
+                  <td>{sectorFlagCell(s)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <span className="gis-auto-note">
+            ค่าในวงเล็บคือส่วนต่างจากความสูงที่ตั้งโรงเรียน ({valueOrMissing(gis.sectorConfig?.schoolElevationM, " ม.")}
+            {gis.sectorConfig?.schoolElevationSource === "grid-center"
+              ? " — จากกริดภูมิประเทศ เพราะยังไม่มีเส้นทางให้สุ่มความสูงที่หมุดโรงเรียน"
+              : ""}
+            ) · แผนที่ปักธงเฉพาะจุดที่ต่างจากความสูงโรงเรียนตั้งแต่ ±
+            {(gis.sectorConfig?.thresholdM ?? 0).toLocaleString("th-TH")} ม. ขึ้นไป จุดที่ต่างน้อยกว่านั้นไม่ปักธง
+            แต่ยังบันทึกค่าไว้ในตารางนี้ — ข้อมูลประกอบเท่านั้น ไม่มีผลต่อคะแนนรวม
+          </span>
         </div>
       ) : null}
 

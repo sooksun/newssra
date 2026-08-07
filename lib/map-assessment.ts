@@ -54,7 +54,8 @@ export function prefillMapAssessmentState(master: SchoolAssessmentMaster, year: 
 
 /**
  * รวมผล GIS เข้ากับ state ที่มีอยู่ — เติมคำตอบมิติที่ 3 (deriveD3Responses) โดยไม่แตะคำตอบมิติอื่น
- * รักษา areaSummary/radiusSummaries/dataSources เดิมไว้ถ้า payload ใหม่ไม่ได้ส่งมา (กันข้อมูลหายเมื่อบันทึกแยกจังหวะกัน)
+ * รักษา areaSummary/radiusSummaries/dataSources/sectorElevations/forestOverlay เดิมไว้ถ้า payload ใหม่ไม่ได้ส่งมา
+ * (กันข้อมูลหายเมื่อบันทึกแยกจังหวะกัน)
  */
 export function applyMapGisToState(
   state: AssessmentState,
@@ -79,6 +80,24 @@ export function applyMapGisToState(
       ? { dataSources: gis.dataSources }
       : state.gis?.dataSources
         ? { dataSources: state.gis.dataSources }
+        : {}),
+    ...(gis.sectorElevations
+      ? { sectorElevations: gis.sectorElevations, ...(gis.sectorConfig ? { sectorConfig: gis.sectorConfig } : {}) }
+      : state.gis?.sectorElevations
+        ? {
+            sectorElevations: state.gis.sectorElevations,
+            ...(state.gis.sectorConfig ? { sectorConfig: state.gis.sectorConfig } : {}),
+          }
+        : {}),
+    ...(gis.forestOverlay
+      ? { forestOverlay: gis.forestOverlay }
+      : state.gis?.forestOverlay
+        ? { forestOverlay: state.gis.forestOverlay }
+        : {}),
+    ...(gis.forestAnalysis
+      ? { forestAnalysis: gis.forestAnalysis }
+      : state.gis?.forestAnalysis
+        ? { forestAnalysis: state.gis.forestAnalysis }
         : {}),
   };
   return {

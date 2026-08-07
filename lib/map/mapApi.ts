@@ -9,6 +9,23 @@
 const OSRM_BASE = (process.env.NEXT_PUBLIC_OSRM_URL || "https://router.project-osrm.org").replace(/\/+$/, "");
 const OSRM_ROUTE_BASE = `${OSRM_BASE}/route/v1/driving`;
 
+// host ของ OSRM ที่รัน profile "เดินเท้า" — ไม่มีค่าเริ่มต้นโดยเจตนา (ปิดฟีเจอร์ถ้าไม่ตั้ง)
+//
+// ทำไมไม่ default: โรงเรียนพื้นที่ห่างไกลจำนวนหนึ่งเข้าถึงได้ด้วยการ "ขับรถถึงปลายถนน แล้วเดินต่อ"
+// ซึ่งต้องใช้กราฟเดินเท้าที่ profile รถมองไม่เห็น — แต่ instance สาธารณะที่ให้บริการ profile นี้
+// (เช่น routing.openstreetmap.de) มีเงื่อนไขห้ามใช้งานระดับ production เหมือน OSRM demo
+// จึงให้ผู้ดูแลชี้ไป instance ของตัวเองอย่างชัดแจ้ง แทนการแอบยิงบริการชุมชนโดยผู้ใช้ไม่รู้ตัว
+//
+// ⚠️ ระวัง: OSRM demo (router.project-osrm.org) ตอบ /route/v1/foot/ ด้วยกราฟรถคันเดิม — ดูเหมือนสำเร็จ
+// แต่ค่าที่ได้ผิด (วัดจริงได้ 0.5 ม.) ห้ามชี้ค่านี้ไปที่ demo server เด็ดขาด
+const OSRM_FOOT_BASE = (process.env.NEXT_PUBLIC_OSRM_FOOT_URL || "").trim().replace(/\/+$/, "");
+const OSRM_FOOT_PROFILE = (process.env.NEXT_PUBLIC_OSRM_FOOT_PROFILE || "foot").trim();
+
+/** เปิดใช้การต่อช่วงเดินเท้าได้หรือไม่ (ต้องตั้ง NEXT_PUBLIC_OSRM_FOOT_URL ก่อน) */
+export function footRoutingEnabled(): boolean {
+  return OSRM_FOOT_BASE.length > 0;
+}
+
 /** เพดานเวลารอต่อคำขอ — ปลายทางเป็นบริการภายนอก/เซิร์ฟเวอร์เองที่ไม่มี SLA ถ้าไม่มีเพดาน สปินเนอร์
  *  บนแผนที่จะหมุนค้างไม่รู้จบแทนที่จะแจ้ง error ให้ผู้ใช้กดลองใหม่ */
 const OSRM_TIMEOUT_MS = 20_000;
@@ -26,11 +43,22 @@ export interface OsrmRoute {
   coords: [number, number][];
   distanceM: number;
   durationS: number;
+  /**
+   * ระยะที่ OSRM ย้ายจุดปลายทางที่เราขอ ไปเกาะถนนที่ใกล้ที่สุด (เมตร)
+   *
+   * สำคัญกับระบบนี้เป็นพิเศษ: โรงเรียนพื้นที่ห่างไกลบางแห่งไม่มีถนนเข้าถึงเลย OSRM จะ snap ไปไกลหลายกิโลเมตร
+   * แล้วคืนเส้นทางที่ดู "สำเร็จ" ทั้งที่ไปจบคนละที่ ระยะ/เวลาที่ได้จึงไม่ใช่ของโรงเรียนแห่งนั้น
+   * null = อ่านค่าไม่ได้จากคำตอบ (เช่น server ไม่ส่ง waypoints มา)
+   */
+  destSnapM: number | null;
+  /** พิกัด [lng,lat] ของจุดที่เส้นทางไปจบจริง — ใช้เป็นจุดเริ่มของช่วงเดินเท้าเมื่อรถไปไม่ถึงโรงเรียน */
+  destSnapLngLat: [number, number] | null;
 }
 
 interface OsrmResponse {
   code?: string;
   routes?: { geometry: { coordinates: [number, number][] }; distance: number; duration: number }[];
+  waypoints?: { distance?: number; location?: [number, number] }[];
 }
 
 /**
@@ -61,7 +89,69 @@ export async function fetchOsrmRoutes(
   if (data.code !== "Ok" || routes.length === 0) {
     throw new Error("ไม่พบเส้นทางรถยนต์");
   }
-  return routes.map((r) => ({ coords: r.geometry.coordinates, distanceM: r.distance, durationS: r.duration }));
+  // waypoint สุดท้าย = ปลายทางที่เราขอ (โรงเรียน) — ระยะของมันคือระยะที่ OSRM ย้ายจุดไปเกาะถนน
+  // ค่านี้เท่ากันทุกเส้นทางในคำตอบเดียวกัน เพราะ waypoint เป็นของคำขอ ไม่ใช่ของแต่ละเส้นทาง
+  const waypoints = data.waypoints ?? [];
+  const last = waypoints.length > 0 ? waypoints[waypoints.length - 1] : undefined;
+  const destSnap = last?.distance;
+  const destSnapM = typeof destSnap === "number" && Number.isFinite(destSnap) ? destSnap : null;
+  const loc = last?.location;
+  const destSnapLngLat: [number, number] | null =
+    Array.isArray(loc) && loc.length >= 2 && Number.isFinite(loc[0]) && Number.isFinite(loc[1])
+      ? [loc[0], loc[1]]
+      : null;
+  return routes.map((r) => ({
+    coords: r.geometry.coordinates,
+    distanceM: r.distance,
+    durationS: r.duration,
+    destSnapM,
+    destSnapLngLat,
+  }));
+}
+
+/** ช่วงเดินเท้าต่อท้ายเส้นทางรถ — จากจุดที่ถนนไปสุด ถึงตัวโรงเรียน */
+export interface FootLeg {
+  coords: [number, number][];
+  distanceM: number;
+  durationS: number;
+  /** ระยะที่กราฟเดินเท้า snap ปลายทางไปจากโรงเรียน — บอกว่า "เดินถึงจริงไหม" */
+  destSnapM: number | null;
+}
+
+/**
+ * หาเส้นทางเดินเท้าจากจุดปลายถนน → โรงเรียน
+ *
+ * คืน null เมื่อยังไม่ได้ตั้งค่า host เดินเท้า หรือหาเส้นทางไม่ได้ — ตั้งใจไม่โยน error เพราะนี่เป็น
+ * ข้อมูลเสริม การหาไม่เจอต้องไม่ทำให้เส้นทางรถที่ได้มาแล้วใช้ไม่ได้ไปด้วย
+ */
+export async function fetchFootLeg(
+  fromLng: number,
+  fromLat: number,
+  toLng: number,
+  toLat: number,
+  signal?: AbortSignal,
+): Promise<FootLeg | null> {
+  if (!footRoutingEnabled()) return null;
+  const url =
+    `${OSRM_FOOT_BASE}/route/v1/${OSRM_FOOT_PROFILE}/${fromLng},${fromLat};${toLng},${toLat}` +
+    `?overview=full&geometries=geojson&steps=false`;
+  try {
+    const res = await fetch(url, { signal: withTimeout(signal, OSRM_TIMEOUT_MS) });
+    if (!res.ok) return null;
+    const data = (await res.json()) as OsrmResponse;
+    const route = (data.routes ?? [])[0];
+    if (data.code !== "Ok" || !route) return null;
+    const last = (data.waypoints ?? []).slice(-1)[0];
+    const snap = last?.distance;
+    return {
+      coords: route.geometry.coordinates,
+      distanceM: route.distance,
+      durationS: route.duration,
+      destSnapM: typeof snap === "number" && Number.isFinite(snap) ? snap : null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export interface BuildingFeature {

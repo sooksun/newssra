@@ -1,19 +1,24 @@
-// POST /api/assessments/from-map — บันทึกผลวิเคราะห์ GIS จากแผนที่ 3 มิติ ลงแบบประเมิน "ปีปัจจุบัน" ของโรงเรียนผู้เรียก
-// ต่างจาก POST /api/assessments/[id]/gis (ผูกกับ assessment id ที่มีอยู่แล้ว): endpoint นี้ผูกกับ (schoolCode, ปีปัจจุบัน)
-// จาก session เท่านั้น — ไม่รับ schoolCode/assessmentId จาก client เด็ดขาด กัน "ปลอมเจ้าของ"
+// POST /api/assessments/from-map — บันทึกผลวิเคราะห์ GIS จากแผนที่ 3 มิติ ลงแบบประเมิน
+//
+// เจ้าของแถวปลายทางต้องมาจากสิ่งที่ผู้เรียกมีสิทธิ์อยู่แล้วเสมอ ไม่เคยรับ schoolCode ดิบจาก body:
+//   role school          → (schoolCode จาก session, ปีปัจจุบัน) — assessmentId ใน body ถูกเพิกเฉย กัน "ปลอมเจ้าของ"
+//   role admin/ssra_admin → ต้องระบุ assessmentId ที่เปิดอยู่ แล้วใช้โรงเรียนเจ้าของแถวนั้น + ปีของแถวนั้น
+//                           (ผู้ดูแลแก้แบบประเมินใดก็ได้ผ่าน PUT อยู่แล้ว จึงไม่ใช่การเพิ่มสิทธิ์ใหม่)
 // สร้างใหม่ (created) / ปรับปรุงฉบับร่างเดิม (updated) / คืนฉบับที่ยื่นแล้วแบบอ่านอย่างเดียว (locked) แบบ atomic ทั้งก้อน
 // (ดู lib/repo.ts#saveAssessmentFromMapAtomic — transaction เดียวคุมทั้งสร้าง/ปรับปรุง/ล็อก + คำตอบมิติ 3)
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { currentBuddhistYear } from "@/lib/assessment-year";
-import { requireApiRole } from "@/lib/api-auth";
+import { requireApiUser } from "@/lib/api-auth";
+import { canAccessAssessment } from "@/lib/auth";
 import { MAX_ASSESSMENT_RELOCATION_M } from "@/lib/gis";
 import { buildGisFromMapRequest, GisRequestError } from "@/lib/gis-request";
 import { prefillMapAssessmentState } from "@/lib/map-assessment";
 import { haversineM } from "@/lib/map/morphology";
 import {
   assessmentForSchoolYear,
+  getAssessment,
   listProvinces,
   resolveSchoolProvince,
   saveAssessmentFromMapAtomic,
@@ -38,20 +43,55 @@ function asNum(value: unknown): number {
 }
 
 export async function POST(request: NextRequest) {
-  const guard = await requireApiRole("school");
+  const guard = await requireApiUser();
   if (!guard.ok) return guard.response;
-  if (!guard.user.schoolCode) {
-    return NextResponse.json({ error: "บัญชีนี้ยังไม่ผูกกับรหัสโรงเรียน" }, { status: 403 });
-  }
 
   const body = await readJsonObject(request);
   if (!body) {
     return NextResponse.json({ error: "รูปแบบข้อมูลไม่ถูกต้อง" }, { status: 400 });
   }
 
+  // เจ้าของแถวที่จะบันทึกลง — ต้องมาจากสิ่งที่ผู้เรียก "มีสิทธิ์อยู่แล้ว" เท่านั้น ไม่รับ schoolCode ดิบจาก body
+  //   role school → เอาจาก session (เหมือนเดิมทุกประการ; assessmentId ใน body ถูกเพิกเฉย กันปลอมเจ้าของ)
+  //   role admin/ssra_admin → ต้องระบุ assessmentId ที่เปิดอยู่ แล้วใช้ "โรงเรียนเจ้าของแถวนั้น"
+  //     (ผู้ดูแลแก้แบบประเมินใดก็ได้ผ่าน PUT อยู่แล้ว การเปิดให้บันทึกจากแผนที่จึงไม่เพิ่มสิทธิ์ใหม่)
+  let schoolCode: string;
+  let year: string;
+  let ownerUserId: number | null;
+
+  if (guard.user.role === "school") {
+    if (!guard.user.schoolCode) {
+      return NextResponse.json({ error: "บัญชีนี้ยังไม่ผูกกับรหัสโรงเรียน" }, { status: 403 });
+    }
+    schoolCode = guard.user.schoolCode;
+    year = currentBuddhistYear();
+    ownerUserId = guard.user.source === "local" ? guard.user.uid : null;
+  } else {
+    const assessmentId = Number(body.assessmentId);
+    if (!Number.isInteger(assessmentId) || assessmentId <= 0) {
+      return NextResponse.json(
+        { error: "ผู้ดูแลต้องเปิดแบบประเมินที่ต้องการบันทึก (ระบุ assessmentId) ก่อน" },
+        { status: 400 },
+      );
+    }
+    const target = await getAssessment(assessmentId);
+    if (!target) {
+      return NextResponse.json({ error: "ไม่พบแบบประเมินที่ระบุ" }, { status: 404 });
+    }
+    if (!canAccessAssessment(guard.user, target.ownerSchoolCode)) {
+      return NextResponse.json({ error: "ไม่มีสิทธิ์เข้าถึงแบบประเมินนี้" }, { status: 403 });
+    }
+    if (!target.ownerSchoolCode) {
+      return NextResponse.json({ error: "แบบประเมินนี้ยังไม่ผูกกับรหัสโรงเรียน" }, { status: 422 });
+    }
+    schoolCode = target.ownerSchoolCode;
+    year = target.state.unit.year || currentBuddhistYear();
+    // ไม่เปลี่ยนเจ้าของแถว — ผู้ดูแลบันทึกแทน ไม่ใช่รับช่วงความเป็นเจ้าของ
+    ownerUserId = null;
+  }
+
   try {
-    const year = currentBuddhistYear();
-    const master = await schoolAssessmentMaster(guard.user.schoolCode);
+    const master = await schoolAssessmentMaster(schoolCode);
     if (!master) {
       return NextResponse.json({ error: "ไม่พบข้อมูลพิกัดโรงเรียน" }, { status: 422 });
     }
@@ -67,7 +107,7 @@ export async function POST(request: NextRequest) {
 
     const provinces = await listProvinces();
     const province = await resolveSchoolProvince(provinces, {
-      schoolCode: guard.user.schoolCode,
+      schoolCode,
       enteredProvince: master.province,
       lat: centerValid ? centerLat : master.lat,
       lng: centerValid ? centerLng : master.lng,
@@ -83,12 +123,10 @@ export async function POST(request: NextRequest) {
         provinceAvgElev: province && Number.isFinite(province.avgElev) ? province.avgElev : null,
         now: new Date().toISOString(),
         previousAreaSummary: undefined,
-        requireProvinceRoute: true,
       }));
     } catch (err) {
       if (err instanceof GisRequestError) {
-        const status = err.code === "NO_VALID_ROUTE" ? 422 : 400;
-        return NextResponse.json({ error: err.message }, { status });
+        return NextResponse.json({ error: err.message }, { status: 400 });
       }
       throw err;
     }
@@ -100,7 +138,7 @@ export async function POST(request: NextRequest) {
     // อ่านแบบไม่ผูก transaction เดียวกับ saveAssessmentFromMapAtomic — แข่งกับการบันทึกพร้อมกันได้ (ยอมรับความเสี่ยงนี้
     // เพราะเป็นแค่การ์ดความสมเหตุสมผลของข้อมูล ไม่ใช่กติกาความถูกต้องเชิงธุรกิจที่ต้อง atomic)
     if (syncUnitLocation) {
-      const currentYearRow = await assessmentForSchoolYear(guard.user.schoolCode, year);
+      const currentYearRow = await assessmentForSchoolYear(schoolCode, year);
       if (currentYearRow && !currentYearRow.state.submitted) {
         const unitLat = Number.parseFloat(currentYearRow.state.unit.lat);
         const unitLng = Number.parseFloat(currentYearRow.state.unit.lng);
@@ -120,8 +158,8 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await saveAssessmentFromMapAtomic({
-      ownerUserId: guard.user.source === "local" ? guard.user.uid : null,
-      schoolCode: guard.user.schoolCode,
+      ownerUserId,
+      schoolCode,
       year,
       initialState,
       gis,

@@ -158,16 +158,26 @@ export default function GisAssessmentPanel({
   // จึงต้องใช้สถานะ submitted ของฉบับปีปัจจุบัน ไม่ใช่ของฉบับที่เปิดดูอยู่ (assessment อาจเป็นปีอื่น)
   const currentSubmitted = currentYear?.submitted ?? false;
   const saving = saveState === "saving";
+  // ไม่มีเส้นทางศาลากลาง = ถนนเข้าไม่ถึงจริง ซึ่งเป็นข้อมูลสำคัญที่ต้องเตือนผู้กรอก แต่ไม่ห้ามบันทึก
   const hasProvinceRoute = routes.some((r) => r.destinationType === "province_hall");
+  // มีช่วงเดินเท้าต่อท้าย → บอกผู้กรอกว่าเวลาที่ระบบคำนวณเป็นเวลารวม (รถ + เดิน) ไม่ใช่เฉพาะช่วงรถ
+  const provinceWalk = routes.find((r) => r.destinationType === "province_hall")?.walkLeg;
+  const walkLegNote = provinceWalk
+    ? `เส้นทางนี้ต้องขับรถถึงปลายถนนแล้วเดินเท้าต่ออีก ${provinceWalk.distanceKm.toFixed(1)} กม. ` +
+      `(ประมาณ ${Math.round(provinceWalk.travelTimeMin)} นาที) — เวลาที่ระบบกรอกให้ข้อ 3.1 เป็นเวลารวมทั้งสองช่วง`
+    : "";
   const crossYear = Boolean(
     canSaveAssessment && assessment?.year && currentYear?.year && assessment.year !== currentYear.year,
   );
 
   // ข้อมูลที่ยังขาดก่อนบันทึกได้ — แจ้งผู้ใช้เป็นรายการชัดเจน (ตรงกับ disabled ของปุ่ม)
+  //
+  // "ไม่มีเส้นทางจากศาลากลาง" ไม่บล็อกการบันทึกอีกต่อไป: โรงเรียนที่ถนนเข้าไม่ถึงจริงคือกลุ่มที่ควรได้
+  // คะแนนความยากลำบากสูงสุด การบล็อกทำให้กลุ่มนี้ใช้ระบบไม่ได้เลย — บันทึกได้ โดยระบบจะเก็บเหตุผล
+  // ไว้เป็นหลักฐาน แล้วปล่อยข้อ 3.1/3.3 ให้กรอกเอง (ดู gis.routeAccess)
   const missingData: string[] = [];
-  if (!hasProvinceRoute) missingData.push("เส้นทางจากศาลากลางจังหวัด");
   if (!routeElevationReady) missingData.push("ระดับความสูงจุดโรงเรียน");
-  const saveDisabled = currentSubmitted || !hasProvinceRoute || !routeElevationReady || saving;
+  const saveDisabled = currentSubmitted || !routeElevationReady || saving;
 
   return (
     <div className="map-gis">
@@ -292,6 +302,13 @@ export default function GisAssessmentPanel({
             <p className="map-note map-note-error">แบบประเมินปีปัจจุบันส่งแล้ว จึงเปิดดูได้อย่างเดียว</p>
           ) : missingData.length > 0 ? (
             <p className="map-note">ยังบันทึกไม่ได้ — รอข้อมูล: {missingData.join(" • ")}</p>
+          ) : null}
+          {!currentSubmitted && walkLegNote ? <p className="map-note map-note-warn">{walkLegNote}</p> : null}
+          {!currentSubmitted && !hasProvinceRoute ? (
+            <p className="map-note map-note-warn">
+              ไม่พบเส้นทางถนนจากศาลากลางจังหวัดมายังจุดนี้ — บันทึกได้ตามปกติ ระบบจะเก็บข้อเท็จจริงนี้ไว้เป็นหลักฐาน
+              แต่จะไม่คำนวณข้อ 3.1/3.3 ให้อัตโนมัติ กรุณากรอกเวลาเดินทางจริงเองในแบบประเมิน
+            </p>
           ) : null}
           <button type="button" className="map-gis-save-btn" onClick={onSave} disabled={saveDisabled}>
             {saving ? "กำลังบันทึก…" : "บันทึกข้อมูลประกอบเกณฑ์และกรอกแบบประเมิน"}
