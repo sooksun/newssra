@@ -130,6 +130,8 @@ import {
 } from "@/lib/map/forestBoundaries";
 import type { ForestBoundary, ForestOverlayResult, ForestZoneKind } from "@/lib/map/forestBoundaries";
 import type { ForestPolygonFeature } from "@/lib/map/forest-polygons";
+import { fetchGenericForest, GENERIC_FOREST_ATTRIBUTION } from "@/lib/map/forest-generic";
+import type { GenericForestArea } from "@/lib/map/forest-generic";
 import { findTambonAt, loadTambonIndex, loadTambonProvince, provincesForPoint } from "@/lib/map/tambonBoundaries";
 import type { TambonBoundary } from "@/lib/map/tambonBoundaries";
 import { laoFullName, LAO_KIND_LABELS, loadLaoOffices, officesNear } from "@/lib/map/laoOffices";
@@ -660,6 +662,7 @@ export default function CesiumMap({
   const adminDsRef = useRef<CustomDataSource | null>(null); // เขตเทศบาล (overlay อ้างอิง)
   const forestDsRef = useRef<CustomDataSource | null>(null); // แนวเขตป่า / พื้นที่คุ้มครอง
   const forestCoverDsRef = useRef<CustomDataSource | null>(null); // สภาพพื้นที่ป่าจริง (กรมป่าไม้)
+  const forestGenericDsRef = useRef<CustomDataSource | null>(null); // ป่าทั่วไป (OSM)
   const tambonDsRef = useRef<CustomDataSource | null>(null); // ขอบเขตตำบล (COD-AB)
   const laoDsRef = useRef<CustomDataSource | null>(null); // หมุดสำนักงาน อปท. (ทะเบียน สถ.)
   const schoolPinsDsRef = useRef<CustomDataSource | null>(null); // หมุดภาพรวมโรงเรียน (admin โหมดทั้งประเทศ)
@@ -754,6 +757,11 @@ export default function CesiumMap({
   const [forestCoverCredit, setForestCoverCredit] = useState("");
   const [forestCoverLoading, setForestCoverLoading] = useState(false);
   const [forestCoverErr, setForestCoverErr] = useState("");
+  // ป่าทั่วไปจาก OSM — ข้อมูลไม่ครบและไม่ใช่ชั้นราชการ ใช้ดูประกอบเท่านั้น ปิดเป็นค่าเริ่มต้น
+  const [showForestGeneric, setShowForestGeneric] = useState(false);
+  const [forestGenericAreas, setForestGenericAreas] = useState<GenericForestArea[] | null>(null);
+  const [forestGenericLoading, setForestGenericLoading] = useState(false);
+  const [forestGenericErr, setForestGenericErr] = useState("");
   // ชั้นสถานภาพป่า (กรมป่าไม้) จาก /api/forest-status — null = ยังไม่โหลดหรือไม่มีไฟล์ cells
   const [forestStatusLayer, setForestStatusLayer] = useState<ForestStatusLayer | null>(null);
   const [forestTypeLayer, setForestTypeLayer] = useState<ForestTypeLayer | null>(null);
@@ -966,6 +974,10 @@ export default function CesiumMap({
     void viewer.dataSources.add(forestCoverDs);
     forestCoverDsRef.current = forestCoverDs;
 
+    const forestGenericDs = new CustomDataSource("forestGeneric");
+    void viewer.dataSources.add(forestGenericDs);
+    forestGenericDsRef.current = forestGenericDs;
+
     const tambonDs = new CustomDataSource("tambon");
     void viewer.dataSources.add(tambonDs);
     tambonDsRef.current = tambonDs;
@@ -1021,6 +1033,7 @@ export default function CesiumMap({
       adminDsRef.current = null;
       forestDsRef.current = null;
       forestCoverDsRef.current = null;
+      forestGenericDsRef.current = null;
       tambonDsRef.current = null;
       laoDsRef.current = null;
       schoolPinsDsRef.current = null;
@@ -2456,6 +2469,62 @@ export default function CesiumMap({
       });
     });
   }, [forestCoverPolys, showForestCover, national, status]);
+
+  // ── ป่าทั่วไป (OSM) — overlay อ้างอิง ไม่เข้าหลักฐานและไม่เข้าคะแนน ────────────
+  useEffect(() => {
+    if (!showForestGeneric || status !== "ready" || national) {
+      setForestGenericAreas(null);
+      setForestGenericErr("");
+      return;
+    }
+
+    const controller = new AbortController();
+    setForestGenericLoading(true);
+    setForestGenericErr("");
+    fetchGenericForest(center.lat, center.lng, FOREST_POLYGON_RADIUS_M, controller.signal)
+      .then((areas) => {
+        if (controller.signal.aborted) return;
+        setForestGenericAreas(areas);
+      })
+      .catch((e: unknown) => {
+        if (controller.signal.aborted) return;
+        setForestGenericAreas(null);
+        setForestGenericErr(e instanceof Error ? e.message : "โหลดพื้นที่ป่าจาก OpenStreetMap ไม่สำเร็จ");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setForestGenericLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [showForestGeneric, center.lat, center.lng, national, status]);
+
+  useEffect(() => {
+    const ds = forestGenericDsRef.current;
+    if (!ds || status !== "ready") return;
+    ds.entities.removeAll();
+    if (national || !showForestGeneric || !forestGenericAreas) return;
+
+    forestGenericAreas.forEach((area, areaIndex) => {
+      area.rings.forEach((ring, ringIndex) => {
+        const positions = ring.map(([lng, lat]) => Cartesian3.fromDegrees(lng, lat));
+        ds.entities.add({
+          id: `forest-generic-${areaIndex}-${ringIndex}`,
+          polyline: {
+            positions,
+            clampToGround: true,
+            width: 2,
+            material: Color.fromCssColorString(FOREST_GENERIC_LINE_COLOR).withAlpha(0.9),
+          },
+          polygon: {
+            hierarchy: positions,
+            material: Color.fromCssColorString(FOREST_GENERIC_COLOR).withAlpha(0.2),
+            outline: false,
+            heightReference: HeightReference.CLAMP_TO_GROUND,
+          },
+        });
+      });
+    });
+  }, [forestGenericAreas, showForestGeneric, national, status]);
 
   // ── ขอบเขตตำบล (COD-AB) + ระบุตำบลของจุดที่ตั้ง ─────────────────────────────
   useEffect(() => {
@@ -4078,6 +4147,36 @@ export default function CesiumMap({
                         ภาพนี้จึงถมพื้นที่โล่งกลางผืนป่าด้วย เพื่อให้ตรงกับตัวเลขสัดส่วนด้านบน
                       </p>
                       {forestCoverCredit ? <p className="map-note map-note-credit">{forestCoverCredit}</p> : null}
+                    </>
+                  ) : null}
+                </>
+              ) : null}
+
+              <label className="map-border-toggle">
+                <input
+                  type="checkbox"
+                  checked={showForestGeneric}
+                  onChange={(e) => setShowForestGeneric(e.target.checked)}
+                />
+                <span>แสดงป่าทั่วไปจาก OpenStreetMap (อ้างอิง · ไม่ครบ)</span>
+              </label>
+              {showForestGeneric ? (
+                <>
+                  {forestGenericLoading ? (
+                    <p className="map-note">กำลังโหลดป่าทั่วไปจาก OpenStreetMap…</p>
+                  ) : null}
+                  {forestGenericErr ? <p className="map-note map-note-error">{forestGenericErr}</p> : null}
+                  {!forestGenericLoading && forestGenericAreas ? (
+                    <>
+                      <p className="map-note">
+                        วาด {forestGenericAreas.length.toLocaleString("th-TH")} ผืนในรัศมี{" "}
+                        {(FOREST_POLYGON_RADIUS_M / 1000).toLocaleString("th-TH")} กม.
+                      </p>
+                      <p className="map-note map-note-warn">
+                        ป่าที่อาสาสมัครแท็กไว้ใน OpenStreetMap เท่านั้น ไม่ครบและไม่ใช่ชั้นราชการ —
+                        พื้นที่ที่ไม่มีเส้นในชั้นนี้ไม่ได้แปลว่าไม่ใช่ป่า ให้ยึดชั้นกรมป่าไม้เป็นหลัก
+                      </p>
+                      <p className="map-note map-note-credit">{GENERIC_FOREST_ATTRIBUTION}</p>
                     </>
                   ) : null}
                 </>

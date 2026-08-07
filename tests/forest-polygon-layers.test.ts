@@ -30,3 +30,22 @@ test("ยกเลิกคำขอที่ค้างเมื่อย้�
   const before = source.slice(0, keyIndex);
   assert.match(before.slice(-2000), /controller\.abort\(\)/);
 });
+
+test("ชั้นป่าทั่วไป OSM ปิดเป็นค่าเริ่มต้น", () => {
+  assert.match(source, /const \[showForestGeneric, setShowForestGeneric\] = useState\(false\)/);
+});
+
+test("ป่าทั่วไปดึงผ่านโมดูลที่แยกไว้ ไม่ผ่าน classifyForestOverlay", () => {
+  assert.match(source, /fetchGenericForest\(/);
+  const generic = source.slice(source.indexOf("fetchGenericForest("));
+  assert.doesNotMatch(generic.slice(0, 1500), /classifyForestOverlay/);
+});
+
+test("แสดงเครดิต OpenStreetMap เมื่อเปิดชั้นป่าทั่วไป (ODbL กำหนดให้ต้องแสดง)", () => {
+  assert.match(source, /GENERIC_FOREST_ATTRIBUTION/);
+});
+
+test("ป่าทั่วไปวาดคนละสีกับสภาพป่าจริง", () => {
+  assert.match(source, /const FOREST_GENERIC_COLOR = "#84cc16"/);
+  assert.match(source, /const FOREST_COVER_COLOR = "#16a34a"/);
+});
