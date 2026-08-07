@@ -129,6 +129,7 @@ import {
   fetchForestBoundaries,
 } from "@/lib/map/forestBoundaries";
 import type { ForestBoundary, ForestOverlayResult, ForestZoneKind } from "@/lib/map/forestBoundaries";
+import type { ForestPolygonFeature } from "@/lib/map/forest-polygons";
 import { findTambonAt, loadTambonIndex, loadTambonProvince, provincesForPoint } from "@/lib/map/tambonBoundaries";
 import type { TambonBoundary } from "@/lib/map/tambonBoundaries";
 import { laoFullName, LAO_KIND_LABELS, loadLaoOffices, officesNear } from "@/lib/map/laoOffices";
@@ -250,6 +251,15 @@ const FOREST_KIND_COLORS: Record<ForestZoneKind, string> = {
   other_protected: "#4d7c0f",
   unclassified: "#365314",
 };
+
+/** รัศมีที่ดึง polygon ป่ามาวาด — ตรงกับ clamp ฝั่ง route /api/forest-status/polygons */
+const FOREST_POLYGON_RADIUS_M = 10_000;
+/** สภาพป่าจริง (กรมป่าไม้) — เขียวเข้ม แยกจากโทนของชั้นแนวเขตคุ้มครอง */
+const FOREST_COVER_COLOR = "#16a34a";
+const FOREST_COVER_LINE_COLOR = "#15803d";
+/** ป่าทั่วไป (OSM) — เขียวอมเหลือง ให้ต่างจากชั้นสภาพป่าจริงด้วยตาเปล่า */
+const FOREST_GENERIC_COLOR = "#84cc16";
+const FOREST_GENERIC_LINE_COLOR = "#4d7c0f";
 
 // รัศมีค้นหาสำนักงาน อปท. รอบจุดวิเคราะห์ (ม.) — กว้างพอให้เห็นทั้ง อปท. ที่ครอบและที่ติดกัน
 const LAO_NEARBY_RADIUS_M = 20_000;
@@ -649,6 +659,7 @@ export default function CesiumMap({
   const sectorsDsRef = useRef<CustomDataSource | null>(null); // ธงจุดสูงสุด/ต่ำสุด 8 ทิศ
   const adminDsRef = useRef<CustomDataSource | null>(null); // เขตเทศบาล (overlay อ้างอิง)
   const forestDsRef = useRef<CustomDataSource | null>(null); // แนวเขตป่า / พื้นที่คุ้มครอง
+  const forestCoverDsRef = useRef<CustomDataSource | null>(null); // สภาพพื้นที่ป่าจริง (กรมป่าไม้)
   const tambonDsRef = useRef<CustomDataSource | null>(null); // ขอบเขตตำบล (COD-AB)
   const laoDsRef = useRef<CustomDataSource | null>(null); // หมุดสำนักงาน อปท. (ทะเบียน สถ.)
   const schoolPinsDsRef = useRef<CustomDataSource | null>(null); // หมุดภาพรวมโรงเรียน (admin โหมดทั้งประเทศ)
@@ -737,6 +748,12 @@ export default function CesiumMap({
   const [forestOverlay, setForestOverlay] = useState<ForestOverlayResult | null>(null);
   const [forestLoading, setForestLoading] = useState(false);
   const [forestErr, setForestErr] = useState("");
+  // สภาพพื้นที่ป่าจริง (กรมป่าไม้) — วาดจาก geometry ที่เซิร์ฟเวอร์ตัดมาให้ ปิดเป็นค่าเริ่มต้น
+  const [showForestCover, setShowForestCover] = useState(false);
+  const [forestCoverPolys, setForestCoverPolys] = useState<ForestPolygonFeature[] | null>(null);
+  const [forestCoverCredit, setForestCoverCredit] = useState("");
+  const [forestCoverLoading, setForestCoverLoading] = useState(false);
+  const [forestCoverErr, setForestCoverErr] = useState("");
   // ชั้นสถานภาพป่า (กรมป่าไม้) จาก /api/forest-status — null = ยังไม่โหลดหรือไม่มีไฟล์ cells
   const [forestStatusLayer, setForestStatusLayer] = useState<ForestStatusLayer | null>(null);
   const [forestTypeLayer, setForestTypeLayer] = useState<ForestTypeLayer | null>(null);
@@ -945,6 +962,10 @@ export default function CesiumMap({
     void viewer.dataSources.add(forestDs);
     forestDsRef.current = forestDs;
 
+    const forestCoverDs = new CustomDataSource("forestCover");
+    void viewer.dataSources.add(forestCoverDs);
+    forestCoverDsRef.current = forestCoverDs;
+
     const tambonDs = new CustomDataSource("tambon");
     void viewer.dataSources.add(tambonDs);
     tambonDsRef.current = tambonDs;
@@ -999,6 +1020,7 @@ export default function CesiumMap({
       sectorsDsRef.current = null;
       adminDsRef.current = null;
       forestDsRef.current = null;
+      forestCoverDsRef.current = null;
       tambonDsRef.current = null;
       laoDsRef.current = null;
       schoolPinsDsRef.current = null;
@@ -2356,6 +2378,84 @@ export default function CesiumMap({
       });
     }
   }, [forestBoundaries, showForestBoundaries, national, status]);
+
+  // ── สภาพพื้นที่ป่าจริง (กรมป่าไม้) — geometry สำหรับวาดเท่านั้น ไม่เข้าคะแนน ──
+  useEffect(() => {
+    if (!showForestCover || status !== "ready" || national) {
+      setForestCoverPolys(null);
+      setForestCoverCredit("");
+      setForestCoverErr("");
+      return;
+    }
+
+    const controller = new AbortController();
+    setForestCoverLoading(true);
+    setForestCoverErr("");
+    const q = new URLSearchParams({
+      lat: String(center.lat),
+      lng: String(center.lng),
+      radius: String(FOREST_POLYGON_RADIUS_M),
+    });
+    fetch(`/api/forest-status/polygons?${q.toString()}`, { signal: controller.signal })
+      .then((r) => r.json())
+      .then(
+        (data: {
+          available?: boolean;
+          attribution?: string;
+          features?: ForestPolygonFeature[];
+          message?: string;
+        }) => {
+          if (controller.signal.aborted) return;
+          if (!data.available) {
+            setForestCoverPolys(null);
+            setForestCoverCredit("");
+            setForestCoverErr(data.message || "ยังไม่ได้ติดตั้งชั้นสภาพพื้นที่ป่าในเซิร์ฟเวอร์");
+            return;
+          }
+          setForestCoverPolys(data.features ?? []);
+          setForestCoverCredit(data.attribution ?? "");
+        },
+      )
+      .catch((e: unknown) => {
+        if (controller.signal.aborted) return;
+        setForestCoverPolys(null);
+        setForestCoverCredit("");
+        setForestCoverErr(e instanceof Error ? e.message : "โหลดพื้นที่ป่าไม่สำเร็จ");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setForestCoverLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [showForestCover, center.lat, center.lng, national, status]);
+
+  useEffect(() => {
+    const ds = forestCoverDsRef.current;
+    if (!ds || status !== "ready") return;
+    ds.entities.removeAll();
+    if (national || !showForestCover || !forestCoverPolys) return;
+
+    forestCoverPolys.forEach((feature, featureIndex) => {
+      feature.rings.forEach((ring, ringIndex) => {
+        const positions = ring.map(([lng, lat]) => Cartesian3.fromDegrees(lng, lat));
+        ds.entities.add({
+          id: `forest-cover-${featureIndex}-${ringIndex}`,
+          polyline: {
+            positions,
+            clampToGround: true,
+            width: 2,
+            material: Color.fromCssColorString(FOREST_COVER_LINE_COLOR).withAlpha(0.9),
+          },
+          polygon: {
+            hierarchy: positions,
+            material: Color.fromCssColorString(FOREST_COVER_COLOR).withAlpha(0.2),
+            outline: false,
+            heightReference: HeightReference.CLAMP_TO_GROUND,
+          },
+        });
+      });
+    });
+  }, [forestCoverPolys, showForestCover, national, status]);
 
   // ── ขอบเขตตำบล (COD-AB) + ระบุตำบลของจุดที่ตั้ง ─────────────────────────────
   useEffect(() => {
@@ -3953,6 +4053,34 @@ export default function CesiumMap({
                     </p>
                   )}
                 </div>
+              ) : null}
+
+              <label className="map-border-toggle">
+                <input
+                  type="checkbox"
+                  checked={showForestCover}
+                  onChange={(e) => setShowForestCover(e.target.checked)}
+                />
+                <span>แสดงพื้นที่ป่าจริงบนแผนที่ (กรมป่าไม้ · ชั้น Status)</span>
+              </label>
+              {showForestCover ? (
+                <>
+                  {forestCoverLoading ? <p className="map-note">กำลังโหลดพื้นที่ป่า…</p> : null}
+                  {forestCoverErr ? <p className="map-note map-note-error">{forestCoverErr}</p> : null}
+                  {!forestCoverLoading && forestCoverPolys ? (
+                    <>
+                      <p className="map-note">
+                        วาด {forestCoverPolys.length.toLocaleString("th-TH")} ผืนในรัศมี{" "}
+                        {(FOREST_POLYGON_RADIUS_M / 1000).toLocaleString("th-TH")} กม.
+                      </p>
+                      <p className="map-note map-note-warn">
+                        ชุดข้อมูลไม่ได้แยก “ขอบนอก” กับ “รูใน” และตัวคำนวณเกณฑ์ก็นับทุกวงเป็นป่า
+                        ภาพนี้จึงถมพื้นที่โล่งกลางผืนป่าด้วย เพื่อให้ตรงกับตัวเลขสัดส่วนด้านบน
+                      </p>
+                      {forestCoverCredit ? <p className="map-note map-note-credit">{forestCoverCredit}</p> : null}
+                    </>
+                  ) : null}
+                </>
               ) : null}
 
               <label className="map-border-toggle">
