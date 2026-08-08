@@ -41,6 +41,23 @@ export interface HighlandScreenInput {
   popDensityPerKm2?: number | null;
   /** กลุ่มเกาะจาก terrain-signature — ห้ามดัน highland จากป่าบนเกาะ */
   isIsland?: boolean;
+  /**
+   * โรงเรียนอยู่ในบัญชีสำนักงานในพื้นที่พิเศษตามประกาศกระทรวงการคลัง (ตาราง treasury_special_area)
+   * undefined/null = ไม่อยู่ในบัญชี หรือยังไม่ได้ตรวจ
+   *
+   * เป็น "ประตูเปิดเข้าให้พิจารณาต่อ" เท่านั้น — ห้ามนำไปคิดคะแนน เพราะการให้คะแนนจากประกาศเดิม
+   * เท่ากับให้ระบบใหม่รับรองคำตัดสินเก่าของตัวเอง (ดู docs/RECOMMENDATIONS-เกณฑ์2569.md ข้อ 16)
+   * ที่ปลอดภัยเพราะโรงเรียนยังต้องไปหาคะแนนจากเกณฑ์จริงเองทุกข้อ ถ้าประกาศเก่าเกินจริงก็จะตกเอง
+   */
+  treasuryDesignation?: TreasuryDesignation | null;
+}
+
+/** แถวอ้างอิงจากบัญชีประกาศกระทรวงการคลัง — ข้อมูลทางการ โรงเรียนกรอกเองไม่ได้ */
+export interface TreasuryDesignation {
+  /** ปีงบประมาณของประกาศ (พ.ศ.) */
+  fiscalYear: number;
+  /** เลขที่หนังสือ เช่น "กค 0408.5/ว 95" — ไม่มีก็ได้ */
+  announcementRef?: string | null;
 }
 
 export interface HighlandScreenResult {
@@ -57,6 +74,8 @@ export interface HighlandScreenResult {
   forestLegalContributes: boolean;
   /** เมืองบนดอย: สูง + ชุมชนใหญ่ + ป่าใน 1 กม. ต่ำ */
   highElevUrban: boolean;
+  /** ผ่านประตูด้วยบัญชีประกาศกระทรวงการคลัง (ไม่เกี่ยวกับคะแนน) */
+  treasuryDesignated: boolean;
   reasons: string[];
   reviewFlags: string[];
   forestMetrics: ForestAnalysis["metrics"] | null;
@@ -172,6 +191,19 @@ export function classifyHighlandScreen(input: HighlandScreenInput): HighlandScre
   let forestStatusContributes = false;
   let forestLegalContributes = false;
 
+  // ประกาศกระทรวงการคลัง — ประตูอิสระ ไม่ผูกกับป่า/ความสูง/เกาะ และไม่แตะสัญญาณอื่นเลย
+  // (หน่วยงานทางการตรวจพื้นที่มาแล้ว จึงไม่ต้องพิสูจน์ภูมิประเทศซ้ำเพื่อ "เข้ามาถูกประเมิน")
+  const treasury = input.treasuryDesignation ?? null;
+  const treasuryDesignated = !!treasury && Number.isFinite(treasury.fiscalYear);
+  if (treasuryDesignated && treasury) {
+    candidate = true;
+    const ref = String(treasury.announcementRef || "").trim();
+    reasons.push(
+      `อยู่ในบัญชีสำนักงานในพื้นที่พิเศษ ประกาศกระทรวงการคลัง ปีงบประมาณ ${treasury.fiscalYear}` +
+        (ref ? ` (${ref})` : ""),
+    );
+  }
+
   // สภาพป่าจริง (กรมป่าไม้ cover) — context แข็งผ่านประตูได้
   if (!isIsland && statusAuth === "rfd-forest-cover") {
     if (context === "strong") {
@@ -236,6 +268,7 @@ export function classifyHighlandScreen(input: HighlandScreenInput): HighlandScre
     forestStatusContributes,
     forestLegalContributes,
     highElevUrban,
+    treasuryDesignated,
     reasons,
     reviewFlags,
     forestMetrics: metrics,

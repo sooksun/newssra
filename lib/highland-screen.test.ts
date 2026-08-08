@@ -176,3 +176,81 @@ test("terrain highland (หุบเขา) → candidate", () => {
   assert.equal(r.terrainHighland, true);
   assert.equal(r.candidate, true);
 });
+
+// ── ประตูที่ 6: ประกาศกระทรวงการคลัง (บัญชีสำนักงานในพื้นที่พิเศษ) ──────────────
+
+test("ประกาศคลัง → ผ่านประตูแม้ไม่มีสัญญาณภูมิประเทศเลย", () => {
+  const plain = {
+    schoolElevationM: 120,
+    provinceAvgElev: 200,
+    routeFullMaxElev: null,
+    landformTh: "",
+    accessSeverity: 0,
+  };
+  const without = classifyHighlandScreen(plain);
+  assert.equal(without.candidate, false);
+
+  const withTreasury = classifyHighlandScreen({
+    ...plain,
+    treasuryDesignation: { fiscalYear: 2569, announcementRef: "กค 0408.5/ว 95" },
+  });
+  assert.equal(withTreasury.candidate, true);
+  assert.equal(withTreasury.treasuryDesignated, true);
+  assert.ok(withTreasury.reasons.some((r) => r.includes("กระทรวงการคลัง")));
+  assert.ok(withTreasury.reasons.some((r) => r.includes("2569")));
+});
+
+test("ประกาศคลังไม่แตะสัญญาณอื่น — elevGate/terrain/ป่า ต้องคงค่าเดิม", () => {
+  const base = {
+    schoolElevationM: 120,
+    provinceAvgElev: 200,
+    routeFullMaxElev: null,
+    landformTh: "",
+    accessSeverity: 0,
+  };
+  const r = classifyHighlandScreen({ ...base, treasuryDesignation: { fiscalYear: 2569 } });
+  assert.equal(r.elevGate, false);
+  assert.equal(r.terrainHighland, false);
+  assert.equal(r.forestStatusContributes, false);
+  assert.equal(r.forestLegalContributes, false);
+});
+
+test("ไม่มีประกาศคลัง → treasuryDesignated=false และไม่มีเหตุผลเรื่องประกาศ", () => {
+  const r = classifyHighlandScreen({
+    schoolElevationM: 620,
+    provinceAvgElev: 200,
+    routeFullMaxElev: null,
+    landformTh: "",
+    accessSeverity: 1,
+  });
+  assert.equal(r.treasuryDesignated, false);
+  assert.ok(!r.reasons.some((x) => x.includes("กระทรวงการคลัง")));
+});
+
+test("ประกาศคลังใช้กับเกาะได้ด้วย — ประตูนี้ไม่ผูกกับป่า/พื้นที่สูง", () => {
+  const r = classifyHighlandScreen({
+    schoolElevationM: 15,
+    provinceAvgElev: 100,
+    routeFullMaxElev: null,
+    landformTh: "",
+    accessSeverity: 1,
+    isIsland: true,
+    treasuryDesignation: { fiscalYear: 2569 },
+  });
+  assert.equal(r.candidate, true);
+  assert.equal(r.treasuryDesignated, true);
+});
+
+test("ประกาศคลังที่ไม่มีเลขที่ประกาศ → ยังผ่าน และเหตุผลไม่มีวงเล็บว่าง", () => {
+  const r = classifyHighlandScreen({
+    schoolElevationM: 120,
+    provinceAvgElev: 200,
+    routeFullMaxElev: null,
+    landformTh: "",
+    accessSeverity: 0,
+    treasuryDesignation: { fiscalYear: 2569 },
+  });
+  assert.equal(r.candidate, true);
+  const line = r.reasons.find((x) => x.includes("กระทรวงการคลัง")) ?? "";
+  assert.ok(!line.includes("()"), `เหตุผลต้องไม่มีวงเล็บว่าง: ${line}`);
+});

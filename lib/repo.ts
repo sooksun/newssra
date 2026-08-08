@@ -14,6 +14,7 @@ import type {
 } from "./types";
 import { COMMUNITY_LIST_UNINDEXED_KEY, isCommunityCompositeKey } from "./community-class";
 import { computeCommunityClass } from "./gis";
+import type { TreasuryDesignation } from "./highland-screen";
 import { applyMapGisToState, fillBlankUnitFromMaster } from "./map-assessment";
 import type { MapAssessmentSaveResult, SaveAssessmentFromMapInput, SchoolAssessmentMaster } from "./map-assessment";
 import { isSchoolPinSubmitted, resolvePinCoord, schoolPinStatus, type SchoolPin } from "./school-pins";
@@ -891,4 +892,39 @@ export async function listAllFeedback(limit: number = FEEDBACK_ROW_CAP): Promise
       generalFeedback: state.generalFeedback,
     };
   });
+}
+
+/**
+ * โรงเรียนอยู่ในบัญชีสำนักงานในพื้นที่พิเศษตามประกาศกระทรวงการคลังหรือไม่ (ปีล่าสุดที่นำเข้า)
+ *
+ * ตาราง treasury_special_area นำเข้าจากไฟล์ประกาศเท่านั้น (npm run treasury:import) โรงเรียนกรอกเองไม่ได้
+ * ใช้เปิดประตูด่านคัดกรองที่ 1 (lib/highland-screen.ts) — **ห้ามนำไปคิดคะแนน**
+ *
+ * รหัส: แอปใช้รหัส 8 หลัก (sc_smis) แต่บัญชีจับคู่ไว้กับ sc_id (10 หลัก) จึง join ผ่าน master_school
+ * ตารางหาย/ยังไม่ได้นำเข้า → null (ไม่ throw) เพื่อให้ประตูอื่นทำงานต่อได้ตามปกติ
+ */
+export async function treasuryDesignationForSchool(schoolCode: string): Promise<TreasuryDesignation | null> {
+  const code = String(schoolCode || "").trim();
+  if (!code) return null;
+  const pool = await getPool();
+  try {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT t.fiscal_year AS fiscalYear, t.announcement_ref AS announcementRef
+         FROM treasury_special_area t
+         JOIN master_school m ON m.sc_id = t.school_code
+        WHERE (m.sc_smis = ? OR m.sc_id = ?)
+        ORDER BY t.fiscal_year DESC
+        LIMIT 1`,
+      [code, code],
+    );
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      fiscalYear: Number(row.fiscalYear),
+      announcementRef: typeof row.announcementRef === "string" ? row.announcementRef : null,
+    };
+  } catch (error) {
+    console.error("[repo] treasuryDesignationForSchool failed (ยังไม่ได้ npm run treasury:import?):", error);
+    return null;
+  }
 }
