@@ -81,6 +81,37 @@ CREATE TABLE IF NOT EXISTS app_settings (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 `;
 
+/**
+ * บัญชีสำนักงานในพื้นที่พิเศษตามประกาศกระทรวงการคลัง (รายปีงบประมาณ)
+ *
+ * เป็น "ทะเบียนอ้างอิงทางการ" ที่นำเข้าจากไฟล์ประกาศเท่านั้น (scripts/import-treasury-special-area.mjs)
+ * โรงเรียนกรอกเองไม่ได้ และ **ห้ามนำไปคิดคะแนน** — ใช้เปิดประตูด่านคัดกรองที่ 1 อย่างเดียว
+ * (ดู lib/highland-screen.ts) เพราะการให้คะแนนจากประกาศเดิมเท่ากับรับรองคำตัดสินเก่าของตัวเอง
+ */
+export const TREASURY_SPECIAL_AREA_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS treasury_special_area (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  fiscal_year SMALLINT NOT NULL,
+  announcement_ref VARCHAR(64) NOT NULL DEFAULT '',
+  announced_on DATE NULL,
+  province VARCHAR(120) NOT NULL,
+  seq INT NULL,
+  office_name VARCHAR(255) NOT NULL,
+  tambon VARCHAR(120) NOT NULL DEFAULT '',
+  amphoe VARCHAR(120) NOT NULL DEFAULT '',
+  is_school TINYINT(1) NOT NULL DEFAULT 0,
+  school_code VARCHAR(16) NULL,
+  match_method VARCHAR(32) NULL,
+  source_page SMALLINT NULL,
+  uncertain TINYINT(1) NOT NULL DEFAULT 0,
+  imported_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_tsa_year_province_seq (fiscal_year, province, seq),
+  KEY idx_tsa_school_code (school_code),
+  KEY idx_tsa_year_school (fiscal_year, school_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+`;
+
 let poolPromise: Promise<Pool> | null = null;
 
 async function init(): Promise<Pool> {
@@ -107,6 +138,7 @@ async function init(): Promise<Pool> {
     await pool.query(SCHEMA_SQL);
     await pool.query(USERS_SCHEMA_SQL);
     await pool.query(SETTINGS_SCHEMA_SQL);
+    await pool.query(TREASURY_SPECIAL_AREA_SCHEMA_SQL);
 
     // migration สำหรับฐานข้อมูลเดิม — MySQL 8 ไม่มี ADD COLUMN IF NOT EXISTS จึงเช็ค information_schema ก่อน
     await ensureColumn(

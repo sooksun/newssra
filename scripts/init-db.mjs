@@ -77,6 +77,32 @@ CREATE TABLE IF NOT EXISTS app_settings (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
 `;
 
+// บัญชีสำนักงานในพื้นที่พิเศษตามประกาศกระทรวงการคลัง — นำเข้าด้วย scripts/import-treasury-special-area.mjs
+// ทะเบียนอ้างอิงทางการ: โรงเรียนกรอกเองไม่ได้ และห้ามนำไปคิดคะแนน (ใช้เปิดประตูด่านคัดกรองที่ 1 เท่านั้น)
+const TREASURY_SPECIAL_AREA_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS treasury_special_area (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  fiscal_year SMALLINT NOT NULL,
+  announcement_ref VARCHAR(64) NOT NULL DEFAULT '',
+  announced_on DATE NULL,
+  province VARCHAR(120) NOT NULL,
+  seq INT NULL,
+  office_name VARCHAR(255) NOT NULL,
+  tambon VARCHAR(120) NOT NULL DEFAULT '',
+  amphoe VARCHAR(120) NOT NULL DEFAULT '',
+  is_school TINYINT(1) NOT NULL DEFAULT 0,
+  school_code VARCHAR(16) NULL,
+  match_method VARCHAR(32) NULL,
+  source_page SMALLINT NULL,
+  uncertain TINYINT(1) NOT NULL DEFAULT 0,
+  imported_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_tsa_year_province_seq (fiscal_year, province, seq),
+  KEY idx_tsa_school_code (school_code),
+  KEY idx_tsa_year_school (fiscal_year, school_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+`;
+
 console.log(`[db:init] connecting to ${config.host}:${config.port} as ${config.user}`);
 const conn = await createConnection(config);
 await conn.query(
@@ -86,6 +112,7 @@ await conn.changeUser({ database: dbName });
 await conn.query(SCHEMA_SQL);
 await conn.query(USERS_SCHEMA_SQL);
 await conn.query(SETTINGS_SCHEMA_SQL);
+await conn.query(TREASURY_SPECIAL_AREA_SCHEMA_SQL);
 
 // migration แถวเดิม (MySQL 8 ไม่มี ADD COLUMN IF NOT EXISTS จึงเช็ค information_schema ก่อน)
 async function ensureColumn(table, column, alterSql) {

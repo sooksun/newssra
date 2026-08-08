@@ -12,6 +12,7 @@
     "buildings:import": "node --import tsx scripts/import-buildings.mts",
     "borders:fetch": "node scripts/fetch-borders.mjs",
     "forest:import": "node scripts/import-forest-status.mjs",
+    "treasury:import": "node scripts/import-treasury-special-area.mjs",
     "forest:install-rfd": "py -3 scripts/install-rfd-nrf.py",
     "geo:fetch": "node scripts/fetch-tambon-boundaries.mjs && node scripts/fetch-lao-offices.mjs",
     "users:migrate": "node scripts/migrate-legacy-users.mjs",
