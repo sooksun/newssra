@@ -235,6 +235,15 @@ export default function GisAssessmentPanel({
                     : "กำลังสุ่มความสูง…"}
                 </dd>
               </div>
+              {r.ridgeCrossings ? (
+                <div>
+                  <dt>ข้ามภูเขา</dt>
+                  <dd>
+                    ~{r.ridgeCrossings.count.toLocaleString("th-TH")} ลูก • สันเขาจริงที่แนวข้างยืนยัน{" "}
+                    {r.ridgeCrossings.confirmedCount.toLocaleString("th-TH")} ลูก
+                  </dd>
+                </div>
+              ) : null}
             </dl>
           </div>
         ))

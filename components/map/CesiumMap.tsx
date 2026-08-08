@@ -132,6 +132,8 @@ import type { ForestBoundary, ForestOverlayResult, ForestZoneKind } from "@/lib/
 import type { ForestPolygonFeature } from "@/lib/map/forest-polygons";
 import { fetchGenericForest, GENERIC_FOREST_ATTRIBUTION } from "@/lib/map/forest-generic";
 import type { GenericForestArea } from "@/lib/map/forest-generic";
+import { countRidgeCrossings, sampleWaveLines } from "@/lib/map/routeWaves";
+import type { RidgeCrossingsResult } from "@/lib/map/routeWaves";
 import { findTambonAt, loadTambonIndex, loadTambonProvince, provincesForPoint } from "@/lib/map/tambonBoundaries";
 import type { TambonBoundary } from "@/lib/map/tambonBoundaries";
 import { laoFullName, LAO_KIND_LABELS, loadLaoOffices, officesNear } from "@/lib/map/laoOffices";
@@ -801,6 +803,8 @@ export default function CesiumMap({
   const [addingDest, setAddingDest] = useState(false);
   // ความสูงสะสมของเส้นทางหลัก (ศาลากลาง→จุดวิเคราะห์ เส้นที่เลือก) — null = ยังไม่ได้/สุ่มไม่สำเร็จ
   const [mainRouteGain, setMainRouteGain] = useState<{ gainM: number; lossM: number } | null>(null);
+  // ผลนับลูกคลื่นภูเขาบนเส้นทางหลัก (3 แนวขนาน) — วัดใหม่ทุกครั้งที่เส้นทางที่เลือกเปลี่ยน
+  const [mainRouteRidges, setMainRouteRidges] = useState<RidgeCrossingsResult | null>(null);
   const [routeElevationProfile, setRouteElevationProfile] = useState<RouteElevationProfile | null>(null);
   const [routeElevationStatus, setRouteElevationStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [savingGis, setSavingGis] = useState(false);
@@ -2863,6 +2867,47 @@ export default function CesiumMap({
     };
   }, [center.lat, center.lng, national, terrainReady, routeSettled, routeAlternatives, selectedRouteIdx]);
 
+  // ── นับลูกคลื่นภูเขาบนเส้นทางหลัก: 3 แนวขนาน (กลาง + ซ้าย/ขวา ±200 ม.) ──
+  // แยก effect จากโปรไฟล์หลักเพราะจุด sample คนละชุด (ทุก 50 ม. ตลอดเส้น) และล้มเหลวเงียบได้
+  // โดยไม่ทำให้ metric อื่นพัง — ไม่มีผลนับ = มิติ ridges เป็น null ฝั่งเกณฑ์ 5 ระดับ
+  useEffect(() => {
+    setMainRouteRidges(null);
+    if (national || !terrainReady) return;
+    const provider = terrainRef.current;
+    const selected = routeAlternatives[selectedRouteIdx];
+    if (!provider || !selected || selected.coords.length < 2) return;
+
+    const lines = sampleWaveLines(selected.coords);
+    if (!lines) return;
+
+    let cancelled = false;
+    const sampleLine = async (pts: { lat: number; lng: number }[]) =>
+      Array.from(
+        await withTimeout(
+          sampleCesiumPoints(provider, pts, KEYLESS_SAMPLE_LEVEL),
+          ANALYSIS_TIMEOUT_MS,
+          "สุ่มความสูงแนวขนานใช้เวลานานเกินไป",
+        ),
+      );
+    // แนวข้างพังได้เป็นรายแนว (null ทั้งแนว → ตัวนับถือว่าไม่ยืนยัน) — แนวกลางพังคือไม่มีผล
+    Promise.all([
+      sampleLine(lines.center),
+      sampleLine(lines.left).catch(() => lines.left.map(() => null as number | null)),
+      sampleLine(lines.right).catch(() => lines.right.map(() => null as number | null)),
+    ])
+      .then(([centerElev, leftElev, rightElev]) => {
+        if (cancelled) return;
+        setMainRouteRidges(countRidgeCrossings(lines, centerElev, leftElev, rightElev));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setMainRouteRidges(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [national, terrainReady, routeAlternatives, selectedRouteIdx]);
+
   // ── เพิ่มจุดหมายวิเคราะห์จากผลค้นหา: ดึงเส้นทาง OSRM center→จุดหมาย + สุ่มความสูงสะสม ──
   const addGisDestination = useCallback(
     async (name: string, lat: number, lng: number, type: GisDestinationType) => {
@@ -3009,7 +3054,8 @@ export default function CesiumMap({
         },
         "",
       );
-      if (r) routes.push(r);
+      // preview ใช้ผลนับลูกชุดเดียวกับที่จะบันทึก — ตัวเลขบนจอต้องตรงกับที่เก็บ
+      if (r) routes.push(mainRouteRidges ? { ...r, ridgeCrossings: mainRouteRidges } : r);
     }
     for (const d of gisDestinations) {
       if (!d.route) continue;
@@ -3074,6 +3120,7 @@ export default function CesiumMap({
     center.lat,
     center.lng,
     mainRouteGain,
+    mainRouteRidges,
     gisDestinations,
     analysis,
     routeElevationProfile,
@@ -3122,6 +3169,8 @@ export default function CesiumMap({
         walkDestSnapM: walkLeg?.destSnapM ?? null,
         // จุดสูงสุดของเส้นทางหลัก = ชุดตัวอย่างเดียวกับธงแดงบนแผนที่ → ค่า max ที่บันทึกตรงกับที่ผู้ใช้เห็น
         highestPoint: routeElevationProfile?.highestPoint ?? null,
+        // ผลนับลูกคลื่นภูเขา (3 แนวขนาน) — server validate ช่วงค่าผ่าน cleanRidgeCrossings
+        ridgeCrossings: mainRouteRidges,
       });
     }
     for (const d of gisDestinations) {
@@ -3140,7 +3189,16 @@ export default function CesiumMap({
       });
     }
     return routes;
-  }, [routeAlternatives, selectedRouteIdx, province, mainRouteGain, gisDestinations, routeElevationProfile, walkLeg]);
+  }, [
+    routeAlternatives,
+    selectedRouteIdx,
+    province,
+    mainRouteGain,
+    mainRouteRidges,
+    gisDestinations,
+    routeElevationProfile,
+    walkLeg,
+  ]);
 
   // ── บันทึกครั้งเดียว: POST /api/assessments/from-map — server ผูกกับ (โรงเรียน, ปีปัจจุบัน) จาก session
   //    สร้าง/ปรับปรุงแบบประเมิน + กรอกข้อมูลประกอบ + คำนวณคะแนนด้านที่ 3 ให้เสมอ แล้วพาไปหน้าแบบประเมิน ──
