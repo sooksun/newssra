@@ -25,6 +25,8 @@ import type {
   GisElevationInfo,
   GisRadiusSummary,
   GisRouteAccess,
+  GisRidgeCrossings,
+  GisRidgeWave,
   GisRouteAnalysis,
   GisRouteHighestPoint,
   GisWalkLeg,
@@ -179,6 +181,12 @@ export const GIS_LIMITS = {
   /** สัดส่วนเส้นทางที่ผ่านภูมิประเทศภูเขา (%) */
   mountainPct: { min: 0, max: 100 },
   slopePct: { min: 0, max: 1000 },
+  /** ลูกคลื่นภูเขาบนเส้นทาง (route ridge crossings) */
+  ridgeCount: { min: 0, max: 500 },
+  ridgeAtKm: { min: 0, max: 1000 },
+  ridgeSpacingM: { min: 10, max: 2000 },
+  ridgeOffsetM: { min: 50, max: 1000 },
+  ridgeProminenceM: { min: 0, max: 4000 },
 } as const;
 
 /** เส้นทางที่ถนนสั้นกว่าเส้นตรงเกินค่านี้ = เป็นไปไม่ได้ทางฟิสิกส์ (เผื่อ error จากการ simplify geometry เล็กน้อย) */
@@ -688,6 +696,44 @@ export function cleanHighestPoint(value: unknown): GisRouteHighestPoint | null {
   return { lat: p.lat, lng: p.lng, elevationM };
 }
 
+/** จำนวนคลื่นที่เก็บต่อเส้นทาง — เกินนี้เก็บเฉพาะลูกแรก ๆ (count ยังนับครบ) */
+const MAX_RIDGE_WAVES = 30;
+
+/** ผลนับลูกเขาบนเส้นทาง — field หลักพัง = ทิ้งทั้งก้อน; คลื่นที่ค่านอกช่วงถูกตัดรายตัว
+ * export ให้ lib/gis-request.ts เรียกใช้ตรง ๆ (กันสูตร validate ซ้ำสองที่ เหมือน cleanHighestPoint) */
+export function cleanRidgeCrossings(value: unknown): GisRidgeCrossings | null {
+  if (!value || typeof value !== "object") return null;
+  const r = value as Record<string, unknown>;
+  const count = cleanNullableNum(r.count, GIS_LIMITS.ridgeCount, 0);
+  const confirmedCount = cleanNullableNum(r.confirmedCount, GIS_LIMITS.ridgeCount, 0);
+  const spacingM = cleanNullableNum(r.spacingM, GIS_LIMITS.ridgeSpacingM, 0);
+  const sideOffsetM = cleanNullableNum(r.sideOffsetM, GIS_LIMITS.ridgeOffsetM, 0);
+  const prominenceM = cleanNullableNum(r.prominenceM, GIS_LIMITS.ridgeProminenceM, 0);
+  if (count === null || confirmedCount === null || spacingM === null || sideOffsetM === null || prominenceM === null) {
+    return null;
+  }
+  // คลื่นรายตัวใช้ "อยู่ในช่วงจริง" ไม่ใช่ clamp — ตำแหน่ง/ความสูงที่หนีบเข้าช่วงคือข้อมูลแต่งใหม่
+  const inRange = (value: unknown, limit: { min: number; max: number }): value is number =>
+    typeof value === "number" && Number.isFinite(value) && value >= limit.min && value <= limit.max;
+  const waves: GisRidgeWave[] = [];
+  if (Array.isArray(r.waves)) {
+    for (const item of r.waves.slice(0, MAX_RIDGE_WAVES)) {
+      if (!item || typeof item !== "object") continue;
+      const w = item as Record<string, unknown>;
+      if (!inRange(w.atKm, GIS_LIMITS.ridgeAtKm)) continue;
+      if (!inRange(w.elevM, GIS_LIMITS.elevationM)) continue;
+      if (!inRange(w.prominenceM, GIS_LIMITS.ridgeProminenceM)) continue;
+      waves.push({
+        atKm: roundTo(w.atKm, 1),
+        elevM: roundTo(w.elevM, 0),
+        prominenceM: roundTo(w.prominenceM, 0),
+        confirmed: w.confirmed === true,
+      });
+    }
+  }
+  return { count, confirmedCount: Math.min(confirmedCount, count), spacingM, sideOffsetM, prominenceM, waves };
+}
+
 function cleanRoute(item: unknown): GisRouteAnalysis | null {
   if (!item || typeof item !== "object") return null;
   const r = item as Record<string, unknown>;
@@ -717,6 +763,8 @@ function cleanRoute(item: unknown): GisRouteAnalysis | null {
   if (r.mountainPct !== undefined) route.mountainPct = cleanNullableNum(r.mountainPct, GIS_LIMITS.mountainPct, 1);
   const highestPoint = cleanHighestPoint(r.highestPoint);
   if (highestPoint) route.highestPoint = highestPoint;
+  const ridgeCrossings = cleanRidgeCrossings(r.ridgeCrossings);
+  if (ridgeCrossings) route.ridgeCrossings = ridgeCrossings;
   const walkLeg = cleanWalkLeg(r.walkLeg);
   if (walkLeg) route.walkLeg = walkLeg;
   return route;

@@ -11,6 +11,7 @@ import {
   buildRouteAnalysis,
   cleanAreaSummary,
   cleanHighestPoint,
+  cleanRidgeCrossings,
   clampGisPayload,
   finalizeGisAnalysis,
   routePhysicsIssue,
@@ -138,7 +139,13 @@ export function buildGisFromMapRequest(input: unknown, context: GisRequestContex
       droppedRoutes.push(`เส้นทางไป${route.destinationName || "จุดหมาย"}: ${issue}`);
       continue;
     }
-    routes.push({ ...route, highestPoint: cleanRouteHighestPoint(item) });
+    // ridgeCrossings validate ด้วยฟังก์ชันเดียวกับ sanitizeGis (ไม่มี DEM ฝั่ง server จึงตรวจช่วงค่าอย่างเดียว)
+    const ridgeCrossings = cleanRidgeCrossings((item as Record<string, unknown>).ridgeCrossings);
+    routes.push({
+      ...route,
+      highestPoint: cleanRouteHighestPoint(item),
+      ...(ridgeCrossings ? { ridgeCrossings } : {}),
+    });
   }
   // สถานะการเข้าถึงด้วยถนน — server สรุปเองจากค่าดิบ ไม่รับ status/note จาก client
   //

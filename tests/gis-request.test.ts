@@ -42,6 +42,57 @@ test("buildGisFromMapRequest recomputes route ratios and keeps validated terrain
   assert.deepEqual(result.gis.routes[0].highestPoint, { lat: 20.3, lng: 99.5, elevationM: 1070 });
 });
 
+test("buildGisFromMapRequest คัดลอก ridgeCrossings ที่ valid และตัดของปลอมทิ้ง", () => {
+  const rawBody = {
+    center: { lat: 20.0, lng: 99.0 },
+    routes: [
+      {
+        destinationType: "province_hall",
+        destinationName: "ศาลากลางจังหวัดเชียงราย",
+        destLat: 20.3,
+        destLng: 99.5,
+        roadDistanceM: 74330,
+        durationS: 5400,
+        selected: true,
+        ridgeCrossings: {
+          count: 4,
+          confirmedCount: 2,
+          spacingM: 50,
+          sideOffsetM: 200,
+          prominenceM: 50,
+          waves: [{ atKm: 1.2, elevM: 700, prominenceM: 90, confirmed: true }],
+        },
+      },
+    ],
+  };
+  const result = buildGisFromMapRequest(rawBody, baseContext);
+  const rc = result.gis.routes[0].ridgeCrossings;
+  assert.ok(rc, "ridgeCrossings ต้องมากับ route");
+  assert.equal(rc.count, 4);
+  assert.equal(rc.confirmedCount, 2);
+  assert.equal(rc.waves.length, 1);
+
+  const forged = buildGisFromMapRequest(
+    {
+      center: { lat: 20.0, lng: 99.0 },
+      routes: [
+        {
+          destinationType: "province_hall",
+          destinationName: "x",
+          destLat: 20.3,
+          destLng: 99.5,
+          roadDistanceM: 74330,
+          durationS: 5400,
+          selected: true,
+          ridgeCrossings: { count: -50, confirmedCount: "โกง" },
+        },
+      ],
+    },
+    baseContext,
+  );
+  assert.equal("ridgeCrossings" in forged.gis.routes[0], false);
+});
+
 test("buildGisFromMapRequest rejects invalid center coordinates", () => {
   assert.throws(
     () => buildGisFromMapRequest({ center: { lat: 999, lng: 99 } }, baseContext),

@@ -621,6 +621,54 @@ describe("sanitizeGis + sanitizeState — allowlist และ round-trip", () =>
     assert.equal(gis?.elevation?.innerSlopePct, null);
   });
 
+  test("sanitizeGis: ridgeCrossings round-trip + ตัดคลื่นนอกช่วง + confirmedCount ไม่เกิน count", () => {
+    const raw = {
+      ...makeGis(),
+      routes: [
+        {
+          ...makeRoute(),
+          ridgeCrossings: {
+            count: 5,
+            confirmedCount: 9, // เกิน count → ถูกหนีบเหลือ 5
+            spacingM: 50,
+            sideOffsetM: 200,
+            prominenceM: 50,
+            waves: [
+              { atKm: 2.5, elevM: 812, prominenceM: 120, confirmed: true },
+              { atKm: 9999, elevM: 700, prominenceM: 90, confirmed: false }, // atKm นอกช่วง → ตัดทั้งคลื่น
+            ],
+          },
+        },
+      ],
+    };
+    const gis = sanitizeGis(raw);
+    const rc = gis?.routes[0]?.ridgeCrossings;
+    assert.ok(rc, "ridgeCrossings ต้องรอด sanitize");
+    assert.equal(rc.count, 5);
+    assert.equal(rc.confirmedCount, 5);
+    assert.equal(rc.spacingM, 50);
+    assert.equal(rc.sideOffsetM, 200);
+    assert.equal(rc.prominenceM, 50);
+    assert.equal(rc.waves.length, 1);
+    assert.equal(rc.waves[0].confirmed, true);
+    assert.equal(rc.waves[0].elevM, 812);
+  });
+
+  test("sanitizeGis: ไม่มี ridgeCrossings → ไม่งอก key (แถวเก่า round-trip)", () => {
+    const gis = sanitizeGis(makeGis());
+    assert.ok(gis);
+    assert.equal("ridgeCrossings" in gis.routes[0], false);
+  });
+
+  test("sanitizeGis: ridgeCrossings ที่ field หลักพัง → ทิ้งทั้งก้อน", () => {
+    const raw = {
+      ...makeGis(),
+      routes: [{ ...makeRoute(), ridgeCrossings: { count: "มาก", confirmedCount: 1, spacingM: 50 } }],
+    };
+    const gis = sanitizeGis(raw);
+    assert.equal("ridgeCrossings" in (gis?.routes[0] ?? {}), false);
+  });
+
   test("แถว v1 (ไม่มี gis) → ไม่งอก key gis/scoringVersion", () => {
     const out = sanitizeState(JSON.parse(JSON.stringify(makeBlankState())));
     assert.ok(!("gis" in out), "ต้องไม่มี key gis");

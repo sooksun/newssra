@@ -231,6 +231,8 @@ export interface GisRouteAnalysis {
   calculatedAt: string;
   /** จุดสูงสุดที่สุ่มได้ตามเส้นทางนี้ (พิกัด + ความสูง) — ชุดเดียวกับธงจุดสูงสุดบนแผนที่; null = ยังไม่ได้สุ่ม */
   highestPoint?: GisRouteHighestPoint | null;
+  /** ผลนับลูกคลื่นภูเขาที่เส้นทางข้าม (นับฝั่ง client จาก DEM 3 แนวขนาน) — undefined = แถวเก่าไม่มีข้อมูล */
+  ridgeCrossings?: GisRidgeCrossings;
   /** ช่วงเดินเท้าต่อท้าย เมื่อรถไปได้แค่ปลายถนน — undefined = ไม่มีช่วงเดิน (รถถึงโรงเรียนเลย) */
   walkLeg?: GisWalkLeg;
 }
@@ -254,6 +256,32 @@ export interface GisRouteHighestPoint {
   lat: number;
   lng: number;
   elevationM: number;
+}
+
+/** ลูกเขา 1 ลูกบนโปรไฟล์เส้นทาง — confirmed = แนวขนานซ้าย/ขวายืนยันว่าเป็นสันเขาจริง ไม่ใช่คลื่นเฉพาะแนวถนน */
+export interface GisRidgeWave {
+  /** ตำแหน่งบนเส้นทาง (กม. จากต้นทาง) */
+  atKm: number;
+  elevM: number;
+  /** ไต่จริงจากหุบก่อนหน้า (ม.) */
+  prominenceM: number;
+  confirmed: boolean;
+}
+
+/**
+ * ผลนับลูกคลื่นภูเขาที่เส้นทางต้องข้าม (ดูสเปก 2026-08-08-route-ridge-crossings)
+ * นับฝั่ง client จาก DEM (server ไม่มี DEM จึง validate ช่วงค่าอย่างเดียว — ข้อจำกัดเดียวกับ elevationGainM)
+ */
+export interface GisRidgeCrossings {
+  /** ลูกทั้งหมดบนแนวถนน */
+  count: number;
+  /** ลูกที่แนวข้าง ±sideOffsetM ยืนยันว่าเป็นสันเขาจริง */
+  confirmedCount: number;
+  /** ระยะสุ่มจริงตามแนวเส้น (ม.) */
+  spacingM: number;
+  sideOffsetM: number;
+  prominenceM: number;
+  waves: GisRidgeWave[];
 }
 
 /** 8 ทิศรอบจุดที่ตั้ง เรียงตามเข็มนาฬิกาจากทิศเหนือ (wedge ละ 45° โดยมีทิศนั้นอยู่กึ่งกลาง) */
