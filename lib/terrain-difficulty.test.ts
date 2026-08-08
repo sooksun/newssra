@@ -51,6 +51,8 @@ const BASE: TerrainDifficultyInput = {
   elevationGainM: 50,
   roadDistanceKm: 30,
   routeMountainPct: 0,
+  // 0 ไม่ใช่ null: เคสฐานคือ "วัดแล้วไม่มีสันเขา" — ให้เคสเดิมทุกตัวไม่โดนข้อความ missing ใหม่รบกวน
+  ridgeConfirmedCount: 0,
   forestSource: null,
   forestInside: 0,
   forestPct1km: 0,
@@ -87,6 +89,24 @@ test("ธง 8 ทิศไม่ครบ → บอกว่ายังตั
   const result = assessTerrainDifficulty(input({ schoolElevationM: 900, popDensityPerKm2: 200, sectors: null }));
   assert.equal(result.rugged, null);
   assert.ok(result.missing.some((m) => m.includes("8 ทิศ")));
+});
+
+// ── มิติที่ 7: จำนวนสันเขาจริงที่เส้นทางข้าม ─────────────────────────────────
+
+test("มิติ ridges: confirmedCount ≥ 3 นับเป็นอีกด้านของการเข้าถึงยาก", () => {
+  const without = assessTerrainDifficulty(input({ ridgeConfirmedCount: 0 }));
+  const withRidges = assessTerrainDifficulty(input({ ridgeConfirmedCount: 3 }));
+  assert.equal(withRidges.accessSignals, without.accessSignals + 1);
+  assert.ok(withRidges.accessSignalLabels.some((l) => l.includes("ข้ามภูเขา")));
+  const two = assessTerrainDifficulty(input({ ridgeConfirmedCount: 2 }));
+  assert.equal(two.accessSignals, without.accessSignals);
+});
+
+test("มิติ ridges: null (แถวเก่า) ไม่นับ และแจ้งใน missing", () => {
+  const without = assessTerrainDifficulty(input({ ridgeConfirmedCount: 0 }));
+  const missing = assessTerrainDifficulty(input({ ridgeConfirmedCount: null }));
+  assert.equal(missing.accessSignals, without.accessSignals);
+  assert.ok(missing.missing.some((m) => m.includes("จำนวนภูเขาที่ข้าม")));
 });
 
 // ── ระดับ 1–5 ตามข้อกำหนด ────────────────────────────────────────────────────

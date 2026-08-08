@@ -51,6 +51,9 @@ export const TD_ACCESS_CUTS = {
   distanceKm: 146,
   /** สัดส่วนเส้นทางที่ผ่านภูมิประเทศภูเขา (%) */
   mountainPct: 50,
+  /** จำนวนสันเขาจริงที่เส้นทางข้าม (confirmedCount — ยืนยันด้วยแนวขนาน ±200 ม.)
+   *  ค่าเริ่มต้นเชิงหลักการ ยังไม่ได้ calibrate กับประชากรจริง — ทบทวนเมื่อมีข้อมูลสะสมพอ */
+  ridgeCount: 3,
 } as const;
 
 /** ป่าจะหนุนได้ต่อเมื่อรอบโรงเรียนเป็นป่าจริงในระดับนี้ */
@@ -89,6 +92,8 @@ export interface TerrainDifficultyInput {
   roadDistanceKm: number | null;
   /** สัดส่วนเส้นทางที่ผ่านภูมิประเทศภูเขา (%) */
   routeMountainPct: number | null;
+  /** สันเขาจริงที่เส้นทางหลักข้าม (ridgeCrossings.confirmedCount) — null = แถวเก่าไม่มีข้อมูล */
+  ridgeConfirmedCount: number | null;
   /**
    * ตัวเลขป่ามาจากชั้นไหน — ตัดสินว่าใช้หนุนระดับได้หรือไม่
    *   "cover" = สภาพพื้นที่ป่าจริง (กรมป่าไม้) → ใช้หนุนได้
@@ -159,6 +164,7 @@ export function assessTerrainDifficulty(input: TerrainDifficultyInput): TerrainD
   const gain = finite(input.elevationGainM);
   const distanceKm = finite(input.roadDistanceKm);
   const mountainPct = finite(input.routeMountainPct);
+  const ridgeCount = finite(input.ridgeConfirmedCount);
   const forestPct1 = finite(input.forestPct1km);
   const forestPct3 = finite(input.forestPct3km);
 
@@ -200,6 +206,9 @@ export function assessTerrainDifficulty(input: TerrainDifficultyInput): TerrainD
   if (distanceKm !== null && distanceKm >= TD_ACCESS_CUTS.distanceKm) accessSignalLabels.push("ระยะทางไกล");
   if (mountainPct !== null && mountainPct >= TD_ACCESS_CUTS.mountainPct)
     accessSignalLabels.push("เส้นทางผ่านภูมิประเทศภูเขาเป็นส่วนใหญ่");
+  if (ridgeCount !== null && ridgeCount >= TD_ACCESS_CUTS.ridgeCount)
+    accessSignalLabels.push("ข้ามภูเขาหลายลูกกว่าจะถึง");
+  if (ridgeCount === null) missing.push("จำนวนภูเขาที่ข้ามบนเส้นทาง — บันทึกจากแผนที่อีกครั้งเพื่ออัปเดต");
   const accessSignals = accessSignalLabels.length;
   const hardAccess = accessSignals >= TD_HARD_ACCESS_SIGNALS;
 
@@ -358,6 +367,7 @@ export function terrainDifficultyFromGis(
     elevationGainM: ctx.route?.elevationGainM ?? null,
     roadDistanceKm: ctx.route?.roadDistanceKm ?? null,
     routeMountainPct: ctx.route?.mountainPct ?? null,
+    ridgeConfirmedCount: ctx.route?.ridgeCrossings?.confirmedCount ?? null,
     // ใช้ตัวเลขจากชั้น status เท่านั้น และพก authority มาด้วย เพื่อให้ตัวประเมินรู้ว่าเป็น
     // "สภาพป่าจริง" หรือ "แนวเขตป่าสงวน" — แถวที่บันทึกก่อนติดตั้งชั้นสภาพป่าจะเป็นอย่างหลัง
     // (metrics.forest_* ถอยมาใช้ไม่ได้ เพราะมันรวมค่าจาก legal โดยไม่บอกที่มาให้แยกได้)
