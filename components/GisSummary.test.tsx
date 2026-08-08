@@ -286,3 +286,34 @@ test("GisSummary แสดงระดับความยากลำบาก
   assert.match(html, /ความคดเคี้ยวของถนน/);
   assert.match(html, /ขนาดชุมชนรอบโรงเรียน/);
 });
+
+test("GisSummary แสดงจำนวนลูกเขาที่ข้าม พร้อมพารามิเตอร์ที่ใช้นับ", () => {
+  const gis: GisAnalysis = {
+    ...expandedGis,
+    routes: [
+      {
+        ...expandedGis.routes[0],
+        ridgeCrossings: {
+          count: 6,
+          confirmedCount: 4,
+          spacingM: 50,
+          sideOffsetM: 200,
+          prominenceM: 50,
+          waves: [{ atKm: 3.1, elevM: 900, prominenceM: 150, confirmed: true }],
+        },
+      },
+    ],
+  };
+  const html = renderToStaticMarkup(<GisSummary state={stateWithGis(gis)} assessmentId={21} />);
+  assert.match(html, /ภูเขาที่ต้องข้ามบนเส้นทาง/);
+  const row = html.slice(html.indexOf("ภูเขาที่ต้องข้ามบนเส้นทาง"));
+  assert.match(row.slice(0, 500), /6 ลูก/);
+  assert.match(row.slice(0, 500), /4 ลูก/);
+  assert.match(row.slice(0, 500), /±200 ม\./);
+  assert.match(row.slice(0, 500), /≥50 ม\./);
+});
+
+test("แถวเก่าที่ไม่มีผลนับลูกเขา → ไม่เรนเดอร์หัวข้อนี้ (ไม่เดาว่าเป็นศูนย์)", () => {
+  const html = renderToStaticMarkup(<GisSummary state={stateWithGis(expandedGis)} assessmentId={22} />);
+  assert.doesNotMatch(html, /ภูเขาที่ต้องข้ามบนเส้นทาง/);
+});

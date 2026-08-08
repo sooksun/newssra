@@ -607,6 +607,30 @@ export default function GisSummary({ state, assessmentId }: Props) {
         </dl>
       ) : null}
 
+      {gis.routes.some((r) => r.ridgeCrossings) ? (
+        <dl className="gis-evidence-grid gis-route-ridges">
+          {gis.routes
+            .filter((r) => r.ridgeCrossings)
+            .map((r, i) => (
+              <div key={i}>
+                <dt>
+                  ภูเขาที่ต้องข้ามบนเส้นทาง — {GIS_DESTINATION_LABELS[r.destinationType]}
+                  {r.destinationName && r.destinationType !== "province_hall" ? ` — ${r.destinationName}` : ""}
+                </dt>
+                <dd>
+                  {r.ridgeCrossings!.count.toLocaleString("th-TH")} ลูก · สันเขาจริงที่แนวข้างยืนยัน{" "}
+                  {r.ridgeCrossings!.confirmedCount.toLocaleString("th-TH")} ลูก
+                  <small>
+                    {" "}
+                    (นับจุดที่ไต่ขึ้นและลง ≥{r.ridgeCrossings!.prominenceM} ม. บนแนวถนน แล้วยืนยันด้วยแนวขนานซ้าย-ขวา ±
+                    {r.ridgeCrossings!.sideOffsetM} ม.)
+                  </small>
+                </dd>
+              </div>
+            ))}
+        </dl>
+      ) : null}
+
       {gisSeverity !== null ? (
         <p className="gis-severity-line">
           GIS ประเมินความยากลำบากในการเข้าถึง (3.2) ระดับ {gisSeverity} ({severityLabelTh(gisSeverity)})
